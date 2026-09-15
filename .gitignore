@@ -6,3 +6,30 @@ out
 .env.production
 *.log
 .DS_Store
+
+# Contains private customer queue data at runtime
+data/queue.json
+
+# Contains private custom-request customer data at runtime
+data/requests.json
+
+*.tsbuildinfo
+
+# Contains private customer profile/authentication data
+data/customers.json
+
+# Contains private customer status notifications
+data/notifications.json
+
+# Contains private account verification tokens and customer attachment metadata/files
+# (verification tokens are hashed; uploaded files are quarantined outside public/)
+data/account-verification.json
+data/customer-uploads.json
+data/customer-uploads/
+
+# V0.64 durable database, private object storage, and backup snapshots
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+storage/private/
+backups/

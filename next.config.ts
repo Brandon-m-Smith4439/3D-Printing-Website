@@ -19,6 +19,9 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "upload.wikimedia.org" }],
+  },
   async headers() {
     return [
       {

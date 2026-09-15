@@ -1,0 +1,10 @@
+"use client";
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+export default function ResetPasswordPage(){
+  const params=useSearchParams();const token=params.get("token")||"";const [message,setMessage]=useState("");const [success,setSuccess]=useState(false);const [busy,setBusy]=useState(false);
+  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const p=String(f.get("password")||"");const c=String(f.get("confirm")||"");if(p!==c){setMessage("Passwords do not match.");return;}setBusy(true);setMessage("");try{const r=await fetch("/api/account/password-reset/confirm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,password:p})});const j=await r.json() as {message?:string};if(!r.ok)throw new Error(j.message||"Could not reset password.");setSuccess(true);setMessage(j.message||"Password changed.");}catch(err){setMessage(err instanceof Error?err.message:"Could not reset password.");}finally{setBusy(false);}}
+  return <section className="section page-hero"><div className="container narrow-container"><div className="account-card"><p className="eyebrow">ACCOUNT RECOVERY</p><h1>Reset password</h1>{!token?<div className="form-status error">This reset link is missing its secure token.</div>:success?<><div className="form-status success">{message}</div><Link className="button" href="/login">Return to Sign In</Link></>:<form className="account-form" onSubmit={submit}><label><span>New password</span><input name="password" type="password" autoComplete="new-password" minLength={10} maxLength={128} required/></label><label><span>Confirm password</span><input name="confirm" type="password" autoComplete="new-password" minLength={10} maxLength={128} required/></label><button className="button" disabled={busy} type="submit">{busy?"Changing…":"Change Password"}</button>{message&&<div className="form-status error">{message}</div>}</form>}</div></div></section>;
+}

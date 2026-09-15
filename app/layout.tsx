@@ -2,19 +2,21 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { site } from "@/lib/site";
+import { getSiteContent } from "@/lib/site-content-store";
 
-export const metadata: Metadata = {
-  title: {
-    default: `${site.name} | Custom 3D Printing`,
-    template: `%s | ${site.name}`,
-  },
-  description: site.description,
-  robots: { index: true, follow: true },
-  icons: { icon: "/favicon.svg" },
-};
+export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export async function generateMetadata(): Promise<Metadata> {
+  const site = await getSiteContent();
+  return {
+    title: { default: `${site.name} | Custom 3D Printing`, template: `%s | ${site.name}` },
+    description: site.description,
+    robots: { index: true, follow: true },
+    icons: { icon: "/favicon.svg" },
+  };
+}
+
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>

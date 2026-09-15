@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { customRequestSchema, type CustomRequest } from "@/lib/request-schema";
+import { createStoredRequest } from "@/lib/request-store";
+import { assessCustomRequestRisk, type RequestRiskAssessment } from "@/lib/request-risk";
+import { customerFromRequest } from "@/lib/customer-auth";
+import { claimCustomerUploads, validateCustomerUploadClaims } from "@/lib/customer-upload-store";
 
 export const runtime = "nodejs";
 
@@ -40,9 +44,20 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+function configuredSecret(value?: string) {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "YOUR_SECRET_KEY" || trimmed.startsWith("YOUR_")) return "";
+  return trimmed;
+}
+
 async function verifyTurnstile(token: string, ip: string) {
-  const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return process.env.NODE_ENV !== "production";
+  // The development server is intentionally frictionless for local form testing.
+  // Production never uses this bypass and still requires real server-side verification.
+  if (process.env.NODE_ENV !== "production") return true;
+
+  const secret = configuredSecret(process.env.TURNSTILE_SECRET_KEY);
+  if (!secret || !token) return false;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
@@ -87,12 +102,18 @@ function originAllowed(request: NextRequest) {
   }
 }
 
-async function sendEmail(values: CustomRequest) {
+async function sendEmail(values: CustomRequest, risk: RequestRiskAssessment) {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.REQUEST_TO_EMAIL;
   const from = process.env.REQUEST_FROM_EMAIL;
 
-  if (!apiKey || !to || !from) {
+  const configured = Boolean(
+    apiKey && !apiKey.startsWith("YOUR_") &&
+    to && to !== "you@example.com" &&
+    from && !from.includes("yourdomain.com")
+  );
+
+  if (!configured) {
     if (process.env.NODE_ENV === "production") throw new Error("Request delivery is not configured.");
     console.info("Custom request (development):", values);
     return;
@@ -103,6 +124,8 @@ async function sendEmail(values: CustomRequest) {
     ["Email", values.email],
     ["Phone", values.phone || "—"],
     ["Project type", values.projectType],
+    ["3D model status", values.modelStatus],
+    ["Fulfillment", values.fulfillmentMethod],
     ["Quantity", String(values.quantity)],
     ["Dimensions", values.dimensions || "—"],
     ["Material", values.materialPreference],
@@ -110,11 +133,13 @@ async function sendEmail(values: CustomRequest) {
     ["Budget", values.budget || "—"],
     ["Needed by", values.neededBy || "—"],
     ["Reference", values.referenceUrl || "—"],
+    ["Attachments", values.attachments.length ? `${values.attachments.length} uploaded file(s)` : "—"],
   ];
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:700px;margin:auto;color:#172033">
       <h1 style="font-size:24px">New custom 3D print request</h1>
+      ${risk.review ? `<div style="margin:12px 0 18px;padding:12px;border:1px solid #d9a441;background:#fff8e8;color:#6f4e00"><strong>Review suggested:</strong> automated screening found payment wording worth checking before replying.</div>` : ""}
       <table style="border-collapse:collapse;width:100%">
         ${fields.map(([label, value]) => `<tr><td style="padding:8px;border-bottom:1px solid #ddd;font-weight:700">${escapeHtml(label)}</td><td style="padding:8px;border-bottom:1px solid #ddd">${escapeHtml(value)}</td></tr>`).join("")}
       </table>
@@ -132,7 +157,7 @@ async function sendEmail(values: CustomRequest) {
       from,
       to: [to],
       reply_to: values.email,
-      subject: `Custom print request — ${values.name.replace(/[\r\n]+/g, " ")}`,
+      subject: `${risk.review ? "[Review] " : ""}Custom print request — ${values.name.replace(/[\r\n]+/g, " ")}`,
       html,
     }),
     cache: "no-store",
@@ -157,9 +182,6 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = clientIp(request);
-  if (isRateLimited(ip)) {
-    return NextResponse.json({ message: "Too many requests. Please try again later." }, { status: 429 });
-  }
 
   let body: unknown;
   try {
@@ -174,11 +196,34 @@ export async function POST(request: NextRequest) {
 
   const parsed = customRequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ message: "Please check the form fields and try again." }, { status: 400 });
+    return NextResponse.json({
+      message: "Please correct the highlighted form fields and try again.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    }, { status: 400 });
   }
 
   if (parsed.data.website) {
     return NextResponse.json({ message: "Request accepted." });
+  }
+
+  const customer = await customerFromRequest(request);
+  if (customer && parsed.data.email.trim().toLowerCase() !== customer.email) {
+    return NextResponse.json({
+      message: "Use the email address attached to your signed-in profile.",
+      fieldErrors: { email: ["Use the email address attached to your signed-in profile."] },
+    }, { status: 400 });
+  }
+
+  const risk = assessCustomRequestRisk(parsed.data);
+  if (risk.block) {
+    console.warn("High-confidence scam pattern blocked on custom request", { ip });
+    return NextResponse.json({
+      message: "For security, custom requests cannot include instructions to forward or refund money, buy gift cards, pay third parties, use cryptocurrency transfers, or share banking/security credentials.",
+    }, { status: 400 });
+  }
+
+  if (process.env.NODE_ENV === "production" && isRateLimited(ip)) {
+    return NextResponse.json({ message: "Too many requests. Please try again later." }, { status: 429 });
   }
 
   const human = await verifyTurnstile(parsed.data.turnstileToken, ip);
@@ -186,12 +231,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Bot verification failed. Please refresh and try again." }, { status: 403 });
   }
 
-  try {
-    await sendEmail(parsed.data);
-  } catch (error) {
-    console.error("Custom request delivery failed", error);
-    return NextResponse.json({ message: "The request could not be delivered. Please try again shortly." }, { status: 502 });
+  const uploadRecords = parsed.data.attachments.length ? await validateCustomerUploadClaims(parsed.data.attachments) : [];
+  if (parsed.data.attachments.length && !uploadRecords) {
+    return NextResponse.json({ message: "One or more attachments expired or could not be verified. Please remove them and upload again." }, { status: 400 });
   }
 
-  return NextResponse.json({ message: "Request sent." }, { status: 201 });
+  let stored;
+  try {
+    const submittedNeededBy = typeof (body as { neededBy?: unknown })?.neededBy === "string"
+      ? (body as { neededBy: string }).neededBy.trim().slice(0, 24)
+      : parsed.data.neededBy;
+    stored = await createStoredRequest(parsed.data, {
+      neededBySubmitted: submittedNeededBy,
+      riskFlags: risk.review ? risk.reasons : [],
+      customerAccountId: customer?.id || "",
+      attachments: (uploadRecords || []).map((item) => ({ id: item.id, originalName: item.originalName, kind: item.kind, size: item.size, scanStatus: item.scanStatus })),
+    });
+    if (parsed.data.attachments.length) {
+      const claimed = await claimCustomerUploads(parsed.data.attachments, stored.id);
+      if (!claimed) console.error("Customer attachment claim failed after request storage", stored.requestCode);
+    }
+  } catch (error) {
+    console.error("Custom request storage failed", error);
+    return NextResponse.json({ message: "The request could not be saved. Please try again shortly." }, { status: 502 });
+  }
+
+  try {
+    await sendEmail(parsed.data, risk);
+  } catch (error) {
+    // The request is already safely stored for the owner. Do not make the customer
+    // resubmit and accidentally create a duplicate just because notification failed.
+    console.error("Custom request notification failed; request remains stored", error);
+  }
+
+  return NextResponse.json({ message: "Request received.", requestCode: stored.requestCode }, { status: 201 });
 }

@@ -1,0 +1,92 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+
+export function LoginPanel({ adminMode = false }: { adminMode?: boolean }) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submitCustomer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    const data = new FormData(event.currentTarget);
+    const payload = mode === "register"
+      ? { displayName: data.get("displayName"), email: data.get("email"), password: data.get("password") }
+      : { email: data.get("email"), password: data.get("password") };
+    try {
+      const response = await fetch(`/api/account/${mode === "register" ? "register" : "login"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Could not sign in.");
+      router.push("/profile"); router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not sign in."); }
+    finally { setBusy(false); }
+  }
+
+  async function submitForgot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    const data = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/account/password-reset/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: data.get("email") }) });
+      const result = await response.json() as { message?: string; developmentUrl?: string };
+      if (!response.ok) throw new Error(result.message || "Could not request a password reset.");
+      setMessage(`${result.message || "Reset instructions sent."}${result.developmentUrl ? ` Local test link: ${result.developmentUrl}` : ""}`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not request a password reset."); }
+    finally { setBusy(false); }
+  }
+
+  async function submitAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    const data = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/owner/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: data.get("password") }) });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Could not sign in.");
+      router.push("/owner"); router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not sign in."); }
+    finally { setBusy(false); }
+  }
+
+  if (adminMode) {
+    return (
+      <div className="account-card admin-login-card">
+        <p className="eyebrow">ADMIN ACCESS</p>
+        <h1>Owner sign in</h1>
+        <p>This entrance is separate from customer accounts and requires the owner password.</p>
+        <form className="account-form" onSubmit={submitAdmin}>
+          <label><span>Owner password</span><input name="password" type="password" autoComplete="current-password" required maxLength={200} /></label>
+          <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Open Owner Dashboard"}</button>
+        </form>
+        {message && <div className="form-status error">{message}</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="account-card">
+      <p className="eyebrow">CUSTOMER PROFILE</p>
+      <h1>{mode === "login" ? "Welcome back." : mode === "register" ? "Create your profile." : "Reset your password."}</h1>
+      <p>{mode === "forgot" ? "Enter your verified email. If an eligible account exists, we’ll send a one-time reset link." : "Keep your custom requests and live production status together in one place."}</p>
+      {mode !== "forgot" && <div className="account-mode-tabs">
+        <button type="button" className={mode === "login" ? "is-active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Sign in</button>
+        <button type="button" className={mode === "register" ? "is-active" : ""} onClick={() => { setMode("register"); setMessage(""); }}>Create account</button>
+      </div>}
+      {mode === "forgot" ? <form className="account-form" onSubmit={submitForgot}>
+        <label><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={160} required /></label>
+        <button className="button" type="submit" disabled={busy}>{busy ? "Working…" : "Send Reset Link"}</button>
+        <button className="text-button" type="button" onClick={() => { setMode("login"); setMessage(""); }}>Back to sign in</button>
+      </form> : <form className="account-form" onSubmit={submitCustomer}>
+        {mode === "register" && <label><span>Name</span><input name="displayName" autoComplete="name" minLength={2} maxLength={80} required /></label>}
+        <label><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={160} required /></label>
+        <label><span>Password</span><input name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 10 : 1} maxLength={128} required /></label>
+        {mode === "register" && <small>Use at least 10 characters. New profiles only show requests submitted while signed in.</small>}
+        <button className="button" type="submit" disabled={busy}>{busy ? "Working…" : mode === "login" ? "Sign In" : "Create Profile"}</button>
+        {mode === "login" && <button className="text-button login-forgot-link" type="button" onClick={() => { setMode("forgot"); setMessage(""); }}>Forgot password?</button>}
+      </form>}
+      {message && <div className="form-status info">{message}</div>}
+    </div>
+  );
+}

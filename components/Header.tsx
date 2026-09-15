@@ -1,21 +1,17 @@
-import Link from "next/link";
-import { site } from "@/lib/site";
+import { HeaderNav } from "@/components/HeaderNav";
+import { currentCustomer } from "@/lib/customer-auth";
+import { notificationsForCustomer } from "@/lib/customer-notifications";
+import { getSiteContent } from "@/lib/site-content-store";
 
-export function Header() {
+export async function Header() {
+  const [site, customer] = await Promise.all([getSiteContent(), currentCustomer()]);
+  const unreadCount = customer ? (await notificationsForCustomer(customer.id)).filter((item) => !item.readAt).length : 0;
   return (
     <header className="site-header">
-      <div className="container nav-shell">
-        <Link href="/" className="brand" aria-label={`${site.name} home`}>
-          <span className="brand-mark" aria-hidden="true">L3</span>
-          <span>{site.name}</span>
-        </Link>
-        <nav className="nav-links" aria-label="Primary navigation">
-          <Link href="/gallery">Gallery</Link>
-          <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer">Etsy</a>
-          <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer">Whatnot</a>
-          <Link className="button button-small" href="/custom-request">Custom Request</Link>
-        </nav>
-      </div>
+      <HeaderNav
+        site={{ name: site.name, logoImage: site.logoImage, etsyUrl: site.etsyUrl, whatnotUrl: site.whatnotUrl }}
+        customer={customer ? { displayName: customer.displayName, unreadCount } : null}
+      />
     </header>
   );
 }

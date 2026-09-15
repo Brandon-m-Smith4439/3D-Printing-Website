@@ -1,27 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GalleryCard } from "@/components/GalleryCard";
-import { galleryItems } from "@/lib/site";
+import { getSiteContent } from "@/lib/site-content-store";
 
 export const metadata: Metadata = {
   title: "Gallery",
   description: "Examples of custom, functional, display, and prototype 3D prints.",
 };
 
-export default function GalleryPage() {
+export const dynamic = "force-dynamic";
+
+export default async function GalleryPage() {
+  const { galleryItems } = await getSiteContent();
   return (
     <section className="section page-hero">
       <div className="container">
         <div className="section-heading page-heading">
           <p className="eyebrow">PROJECT GALLERY</p>
           <h1>Prints built for display, use, and everything between.</h1>
-          <p>Replace these starter images and descriptions with your own work. The layout is already ready for a growing portfolio.</p>
+          <p>A growing collection of custom, functional, decorative, gaming, and prototype work.</p>
         </div>
         <div className="gallery-grid gallery-grid-full">
           {galleryItems.map((item) => <GalleryCard key={item.title} item={item} />)}
         </div>
         <div className="gallery-cta">
-          <h2>Want something made for you?</h2>
+          <div>
+            <p className="eyebrow">DON&apos;T SEE YOUR IDEA?</p>
+            <h2>Custom projects do not have to match something already shown here.</h2>
+          </div>
           <Link href="/custom-request" className="button">Request a Custom Print</Link>
         </div>
       </div>
