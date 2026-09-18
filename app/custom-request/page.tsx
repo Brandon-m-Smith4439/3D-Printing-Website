@@ -13,40 +13,31 @@ export const metadata: Metadata = {
 export default async function CustomRequestPage() {
   const minNeededBy = minimumRequestDate();
   const customer = await currentCustomer();
+
   return (
-    <section className="section page-hero">
-      <div className="container request-layout">
-        <aside className="request-intro">
-          <p className="eyebrow">CUSTOM 3D PRINT REQUEST</p>
-          <h1>Tell me what you want to make.</h1>
-          <p className="lead">The more useful detail you send, the more accurate the first response and quote can be.</p>
-          <div className="info-card">
-            <h3>Helpful details</h3>
-            <ul>
-              <li>What the part or print is for</li>
-              <li>Approximate size or required dimensions</li>
-              <li>Quantity and preferred colors</li>
-              <li>Whether it will face heat, sunlight, flexing, or impact</li>
-              <li>A link to photos, a model, sketch, or inspiration</li>
-              <li>Your needed-by date; requests less than 3 days away may require rush pricing</li>
-            </ul>
+    <section className="section page-hero custom-request-page">
+      <div className="container custom-request-shell">
+        <div className="custom-request-heading">
+          <div>
+            <p className="eyebrow">CUSTOM 3D PRINT REQUEST</p>
+            <h1>Tell me what you want to make.</h1>
+            <p className="lead">Send the details once, review the summary as you go, and I&apos;ll respond with feasibility, pricing, and next steps within 24–48 hours.</p>
           </div>
-          <div className="info-card compact-info-card">
-            <h3>What happens next?</h3>
-            <p>I&apos;ll review whether the job is printable, whether design work is needed, the best material, expected cost, and any rush fee for very short lead times. Nothing is treated as an order until those details are agreed on.</p>
+          <div className="request-promise-card">
+            <strong>Clear process. No surprise production.</strong>
+            <span>Your request is reviewed first. Production starts only after you approve the formal quote and the required 50% deposit is confirmed.</span>
           </div>
-          <div className="security-note">
-            <strong>Safer file handling</strong>
-            <p>This form uses reference links instead of direct file uploads for now. Submissions are validated server-side and protected against automated abuse.</p>
-          </div>
-        </aside>
-        <div className="form-panel">
-          <div className="form-panel-heading">
-            <span>Project details</span>
-            <small>Required fields are marked *</small>
-          </div>
-          <CustomRequestForm minNeededBy={minNeededBy} initialCustomer={customer ? { displayName: customer.displayName, email: customer.email } : null} />
         </div>
+
+        <div className="request-stepper" aria-label="Custom request workflow">
+          <div className="is-active"><span>1</span><div><strong>Request details</strong><small>Tell me about the project</small></div></div>
+          <i aria-hidden="true" />
+          <div><span>2</span><div><strong>Quote & review</strong><small>Confirm scope and price</small></div></div>
+          <i aria-hidden="true" />
+          <div><span>3</span><div><strong>Deposit & production</strong><small>50% deposit starts the job</small></div></div>
+        </div>
+
+        <CustomRequestForm minNeededBy={minNeededBy} initialCustomer={customer ? { displayName: customer.displayName, email: customer.email } : null} />
       </div>
     </section>
   );

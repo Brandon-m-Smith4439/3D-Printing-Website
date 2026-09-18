@@ -1,4 +1,23 @@
-# LayerCraft 3D — Website Starter (V0.65)
+# V0.67 quote negotiation and owner request workflow
+
+V0.67 replaces the marketplace header assets with the exact generated Whatnot/Etsy artwork, rebuilds Owner request expansion into a cleaner accordion workspace, moves quote editing into a dedicated modal workspace, derives the displayed request status from the real quote/payment/production state, records quote history (including legacy sent/approved/paid milestones), lets verified customers approve, decline, or counter a sent quote, and closes the profile dropdown automatically when the customer clicks elsewhere.
+
+# LayerCraft 3D — Website Starter (V0.67)
+
+## V0.66 request workflow and legacy-production cleanup
+
+V0.66 focuses on daily usability and repairs an edge case introduced when deposit-gating was added after older jobs were already in production.
+
+- Replaces the prior Etsy/Whatnot header artwork with the newly generated polished marketplace icon assets.
+- Moves the signed-in customer profile menu to the right side of the header, immediately after the Whatnot/Etsy shop icons.
+- Completely reorganizes the Custom Request page into a guided four-section form with a live, sticky request summary and clearly placed submit action.
+- Keeps the 50% deposit policy prominent and makes the request → quote → deposit → production workflow easier to understand.
+- Improves Owner → Production request cards with a lifecycle strip, grouped customer/print details, a clearer customer brief, and a separated danger/action area.
+- Fixes legacy production jobs that have no actual deposit record. Removing one from the queue now returns the request to the appropriate review/quote state instead of incorrectly labeling it deposit-paid.
+- Legacy queued requests with no recorded deposit can now be declined or permanently deleted when appropriate; truly paid or completed records remain protected for audit/accounting history.
+
+For updates over an existing V0.65 working folder, use the V0.66 changed-files ZIP. It is packaged as a repair-safe source overlay and excludes live SQLite/runtime customer data, private uploads, `.env.local`, backups, `node_modules`, and `.next`.
+
 
 A security-conscious 3D printing showcase, custom-request/quote workflow, customer account area, live production queue, payment-deposit flow, and private owner dashboard.
 

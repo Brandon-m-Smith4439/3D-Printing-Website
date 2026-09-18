@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const quoteStatuses = ["draft", "sent", "approved", "deposit-paid", "void"] as const;
+export const quoteStatuses = ["draft", "sent", "countered", "approved", "declined", "deposit-paid", "void"] as const;
 export type QuoteStatus = (typeof quoteStatuses)[number];
 
 export type QuoteSnapshot = {
@@ -14,6 +14,19 @@ export type QuoteSnapshot = {
   estimatedReadyDate: string;
   notes: string;
   terms: string;
+};
+
+export type QuoteHistoryEvent = "draft-saved" | "sent" | "approved" | "declined" | "counter-offer" | "deposit-paid";
+export type QuoteHistoryEntry = {
+  id: string;
+  createdAt: string;
+  actor: "owner" | "customer" | "system";
+  event: QuoteHistoryEvent;
+  revision: number;
+  summary: string;
+  message?: string;
+  counterTotalCents?: number;
+  snapshot?: QuoteSnapshot;
 };
 
 export type StoredQuote = QuoteSnapshot & {
@@ -31,6 +44,7 @@ export type StoredQuote = QuoteSnapshot & {
   stripeCheckoutSessionId: string;
   depositPaidAt: string;
   paymentProvider: "" | "stripe";
+  history: QuoteHistoryEntry[];
 };
 
 const cents = z.coerce.number().int().min(50).max(10_000_000);
@@ -49,3 +63,8 @@ export const ownerQuoteSchema = z.object({
   const requiredDeposit = Math.round(value.totalCents / 2);
   if (value.depositCents !== requiredDeposit) ctx.addIssue({ code: "custom", path: ["depositCents"], message: "The deposit must be exactly 50% of the total quote." });
 });
+
+export const customerQuoteResponseSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("decline"), message: z.string().trim().max(1200).default("") }),
+  z.object({ action: z.literal("counter"), counterTotalCents: cents, message: z.string().trim().min(3).max(1200) }),
+]);

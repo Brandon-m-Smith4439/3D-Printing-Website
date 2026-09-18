@@ -33,7 +33,7 @@ export async function DELETE(request:NextRequest,context:{params:Promise<{id:str
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;const source=await getStoredRequest(id);if(!source)return NextResponse.json({message:"Request not found."},{status:404});
   const quote=await quoteForRequest(source.id);
-  if(source.status==="deposit-paid"||source.status==="queued"||source.status==="completed"||quote?.depositPaidAt)return NextResponse.json({message:"Paid or production records are retained for accounting and audit history. Complete/refund the order instead of permanently deleting it."},{status:409});
+  if(quote?.depositPaidAt||source.status==="completed")return NextResponse.json({message:"Paid or completed records are retained for accounting and audit history. Resolve/refund the order instead of permanently deleting it."},{status:409});
   if(source.queueJobId)await deleteQueueJob(source.queueJobId);
   await voidQuoteForRequest(source.id);
   await deleteNotificationsForRequest(source.id);

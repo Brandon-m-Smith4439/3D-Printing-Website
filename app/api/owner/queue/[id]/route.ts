@@ -6,6 +6,7 @@ import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { updateQueueJobSchema } from "@/lib/queue-types";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
+import { quoteForRequest } from "@/lib/quote-store";
 
 export const runtime = "nodejs";
 
@@ -109,8 +110,23 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   const existing = jobs.find((job) => job.id === id);
   const deleted = await deleteQueueJob(id);
   if (deleted && existing?.sourceRequestId) {
-    const source = await updateStoredRequest(existing.sourceRequestId, { status: "deposit-paid", queueJobId: "", queuedAt: "" });
-    if (source) await notifyCustomer(source, "Your request was removed from the active production queue. Your deposit remains recorded while production details are reviewed.");
+    const quote = await quoteForRequest(existing.sourceRequestId);
+    const restoredStatus = quote?.depositPaidAt
+      ? "deposit-paid"
+      : quote?.status === "approved"
+        ? "accepted"
+        : quote?.status === "sent"
+          ? "quoted"
+          : "reviewing";
+    const source = await updateStoredRequest(existing.sourceRequestId, { status: restoredStatus, queueJobId: "", queuedAt: "" });
+    if (source) {
+      await notifyCustomer(
+        source,
+        quote?.depositPaidAt
+          ? "Your request was removed from the active production queue. Your deposit remains recorded while production details are reviewed."
+          : "Your request was removed from the active production queue and returned to review. No deposit is recorded for this request.",
+      );
+    }
   }
   if (deleted) await writeAudit({actor:"owner",actorId:"owner",action:"queue-job-removed",targetType:"queue",targetId:id,summary:`${existing?.publicCode || id} removed from active production queue.`,ipHash:requestIpHash(request)});
   return deleted

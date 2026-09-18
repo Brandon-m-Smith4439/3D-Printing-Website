@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 type HeaderNavProps = {
   site: { name: string; logoImage: string; etsyUrl: string; whatnotUrl: string };
@@ -18,6 +18,18 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
   const router = useRouter();
   const ownerTapCount = useRef(0);
   const ownerTapStartedAt = useRef(0);
+  const accountMenuRef = useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    function closeOnOutside(event: PointerEvent) {
+      const menu = accountMenuRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) menu.removeAttribute("open");
+    }
+    function closeOnEscape(event: KeyboardEvent) { if (event.key === "Escape") accountMenuRef.current?.removeAttribute("open"); }
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("pointerdown", closeOnOutside); document.removeEventListener("keydown", closeOnEscape); };
+  }, []);
 
   function active(path: string) { return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`); }
   function ownerTap() {
@@ -26,10 +38,10 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
     ownerTapCount.current += 1;
     if (ownerTapCount.current >= OWNER_TAPS) { ownerTapCount.current = 0; ownerTapStartedAt.current = 0; router.push("/login?admin=1"); }
   }
-  async function signOut() { await fetch("/api/account/logout", { method: "POST" }); router.push("/"); router.refresh(); }
+  async function signOut() { accountMenuRef.current?.removeAttribute("open"); await fetch("/api/account/logout", { method: "POST" }); router.push("/"); router.refresh(); }
 
   const accountMenu = customer ? (
-    <details className="account-menu account-menu-left">
+    <details ref={accountMenuRef} className="account-menu account-menu-right">
       <summary className={`account-menu-trigger ${active("/profile") ? "is-active" : ""}`}>
         <span className="account-avatar" aria-hidden="true">{customer.displayName.slice(0,1).toUpperCase()}</span>
         <span className="account-name">{customer.displayName}</span>
@@ -37,9 +49,9 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         <svg className="account-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </summary>
       <div className="account-dropdown">
-        <Link href="/profile#requests"><span>My Requests</span>{customer.unreadCount > 0 && <b>{customer.unreadCount}</b>}</Link>
-        <Link href="/profile#notifications"><span>Notifications</span></Link>
-        <Link href="/profile/settings"><span>Settings</span></Link>
+        <Link href="/profile#requests" onClick={()=>accountMenuRef.current?.removeAttribute("open")}><span>My Requests</span>{customer.unreadCount > 0 && <b>{customer.unreadCount}</b>}</Link>
+        <Link href="/profile#notifications" onClick={()=>accountMenuRef.current?.removeAttribute("open")}><span>Notifications</span></Link>
+        <Link href="/profile/settings" onClick={()=>accountMenuRef.current?.removeAttribute("open")}><span>Settings</span></Link>
         <button type="button" onClick={() => void signOut()}>Sign out</button>
       </div>
     </details>
@@ -52,7 +64,6 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           <Image src={site.logoImage} alt="" width={38} height={38} priority />
         </button>
         <Link href="/" className="brand" aria-label={`${site.name} home`}><span>{site.name}</span></Link>
-        {accountMenu}
       </div>
 
       <nav className="nav-links" aria-label="Primary navigation">
@@ -64,12 +75,8 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           <a className="shop-icon-image-link whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop"><Image src="/brand/whatnot.png" alt="" width={30} height={30} /></a>
           <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop"><Image src="/brand/etsy.png" alt="" width={30} height={30} /></a>
         </div>
-        {!customer && (
-          <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            <span>Login</span>
-          </Link>
-        )}
+        {accountMenu}
+        {!customer && <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg><span>Login</span></Link>}
       </nav>
     </div>
   );

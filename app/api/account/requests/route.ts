@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
           id: quote.id, revision: quote.revision, status: quote.status, totalCents: quote.totalCents, depositCents: quote.depositCents,
           balanceCents: quote.balanceCents, currency: quote.currency, material: quote.material, dimensions: quote.dimensions,
           estimatedReadyDate: quote.estimatedReadyDate, notes: quote.notes, terms: quote.terms, sentAt: quote.sentAt,
-          approvedAt: quote.approvedAt, depositPaidAt: quote.depositPaidAt,
+          approvedAt: quote.approvedAt, depositPaidAt: quote.depositPaidAt, history: quote.history,
         } : null,
         queue: job ? {
           publicCode: job.publicCode, publicTitle: job.publicTitle, status: job.status,
