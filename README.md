@@ -1,3 +1,23 @@
+# V0.74 launch readiness, shipping origin, and assembly preference
+
+V0.74 prepares Mesh Harbor 3D for its first public deployment while improving the customer shipping and custom-request workflows.
+
+## V0.74 changes
+
+- Custom requests now ask whether a multi-part print should arrive **assembled**, **disassembled**, or **not sure yet**.
+- Disassembled requests clearly state that an assembly guide is included and final assembly may require super glue.
+- New quotes default the assembly configuration from the customer request when possible.
+- Customer shipping-address entry now formats state and ZIP fields, adds browser address autocomplete hints, highlights invalid address fields, and provides clearer live-rate errors.
+- EasyPost calls now have server-side timeouts and improved API error reporting.
+- The private Mesh Harbor 3D **Ship-From Address** is now editable under **Owner → Site Content** instead of being hard-coded in environment variables.
+- Owner → Security & Backups reports the saved shipping-origin city/state/ZIP and whether live-rate setup is complete.
+- Railway persistent Volumes are auto-detected through `RAILWAY_VOLUME_MOUNT_PATH`; the SQLite DB, private customer files, and backups automatically use that Volume.
+- Added `/api/health` for production readiness/health checks.
+- Added `DEPLOYMENT-RAILWAY.md` with a production launch checklist.
+- Package version incremented to `0.74.0`.
+
+---
+
 # V0.72 Quote assembly and shipping configuration
 
 V0.72 adds an explicit assembly/shipping decision to formal quotes. Owners can quote a base print price, choose assembled / disassembled / no-assembly-required, itemize assembly labor, and automatically calculate the final quote and 50% deposit. Disassembled quotes clearly tell customers that super glue is required for final assembly. Quote history snapshots and Stripe checkout descriptions preserve the assembly choice and fee.
@@ -486,21 +506,13 @@ Customer addresses and carrier selections are private order data and are never e
 
 ### EasyPost setup
 
-Create an EasyPost account and use a test API key while developing. Add these values to `.env.local`:
+Create an EasyPost account and use a test API key while developing. Keep the API key in `.env.local` or the production host secret manager:
 
 ```env
 EASYPOST_API_KEY=EZTK...
-
-SHIPPING_FROM_NAME=Mesh Harbor 3D
-SHIPPING_FROM_STREET1=123 Example St
-SHIPPING_FROM_STREET2=
-SHIPPING_FROM_CITY=Your City
-SHIPPING_FROM_STATE=NC
-SHIPPING_FROM_ZIP=28000
-SHIPPING_FROM_COUNTRY=US
 ```
 
-Restart the site after changing `.env.local`. Owner -> Security & Backups now includes an **EasyPost live carrier rates** status panel.
+In V0.74, set the private **Ship-From Address** from **Owner → Site Content**. Owner → Security & Backups reports whether both the EasyPost key and shipping origin are ready.
 
 Do not put EasyPost production keys or the private ship-from address into browser/client code.
 
