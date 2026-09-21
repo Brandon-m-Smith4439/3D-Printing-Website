@@ -4,7 +4,8 @@ import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const DEFAULT_DATABASE = path.join(DATA_DIR, "3d-printing-business.sqlite");
+const RAILWAY_VOLUME = (process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+const DEFAULT_DATABASE = RAILWAY_VOLUME ? path.join(RAILWAY_VOLUME, "3d-printing-business.sqlite") : path.join(DATA_DIR, "3d-printing-business.sqlite");
 const COLLECTIONS = [
   "requests",
   "queue",
