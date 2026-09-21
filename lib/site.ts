@@ -14,6 +14,16 @@ export type GalleryItem = {
   featured?: boolean;
 };
 
+export type ShippingOrigin = {
+  name: string;
+  street1: string;
+  street2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+};
+
 export type SiteContent = {
   name: string;
   tagline: string;
@@ -25,6 +35,7 @@ export type SiteContent = {
   businessTimeZone: string;
   etsyUrl: string;
   whatnotUrl: string;
+  shippingOrigin: ShippingOrigin;
   galleryItems: GalleryItem[];
 };
 
@@ -39,6 +50,15 @@ export const defaultSiteContent: SiteContent = {
   businessTimeZone: "America/New_York",
   etsyUrl: "https://www.etsy.com/",
   whatnotUrl: "https://www.whatnot.com/",
+  shippingOrigin: {
+    name: "Mesh Harbor 3D",
+    street1: "",
+    street2: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "US",
+  },
   galleryItems: [
     {
       id: "display-character",
