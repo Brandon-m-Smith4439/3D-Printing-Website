@@ -21,6 +21,7 @@ export const customRequestSchema = z.object({
   projectType: z.enum(["display", "functional", "replacement", "prototype", "other"]),
   modelStatus: z.enum(["ready", "needs-adjustment", "reference-only", "idea-only"]),
   fulfillmentMethod: z.enum(["pickup", "shipping", "local-delivery", "unsure"]),
+  assemblyPreference: z.enum(["assembled", "disassembled", "unsure"]),
   quantity: z.coerce.number().int().min(1).max(500),
   dimensions: z.string().trim().max(120).optional().default(""),
   materialPreference: z.enum(["no-preference", "pla", "petg", "asa", "tpu", "resin", "other"]),
