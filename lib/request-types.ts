@@ -21,6 +21,7 @@ export type StoredRequest = {
   projectType: string;
   modelStatus: string;
   fulfillmentMethod: "pickup" | "shipping" | "local-delivery" | "unsure";
+  assemblyPreference?: "assembled" | "disassembled" | "unsure";
   quantity: number;
   dimensions: string;
   materialPreference: string;
