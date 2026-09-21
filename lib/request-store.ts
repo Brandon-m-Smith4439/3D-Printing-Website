@@ -41,6 +41,7 @@ export async function createStoredRequest(
       projectType: values.projectType,
       modelStatus: values.modelStatus,
       fulfillmentMethod: values.fulfillmentMethod,
+      assemblyPreference: values.assemblyPreference,
       quantity: values.quantity,
       dimensions: values.dimensions,
       materialPreference: values.materialPreference,
