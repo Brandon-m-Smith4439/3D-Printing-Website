@@ -20,7 +20,7 @@ export type StoredRequest = {
   phone: string;
   projectType: string;
   modelStatus: string;
-  fulfillmentMethod: "pickup" | "shipping" | "unsure";
+  fulfillmentMethod: "pickup" | "shipping" | "local-delivery" | "unsure";
   quantity: number;
   dimensions: string;
   materialPreference: string;

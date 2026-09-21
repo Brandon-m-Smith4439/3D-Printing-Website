@@ -3,7 +3,7 @@ import { z } from "zod";
 export const queueStatuses = ["queued", "preparing", "printing", "finishing", "ready", "on-hold", "completed"] as const;
 export type QueueStatus = (typeof queueStatuses)[number];
 
-export const fulfillmentMethods = ["pickup", "shipping", "unsure"] as const;
+export const fulfillmentMethods = ["pickup", "shipping", "local-delivery", "unsure"] as const;
 export type QueueFulfillment = (typeof fulfillmentMethods)[number];
 
 export type QueueJob = {

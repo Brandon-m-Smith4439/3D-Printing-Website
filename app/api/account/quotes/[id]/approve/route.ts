@@ -12,10 +12,15 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.customerAccountId!==customer.id)return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="sent")return NextResponse.json({message:"This quote is not currently awaiting approval."},{status:409});
+  if(quote.fulfillmentMode==="shipping"&&!quote.shippingSelection)return NextResponse.json({message:"Choose a USPS, UPS, or FedEx shipping option before approving this quote."},{status:409});
   const source=await getStoredRequest(quote.requestId);if(!source||source.customerAccountId!==customer.id)return NextResponse.json({message:"Request not found."},{status:404});
   const approved=await approveQuote(id,customer.id);if(!approved)return NextResponse.json({message:"Could not approve quote."},{status:409});
   const updated=await updateStoredRequest(source.id,{status:"accepted"});
-  if(updated)await notifyCustomer(updated,"You approved the quote and terms. The 50% deposit is now required before production can begin.",{email:false});
-  await writeAudit({actor:"customer",actorId:customer.id,action:"quote-approved",targetType:"quote",targetId:id,summary:`Customer approved quote revision ${approved.revision} for ${source.requestCode}.`,ipHash:requestIpHash(request)});
+  const sideEffects: Promise<unknown>[] = [
+    writeAudit({actor:"customer",actorId:customer.id,action:"quote-approved",targetType:"quote",targetId:id,summary:`Customer approved quote revision ${approved.revision} for ${source.requestCode}.`,ipHash:requestIpHash(request)}),
+  ];
+  if(updated)sideEffects.push(notifyCustomer(updated,"You approved the quote and terms. The 50% deposit is now required before production can begin.",{email:false}));
+  const results=await Promise.allSettled(sideEffects);
+  results.forEach((result)=>{if(result.status==="rejected")console.error("Quote approval side effect failed",result.reason);});
   return NextResponse.json({quote:approved,message:"Quote approved. You can now pay the deposit."});
 }

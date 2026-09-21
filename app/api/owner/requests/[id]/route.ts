@@ -20,7 +20,8 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
   const parsed=schema.safeParse(body);if(!parsed.success)return NextResponse.json({message:"Choose a valid owner-managed request status."},{status:400});
   const source=await getStoredRequest(id);if(!source)return NextResponse.json({message:"Request not found."},{status:404});
   if(source.queueJobId)return NextResponse.json({message:"Remove this request from the production queue before changing it to a request-only status."},{status:409});
-  if(parsed.data.status==="declined"&&source.status==="deposit-paid")return NextResponse.json({message:"A deposit is already recorded. Resolve/refund the payment before declining this request."},{status:409});
+  const quote=await quoteForRequest(source.id);
+  if(parsed.data.status==="declined"&&quote?.depositPaidAt)return NextResponse.json({message:"A deposit is already recorded. Resolve/refund the payment before declining this request."},{status:409});
   if(parsed.data.status==="declined")await voidQuoteForRequest(source.id);
   const updated=await updateStoredRequest(id,{status:parsed.data.status});
   if(updated&&source.status!==parsed.data.status)await notifyCustomer(updated,requestMessages[parsed.data.status]||`Your request status is now ${parsed.data.status}.`);

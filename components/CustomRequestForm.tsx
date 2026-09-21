@@ -25,7 +25,7 @@ type RequestSummary = {
 
 const projectSummaryLabels: Record<string, string> = { display: "Display / collectible", functional: "Functional part", replacement: "Replacement part", prototype: "Prototype", other: "Other" };
 const modelSummaryLabels: Record<string, string> = { ready: "Print-ready model", "needs-adjustment": "Model may need changes", "reference-only": "Photos / references", "idea-only": "Idea only" };
-const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Shipping", unsure: "Not sure yet" };
+const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Carrier shipping", "local-delivery": "Local delivery", unsure: "Not sure yet" };
 const materialSummaryLabels: Record<string, string> = { "no-preference": "No preference", pla: "PLA", petg: "PETG", asa: "ASA", tpu: "TPU / flexible", resin: "Resin", other: "Other / unsure" };
 
 const friendlyMessages: Record<string, string> = {
@@ -34,7 +34,7 @@ const friendlyMessages: Record<string, string> = {
   phone: "Use a valid phone number format with numbers only plus normal phone symbols.",
   projectType: "Select a project type.",
   modelStatus: "Tell me whether you already have a 3D model.",
-  fulfillmentMethod: "Select pickup, shipping, or not sure yet.",
+  fulfillmentMethod: "Select pickup, shipping, local delivery, or not sure yet.",
   quantity: "Enter a quantity from 1 to 500.",
   neededBy: "Enter a valid future date, such as 9/2/2026, or choose one from the calendar.",
   referenceUrl: "Enter a complete web link beginning with http:// or https://.",
@@ -310,9 +310,9 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
                 {fieldErrors.modelStatus && <small className="field-error">{fieldErrors.modelStatus}</small>}
               </label>
               <label className={fieldClass("fulfillmentMethod")}>
-                <span>Pickup or shipping? *</span>
+                <span>How would you like to receive it? *</span>
                 <select name="fulfillmentMethod" defaultValue="" required aria-invalid={Boolean(fieldErrors.fulfillmentMethod)}>
-                  <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Shipping</option><option value="unsure">Not sure yet</option>
+                  <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option><option value="local-delivery">Local delivery</option><option value="unsure">Not sure yet</option>
                 </select>
                 {fieldErrors.fulfillmentMethod && <small className="field-error">{fieldErrors.fulfillmentMethod}</small>}
               </label>
@@ -355,7 +355,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
             <div className="request-upload-panel request-upload-redesign">
               <div><span className="field-label">Secure attachments <small className="optional-label">Optional</small></span><small>Up to 3 files, 10 MB each. Images are re-encoded to strip ordinary metadata. STL/3MF files stay private and production uploads require malware scanning.</small></div>
               <label className={`request-upload-button ${uploading ? "is-busy" : ""}`}>{uploading ? "Scanning / uploading…" : "Choose files"}<input type="file" multiple disabled={uploading || attachments.length >= 3} accept="image/png,image/jpeg,image/webp,.stl,.3mf" onChange={(event) => void uploadAttachments(event)} /></label>
-              {attachments.length > 0 && <div className="request-attachment-list">{attachments.map((item) => <div key={item.id}><span><strong>{item.name}</strong><small>{item.kind === "image" ? "Image" : "3D model"} • {(item.size / 1024 / 1024).toFixed(2)} MB</small></span><button type="button" className="text-button" onClick={() => setAttachments((current) => current.filter((candidate) => candidate.id !== item.id))}>Remove</button></div>)}</div>}
+              {attachments.length > 0 && <div className="request-attachment-list">{attachments.map((item) => <div key={item.id}><span><strong>{item.name}</strong><small>{item.kind === "image" ? "Image" : "3D model"} • {(item.size / 1024 / 1024).toFixed(2)} MB</small></span><button type="button" className="text-button request-remove-button" onClick={() => setAttachments((current) => current.filter((candidate) => candidate.id !== item.id))}>Remove</button></div>)}</div>}
               {uploadMessage && <small className={`upload-message ${uploadMessage.startsWith("Local development") ? "warning" : ""}`}>{uploadMessage}</small>}
             </div>
           </section>
@@ -393,7 +393,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
           </div>
           <Turnstile />
           <div className="request-submit-panel">
-            <button className="button request-submit-button" type="submit" disabled={status === "sending"}>{status === "sending" ? "Sending…" : "Submit Custom Request"}</button>
+            <button className="button request-submit-button" type="submit" disabled={status === "sending"}>{status === "sending" ? "Sending…" : <><span>Submit Custom Request</span><svg className="request-submit-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></>}</button>
             <p className="form-note">A request is not an order or payment. Pricing and feasibility are confirmed first.</p>
           </div>
           {message && <div className={`form-status ${status}`} role="status">{message}</div>}

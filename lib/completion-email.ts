@@ -34,7 +34,9 @@ export async function sendCompletionEmail(job: QueueJob) {
       ? "I’ll follow up with pickup details if we have not already arranged them."
       : job.fulfillmentMethod === "shipping"
         ? "I’ll follow up with shipping details or tracking as applicable."
-        : "I’ll follow up with the final pickup or shipping details.";
+        : job.fulfillmentMethod === "local-delivery"
+          ? "I’ll follow up to coordinate your local delivery handoff."
+          : "I’ll follow up with the final pickup or shipping details.";
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#172033;line-height:1.6">

@@ -1,6 +1,6 @@
 {
-  "name": "3d-printing-showcase",
-  "version": "0.67.0",
+  "name": "mesh-harbor-3d",
+  "version": "0.73.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

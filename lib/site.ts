@@ -1,5 +1,5 @@
 /**
- * V0.61 public site defaults.
+ * V0.70 public site defaults.
  *
  * These values are now editable from /owner -> Site Content. The owner editor
  * persists overrides to data/site-content.json. Keeping defaults here means a
@@ -19,6 +19,7 @@ export type SiteContent = {
   tagline: string;
   description: string;
   logoImage: string;
+  wordmarkImage: string;
   logoAlt: string;
   logoLetters: string;
   businessTimeZone: string;
@@ -28,12 +29,13 @@ export type SiteContent = {
 };
 
 export const defaultSiteContent: SiteContent = {
-  name: "LayerCraft 3D",
-  tagline: "Printed with precision. Made for you.",
-  description: "Custom 3D prints, display pieces, functional designs, and made-to-order requests.",
-  logoImage: "/brand/logo.svg",
-  logoAlt: "LayerCraft 3D logo",
-  logoLetters: "L3",
+  name: "Mesh Harbor 3D",
+  tagline: "Custom ideas, brought safely from concept to print.",
+  description: "Custom 3D printing for collectibles, functional parts, prototypes, and made-to-order ideas with clear quotes and secure customer workflows.",
+  logoImage: "/brand/mesh-harbor-3d-icon-v070.png",
+  wordmarkImage: "/brand/mesh-harbor-3d-logo-v070.png",
+  logoAlt: "Mesh Harbor 3D lighthouse, mesh, and wave emblem",
+  logoLetters: "MH",
   businessTimeZone: "America/New_York",
   etsyUrl: "https://www.etsy.com/",
   whatnotUrl: "https://www.whatnot.com/",

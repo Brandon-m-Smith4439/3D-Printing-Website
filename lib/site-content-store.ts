@@ -22,6 +22,7 @@ export const siteContentSchema = z.object({
   tagline: z.string().trim().min(1).max(140),
   description: z.string().trim().min(1).max(300),
   logoImage: localImagePath,
+  wordmarkImage: localImagePath.default("/brand/mesh-harbor-3d-logo-v070.png"),
   logoAlt: z.string().trim().min(1).max(120),
   logoLetters: z.string().trim().min(1).max(4),
   businessTimeZone: z.string().trim().min(1).max(80),
@@ -30,6 +31,19 @@ export const siteContentSchema = z.object({
   galleryItems: z.array(galleryItemSchema).max(40),
 });
 
+function migrateLegacyBrand(content: SiteContent): SiteContent {
+  const next = { ...content };
+  // Only replace untouched LayerCraft starter values. Owner-customized values remain authoritative.
+  if (next.name === "LayerCraft 3D") next.name = defaultSiteContent.name;
+  if (next.tagline === "Printed with precision. Made for you.") next.tagline = defaultSiteContent.tagline;
+  if (next.description === "Custom 3D prints, display pieces, functional designs, and made-to-order requests.") next.description = defaultSiteContent.description;
+  if (next.logoImage === "/brand/logo.svg") next.logoImage = defaultSiteContent.logoImage;
+  if (!next.wordmarkImage || next.wordmarkImage === "/brand/logo.svg") next.wordmarkImage = defaultSiteContent.wordmarkImage;
+  if (next.logoAlt === "LayerCraft 3D logo") next.logoAlt = defaultSiteContent.logoAlt;
+  if (next.logoLetters === "L3") next.logoLetters = defaultSiteContent.logoLetters;
+  return next;
+}
+
 export async function getSiteContent(): Promise<SiteContent> {
   try {
     const saved = await readSingleton<SiteContent>("site-content");
@@ -37,10 +51,11 @@ export async function getSiteContent(): Promise<SiteContent> {
     if (parsed.success) {
       const legacyEtsy = process.env.NEXT_PUBLIC_ETSY_URL;
       const legacyWhatnot = process.env.NEXT_PUBLIC_WHATNOT_URL;
+      const branded = migrateLegacyBrand(parsed.data);
       return {
-        ...parsed.data,
-        etsyUrl: parsed.data.etsyUrl === "https://www.etsy.com/" && legacyEtsy ? legacyEtsy : parsed.data.etsyUrl,
-        whatnotUrl: parsed.data.whatnotUrl === "https://www.whatnot.com/" && legacyWhatnot ? legacyWhatnot : parsed.data.whatnotUrl,
+        ...branded,
+        etsyUrl: branded.etsyUrl === "https://www.etsy.com/" && legacyEtsy ? legacyEtsy : branded.etsyUrl,
+        whatnotUrl: branded.whatnotUrl === "https://www.whatnot.com/" && legacyWhatnot ? legacyWhatnot : branded.whatnotUrl,
       };
     }
     console.error("Invalid site content in database; using built-in defaults.", parsed.error.flatten());

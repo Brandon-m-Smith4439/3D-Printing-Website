@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: { default: `${site.name} | Custom 3D Printing`, template: `%s | ${site.name}` },
     description: site.description,
     robots: { index: true, follow: true },
-    icons: { icon: "/favicon.svg" },
+    icons: { icon: "/favicon.png", apple: "/brand/mesh-harbor-3d-icon-v070.png" },
   };
 }
 

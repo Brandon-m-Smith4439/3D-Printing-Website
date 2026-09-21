@@ -1,8 +1,93 @@
-# V0.67 quote negotiation and owner request workflow
+# V0.72 Quote assembly and shipping configuration
 
-V0.67 replaces the marketplace header assets with the exact generated Whatnot/Etsy artwork, rebuilds Owner request expansion into a cleaner accordion workspace, moves quote editing into a dedicated modal workspace, derives the displayed request status from the real quote/payment/production state, records quote history (including legacy sent/approved/paid milestones), lets verified customers approve, decline, or counter a sent quote, and closes the profile dropdown automatically when the customer clicks elsewhere.
+V0.72 adds an explicit assembly/shipping decision to formal quotes. Owners can quote a base print price, choose assembled / disassembled / no-assembly-required, itemize assembly labor, and automatically calculate the final quote and 50% deposit. Disassembled quotes clearly tell customers that super glue is required for final assembly. Quote history snapshots and Stripe checkout descriptions preserve the assembly choice and fee.
 
-# LayerCraft 3D — Website Starter (V0.67)
+## V0.72 changes
+
+- Formal Quote Workspace now separates base print price from assembly labor.
+- Assembly modes: Assembled by Mesh Harbor 3D, Ship disassembled, or No assembly required.
+- Assembled mode requires an explicit labor charge; the charge rolls into total and deposit.
+- Disassembled mode carries no assembly labor and clearly states that the customer must assemble with super glue.
+- Customer Profile quotes display the assembly choice, labor fee, and fulfillment expectation before approval.
+- Quote-history snapshots preserve assembly configuration for later reference.
+- Stripe Checkout descriptions include the assembly/shipping configuration.
+- Older quotes automatically normalize to No assembly required with $0 assembly labor.
+
+---
+
+# V0.71 Mesh Harbor 3D theme consistency pass
+
+V0.71 completes the Mesh Harbor 3D visual migration across the site. The header Custom Request CTA now uses the harbor teal/cyan palette even while idle, and legacy blue-era surface, focus, text, queue, profile, owner, and form accents have been normalized toward the current deep-harbor navy, ocean teal, and cyan system while preserving semantic warning/error/success colors and the Etsy/Whatnot brand colors.
+
+## V0.71 theme audit
+
+- Replaced the remaining dark-blue Custom Request idle state with a strong Mesh Harbor teal/cyan gradient.
+- Normalized legacy blue focus rings, panel surfaces, cards, queue surfaces, profile surfaces, owner panels, and form controls.
+- Shifted leftover blue-tinted text links and neutral helper text toward cool teal-neutral values.
+- Kept semantic warning, error, success, Stripe/payment state, Etsy, and Whatnot colors distinct where meaning or external branding matters.
+- Preserved all V0.70 Mesh Harbor logo, favicon, wordmark, and existing runtime data behavior.
+
+# V0.70 Mesh Harbor 3D brand launch and harbor theme
+
+V0.70 renames the business/site to **Mesh Harbor 3D**, installs the generated Mesh Harbor wordmark and lighthouse/mesh/wave emblem, adds a matching favicon, and rethemes the UI around deep harbor navy, ocean teal, and cyan while preserving semantic warning/danger colors.
+
+## V0.70 branding migration
+
+Existing SQLite installs can still contain the untouched LayerCraft starter name/logo. `getSiteContent()` now migrates only the exact legacy starter branding values at read time, so an existing site immediately shows Mesh Harbor 3D without overwriting owner-customized shop links, gallery content, or unrelated site settings. Owner-customized branding values remain authoritative.
+
+The Owner → Site Content editor now distinguishes between the square **brand icon** and the horizontal **wordmark**, so both generated brand assets can be replaced independently later.
+
+## V0.70 visual system
+
+- Mesh Harbor 3D business name, tagline, description, logo alt text, and MH initials.
+- Generated horizontal Mesh Harbor 3D logo used as a primary brand asset on the homepage/footer.
+- Generated lighthouse/mesh/wave emblem used as the header icon and browser/app icon.
+- Harbor-navy page surfaces with teal/cyan active states, buttons, focus rings, cards, and navigation highlights.
+- Homepage hero replaces the old generic 3D cube visual with the actual Mesh Harbor wordmark in a subtle harbor-glass presentation.
+- Existing Etsy/Whatnot brand colors and semantic warning/success/danger states remain distinct instead of being recolored indiscriminately.
+
+# V0.69 quote approval reliability, GUI close polish, and Stripe setup visibility
+
+V0.69 separates disabled quote actions from true loading states, adds timeouts to customer quote/payment API calls, makes quote approval resilient to non-critical notification/audit failures, strengthens GUI X-button hover/focus feedback, and adds an owner-only Stripe configuration panel that reports setup state without exposing secret values.
+
+## V0.69 quote approval fix
+
+A disabled button no longer uses a wait/loading cursor. If the customer's email still needs verification, the quote card explicitly says so and links to Settings. A real in-progress approval shows an inline spinner only after the customer clicks the action. Quote response/payment calls also time out with a visible error instead of remaining busy indefinitely.
+
+The quote approval API now treats notification and audit writes as secondary side effects after the approval has been stored. A temporary notification/audit failure is logged server-side but no longer prevents the browser from receiving the successful approval response.
+
+## V0.69 Stripe setup panel
+
+Owner → Security & Backups now includes a **Stripe deposit setup** card showing only safe configuration metadata:
+
+- whether the server-side Stripe API key is configured
+- test vs live mode
+- whether the webhook signing secret is configured
+- the public site origin
+- the exact webhook URL to register in Stripe
+- whether the detected configuration is suitable for live payments
+
+Secret key values are never returned to the browser.
+
+### Recommended Stripe test setup
+
+1. Create/use a Stripe account and stay in Stripe **test/sandbox mode** first.
+2. Put a test server key in `.env.local` as `STRIPE_SECRET_KEY=sk_test_...` (or a suitably permissioned restricted test key).
+3. Keep the site running locally at `http://localhost:3000`.
+4. Install/login to the Stripe CLI and run:
+
+```powershell
+stripe listen --forward-to localhost:3000/api/payments/stripe/webhook
+```
+
+5. Copy the `whsec_...` signing secret printed by the CLI into `.env.local` as `STRIPE_WEBHOOK_SECRET=whsec_...`.
+6. Restart the website after editing `.env.local`.
+7. Send and approve a test quote, choose **Pay 50% Deposit Securely**, and complete Stripe Checkout using Stripe test data.
+8. Confirm the webhook changes the quote/request to Deposit Paid and that Owner → Security & Backups shows the expected Stripe configuration.
+
+For production, set `NEXT_PUBLIC_SITE_URL` to the final HTTPS origin, configure the production webhook URL shown by the owner panel, and replace test credentials with live server credentials only after the full test workflow passes. Keep Stripe keys in the hosting provider's secret/environment system, never in source control.
+
+# Mesh Harbor 3D — Website (V0.72)
 
 ## V0.66 request workflow and legacy-production cleanup
 
@@ -381,3 +466,50 @@ For a larger future deployment, the storage modules are deliberately isolated so
 - Keep Next.js/React/Node, ClamAV, your OS, and slicer software patched.
 
 No website can eliminate all attack or fraud risk. V0.64 reduces the exposed surface, keeps card entry off-site, preserves approval/payment history, gates production on deposit confirmation, and adds recovery/audit controls, but secure hosting and disciplined business processes still matter.
+
+## V0.73 - Live USPS / UPS / FedEx rates
+
+V0.73 adds EasyPost-powered live carrier shopping to customer quotes.
+
+### Workflow
+
+1. Owner chooses **Ship to customer** in the Quote Workspace.
+2. Owner enters the **packed** weight and box dimensions. These must include the shipping box and packing material, not only the print itself.
+3. Owner sends the quote. The quote shows the production/assembly subtotal while shipping is pending.
+4. Customer opens the quote in Profile, enters the private delivery address, and requests live rates.
+5. The website displays live **USPS, UPS, and FedEx** services returned by EasyPost.
+6. Customer selects a carrier/service. The server re-fetches that EasyPost shipment and verifies the rate ID so the browser cannot invent or lower the shipping charge.
+7. The selected shipping charge is added to the quote total. The 50% deposit and remaining balance are recalculated.
+8. Customer can then approve the exact quote and continue to Stripe Checkout.
+
+Customer addresses and carrier selections are private order data and are never exposed on the public Queue.
+
+### EasyPost setup
+
+Create an EasyPost account and use a test API key while developing. Add these values to `.env.local`:
+
+```env
+EASYPOST_API_KEY=EZTK...
+
+SHIPPING_FROM_NAME=Mesh Harbor 3D
+SHIPPING_FROM_STREET1=123 Example St
+SHIPPING_FROM_STREET2=
+SHIPPING_FROM_CITY=Your City
+SHIPPING_FROM_STATE=NC
+SHIPPING_FROM_ZIP=28000
+SHIPPING_FROM_COUNTRY=US
+```
+
+Restart the site after changing `.env.local`. Owner -> Security & Backups now includes an **EasyPost live carrier rates** status panel.
+
+Do not put EasyPost production keys or the private ship-from address into browser/client code.
+
+### Fulfillment modes
+
+Quotes now support:
+
+- **Local pickup** - no fulfillment fee.
+- **Ship to customer** - customer chooses a live USPS, UPS, or FedEx rate.
+- **Local delivery** - owner enters a delivery fee for time/mileage.
+
+Carrier rate selection happens before quote approval so the customer's approval snapshot includes the selected shipping service and charge.

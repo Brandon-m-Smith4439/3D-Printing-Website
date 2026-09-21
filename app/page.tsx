@@ -22,25 +22,29 @@ export default async function HomePage() {
             </p>
             <div className="hero-actions">
               <Link href="/custom-request" className="button">Request a Custom Print</Link>
-              <div className="hero-shop-icons" aria-label="Shop my finished prints">
-                <a className="shop-icon-image-link shop-icon-home etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop"><Image src="/brand/etsy.png" alt="" width={38} height={38} /></a>
-                <a className="shop-icon-image-link shop-icon-home whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop"><Image src="/brand/whatnot.png" alt="" width={38} height={38} /></a>
-              </div>
               <Link href="/gallery" className="button button-secondary">View My Work</Link>
             </div>
             <div className="trust-row" aria-label="Service highlights">
               <span>Clear quotes</span><span>Material guidance</span><span>Made-to-order options</span>
             </div>
           </div>
-          <div className="hero-visual" aria-hidden="true">
+          <div className="hero-visual mesh-harbor-hero" aria-hidden="true">
             <div className="hero-orbit orbit-one" />
             <div className="hero-orbit orbit-two" />
-            <div className="print-cube">
-              <div className="cube-face cube-front">{site.logoLetters}</div>
-              <div className="cube-face cube-top" />
-              <div className="cube-face cube-side" />
+            <div className="mesh-brand-glow" />
+            <div className="mesh-brand-card">
+              <Image
+                className="mesh-brand-wordmark"
+                src={site.wordmarkImage}
+                alt=""
+                width={720}
+                height={240}
+                priority
+                unoptimized
+              />
             </div>
-            <div className="layer-lines" />
+            <div className="harbor-wave-line harbor-wave-one" />
+            <div className="harbor-wave-line harbor-wave-two" />
           </div>
         </div>
       </section>
@@ -54,11 +58,11 @@ export default async function HomePage() {
           </div>
           <div className="home-shop-links">
             <a className="home-shop-link" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Open Etsy shop in a new tab">
-              <span className="home-market-icon" aria-hidden="true"><Image src="/brand/etsy.png" alt="" width={42} height={42} /></span>
+              <span className="home-market-icon" aria-hidden="true"><Image src="/brand/etsy-generated-v068.png" alt="" width={42} height={42} unoptimized /></span>
               <span><strong>Etsy</strong><small>Shop listings ↗</small></span>
             </a>
             <a className="home-shop-link" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Open Whatnot shop in a new tab">
-              <span className="home-market-icon" aria-hidden="true"><Image src="/brand/whatnot.png" alt="" width={42} height={42} /></span>
+              <span className="home-market-icon" aria-hidden="true"><Image src="/brand/whatnot-generated-v068.png" alt="" width={42} height={42} unoptimized /></span>
               <span><strong>Whatnot</strong><small>Shop & live sales ↗</small></span>
             </a>
           </div>

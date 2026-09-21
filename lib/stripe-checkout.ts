@@ -2,14 +2,34 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { StoredQuote } from "@/lib/quote-types";
 
-function siteOrigin() {
+export function siteOrigin() {
   const configured = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
   return (configured || "http://localhost:3000").replace(/\/$/, "");
 }
 
 export function stripeConfigured() {
   const key = (process.env.STRIPE_SECRET_KEY || "").trim();
-  return Boolean(key && !key.includes("YOUR_") && !key.includes("replace"));
+  return Boolean(key && !key.includes("YOUR_") && !key.includes("replace") && /^(sk|rk)_(test|live)_/.test(key));
+}
+
+export function stripeConfigurationSummary() {
+  const key = (process.env.STRIPE_SECRET_KEY || "").trim();
+  const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || "").trim();
+  const origin = siteOrigin();
+  const keyConfigured = stripeConfigured();
+  const webhookConfigured = Boolean(webhookSecret && webhookSecret.startsWith("whsec_") && !webhookSecret.includes("replace"));
+  const mode = key.startsWith("sk_live_") || key.startsWith("rk_live_") ? "live" : key.startsWith("sk_test_") || key.startsWith("rk_test_") ? "test" : "unconfigured";
+  const secureOrigin = origin.startsWith("https://");
+  return {
+    keyConfigured,
+    webhookConfigured,
+    mode,
+    siteOrigin: origin,
+    secureOrigin,
+    webhookUrl: `${origin}/api/payments/stripe/webhook`,
+    checkoutReady: keyConfigured && (process.env.NODE_ENV !== "production" || secureOrigin),
+    productionReady: keyConfigured && webhookConfigured && secureOrigin && mode === "live",
+  } as const;
 }
 
 export async function createDepositCheckout(input: { quote: StoredQuote; email: string; requestCode: string }) {
@@ -18,17 +38,29 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
     if (process.env.NODE_ENV === "production") throw new Error("Stripe deposit payments are not configured.");
     return { id: `cs_dev_${input.quote.id}`, url: `${siteOrigin()}/profile?payment=development` };
   }
+  const origin = siteOrigin();
+  if (process.env.NODE_ENV === "production" && !origin.startsWith("https://")) throw new Error("NEXT_PUBLIC_SITE_URL must be your public HTTPS site URL before accepting real Stripe payments.");
 
   const params = new URLSearchParams();
   params.set("mode", "payment");
-  params.set("success_url", `${siteOrigin()}/profile?payment=success`);
-  params.set("cancel_url", `${siteOrigin()}/profile?payment=cancelled`);
+  params.set("success_url", `${origin}/profile?payment=success`);
+  params.set("cancel_url", `${origin}/profile?payment=cancelled`);
   params.set("client_reference_id", input.quote.id);
   params.set("customer_email", input.email);
   params.set("line_items[0][price_data][currency]", "usd");
   params.set("line_items[0][price_data][unit_amount]", String(input.quote.depositCents));
   params.set("line_items[0][price_data][product_data][name]", `50% custom print deposit — ${input.requestCode}`);
-  params.set("line_items[0][price_data][product_data][description]", `Quote revision ${input.quote.revision}; remaining balance due before shipment or at pickup/delivery handoff.`);
+  const assemblyDescription = input.quote.assemblyMode === "assembled"
+    ? `Assembled by Mesh Harbor 3D (assembly labor ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.assemblyFeeCents / 100)} included).`
+    : input.quote.assemblyMode === "disassembled"
+      ? "Ships disassembled; customer assembly with super glue is required."
+      : "No assembly required.";
+  const fulfillmentDescription = input.quote.fulfillmentMode === "shipping" && input.quote.shippingSelection
+    ? `${input.quote.shippingSelection.carrier} ${input.quote.shippingSelection.service} shipping ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.shippingSelection.rateCents / 100)} included.`
+    : input.quote.fulfillmentMode === "local-delivery"
+      ? `Local delivery ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.localDeliveryFeeCents / 100)} included.`
+      : "Local pickup; no fulfillment fee.";
+  params.set("line_items[0][price_data][product_data][description]", `Quote revision ${input.quote.revision}. ${assemblyDescription} ${fulfillmentDescription} Remaining balance due before shipment or at pickup/delivery handoff.`);
   params.set("line_items[0][quantity]", "1");
   params.set("payment_method_types[0]", "card");
   params.set("metadata[quote_id]", input.quote.id);

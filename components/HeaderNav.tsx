@@ -72,8 +72,8 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         <Link className={`nav-tab nav-tab-compact ${active("/queue") ? "nav-active" : ""}`} aria-current={active("/queue") ? "page" : undefined} href="/queue">Queue</Link>
         <Link className={`nav-tab nav-request-tab ${active("/custom-request") ? "nav-active" : ""}`} aria-current={active("/custom-request") ? "page" : undefined} href="/custom-request">Custom Request</Link>
         <div className="nav-shop-links" aria-label="External shops">
-          <a className="shop-icon-image-link whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop"><Image src="/brand/whatnot.png" alt="" width={30} height={30} /></a>
-          <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop"><Image src="/brand/etsy.png" alt="" width={30} height={30} /></a>
+          <a className="shop-icon-image-link whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop"><Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized /></a>
+          <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop"><Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized /></a>
         </div>
         {accountMenu}
         {!customer && <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg><span>Login</span></Link>}

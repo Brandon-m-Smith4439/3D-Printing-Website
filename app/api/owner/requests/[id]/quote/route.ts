@@ -15,10 +15,12 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   const parsed=ownerQuoteSchema.safeParse(body);if(!parsed.success)return NextResponse.json({message:"Please check the quote fields.",fieldErrors:parsed.error.flatten().fieldErrors},{status:400});
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
   if(parsed.data.action==="send"&&!source.customerAccountId)return NextResponse.json({message:"This request was submitted without a signed-in customer profile. You can save a draft, but profile approval requires a linked customer account."},{status:409});
-  const quote=await upsertQuote({requestId:source.id,requestCode:source.requestCode,customerAccountId:source.customerAccountId||"",totalCents:parsed.data.totalCents,depositCents:parsed.data.depositCents,material:parsed.data.material,dimensions:parsed.data.dimensions,estimatedReadyDate:parsed.data.estimatedReadyDate,notes:parsed.data.notes,terms:parsed.data.terms,send:parsed.data.action==="send"});
+  const quote=await upsertQuote({requestId:source.id,requestCode:source.requestCode,customerAccountId:source.customerAccountId||"",basePriceCents:parsed.data.basePriceCents,assemblyMode:parsed.data.assemblyMode,assemblyFeeCents:parsed.data.assemblyFeeCents,fulfillmentMode:parsed.data.fulfillmentMode,localDeliveryFeeCents:parsed.data.localDeliveryFeeCents,packageWeightOz:parsed.data.packageWeightOz,packageLengthIn:parsed.data.packageLengthIn,packageWidthIn:parsed.data.packageWidthIn,packageHeightIn:parsed.data.packageHeightIn,totalCents:parsed.data.totalCents,depositCents:parsed.data.depositCents,material:parsed.data.material,dimensions:parsed.data.dimensions,estimatedReadyDate:parsed.data.estimatedReadyDate,notes:parsed.data.notes,terms:parsed.data.terms,send:parsed.data.action==="send"});
   if(parsed.data.action==="send"){
     const updated=await updateStoredRequest(source.id,{status:"quoted"});
-    if(updated)await notifyCustomer(updated,`A quote is ready for review. Total: $${(quote.totalCents/100).toFixed(2)}. Deposit due after approval: $${(quote.depositCents/100).toFixed(2)}.`);
+    if(updated)await notifyCustomer(updated, quote.fulfillmentMode === "shipping" && !quote.shippingSelection
+      ? `A quote is ready for review. Production subtotal: $${(quote.totalCents/100).toFixed(2)}. Choose a live USPS, UPS, or FedEx rate in your profile before approving the final total.`
+      : `A quote is ready for review. Total: $${(quote.totalCents/100).toFixed(2)}. Deposit due after approval: $${(quote.depositCents/100).toFixed(2)}.`);
   }else if(quote.status==="draft"&&["quoted","accepted"].includes(source.status)){
     await updateStoredRequest(source.id,{status:"reviewing"});
   }
