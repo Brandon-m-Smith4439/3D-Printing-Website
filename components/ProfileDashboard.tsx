@@ -24,7 +24,7 @@ const queueLabels:Record<QueueStatus,string>={queued:"Queued",preparing:"Prepari
 const requestLabels:Record<RequestStatus,string>={new:"New",reviewing:"Under review",quoted:"Quote sent",accepted:"Quote approved", "deposit-paid":"Deposit paid",declined:"Declined",queued:"In queue",completed:"Completed"};
 const quoteLabels:Record<QuoteStatus,string>={draft:"Quote draft",sent:"Waiting for your response",countered:"Counter offer sent",approved:"Quote approved — deposit due",declined:"Quote declined", "deposit-paid":"Deposit paid",void:"Quote closed"};
 function money(cents:number){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(cents/100);}
-function assemblyLabel(mode:AssemblyMode){if(mode==="assembled")return "Assembled by Mesh Harbor 3D";if(mode==="disassembled")return "Ships disassembled — super glue required";return "No assembly required";}
+function assemblyLabel(mode:AssemblyMode){if(mode==="assembled")return "Assembled by Mesh Harbor 3D";if(mode==="disassembled")return "Ships disassembled — assembly guide included";return "No assembly required";}
 function fulfillmentLabel(mode:QuoteFulfillmentMode){if(mode==="shipping")return "Carrier shipping";if(mode==="local-delivery")return "Local delivery";return "Local pickup";}
 function displayedStatus(request:ProfileRequest){if(request.queue)return queueLabels[request.queue.status];if(request.quote?.depositPaidAt)return "Deposit paid";if(request.quote?.status==="deposit-paid")return "Payment record under review";if(request.quote)return quoteLabels[request.quote.status];if(request.status==="deposit-paid")return "Under review — no deposit recorded";if(request.status==="queued")return "Under review — not currently queued";return requestLabels[request.status];}
 
