@@ -14,6 +14,7 @@ type RequestSummary = {
   projectType: string;
   modelStatus: string;
   fulfillmentMethod: string;
+  assemblyPreference: string;
   quantity: string;
   dimensions: string;
   materialPreference: string;
@@ -26,6 +27,7 @@ type RequestSummary = {
 const projectSummaryLabels: Record<string, string> = { display: "Display / collectible", functional: "Functional part", replacement: "Replacement part", prototype: "Prototype", other: "Other" };
 const modelSummaryLabels: Record<string, string> = { ready: "Print-ready model", "needs-adjustment": "Model may need changes", "reference-only": "Photos / references", "idea-only": "Idea only" };
 const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Carrier shipping", "local-delivery": "Local delivery", unsure: "Not sure yet" };
+const assemblySummaryLabels: Record<string, string> = { assembled: "Assembled by Mesh Harbor 3D", disassembled: "Disassembled + assembly guide", unsure: "Not sure yet" };
 const materialSummaryLabels: Record<string, string> = { "no-preference": "No preference", pla: "PLA", petg: "PETG", asa: "ASA", tpu: "TPU / flexible", resin: "Resin", other: "Other / unsure" };
 
 const friendlyMessages: Record<string, string> = {
@@ -35,6 +37,7 @@ const friendlyMessages: Record<string, string> = {
   projectType: "Select a project type.",
   modelStatus: "Tell me whether you already have a 3D model.",
   fulfillmentMethod: "Select pickup, shipping, local delivery, or not sure yet.",
+  assemblyPreference: "Choose assembled, disassembled with an assembly guide, or not sure yet.",
   quantity: "Enter a quantity from 1 to 500.",
   neededBy: "Enter a valid future date, such as 9/2/2026, or choose one from the calendar.",
   referenceUrl: "Enter a complete web link beginning with http:// or https://.",
@@ -58,6 +61,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
     projectType: "",
     modelStatus: "",
     fulfillmentMethod: "",
+    assemblyPreference: "",
     quantity: "1",
     dimensions: "",
     materialPreference: "no-preference",
@@ -113,6 +117,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
       projectType: String(data.get("projectType") || ""),
       modelStatus: String(data.get("modelStatus") || ""),
       fulfillmentMethod: String(data.get("fulfillmentMethod") || ""),
+      assemblyPreference: String(data.get("assemblyPreference") || ""),
       quantity: String(data.get("quantity") || "1"),
       dimensions: String(data.get("dimensions") || ""),
       materialPreference: String(data.get("materialPreference") || "no-preference"),
@@ -188,6 +193,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
       projectType: data.get("projectType"),
       modelStatus: data.get("modelStatus"),
       fulfillmentMethod: data.get("fulfillmentMethod"),
+      assemblyPreference: data.get("assemblyPreference"),
       quantity: Number(data.get("quantity") || 1),
       dimensions: data.get("dimensions") || "",
       materialPreference: data.get("materialPreference"),
@@ -241,6 +247,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
         projectType: "",
         modelStatus: "",
         fulfillmentMethod: "",
+        assemblyPreference: "",
         quantity: "1",
         dimensions: "",
         materialPreference: "no-preference",
@@ -316,6 +323,17 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
                 </select>
                 {fieldErrors.fulfillmentMethod && <small className="field-error">{fieldErrors.fulfillmentMethod}</small>}
               </label>
+              <label className={fieldClass("assemblyPreference")}>
+                <span>How would you like multi-part prints delivered? *</span>
+                <select name="assemblyPreference" defaultValue="" required aria-invalid={Boolean(fieldErrors.assemblyPreference)}>
+                  <option value="" disabled>Select one</option>
+                  <option value="assembled">Assembled for me</option>
+                  <option value="disassembled">Disassembled — I will assemble it</option>
+                  <option value="unsure">Not sure yet</option>
+                </select>
+                <small>Disassembled orders include an assembly guide. Final assembly may require super glue. Assembled orders may include an assembly labor charge in the quote.</small>
+                {fieldErrors.assemblyPreference && <small className="field-error">{fieldErrors.assemblyPreference}</small>}
+              </label>
             </div>
           </section>
 
@@ -384,6 +402,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
             <span><b>Needed by</b><em>{summary.neededBy || "Not specified"}</em></span>
             <span><b>Budget</b><em>{summary.budget || "Not specified"}</em></span>
             <span><b>Fulfillment</b><em>{fulfillmentSummaryLabels[summary.fulfillmentMethod] || "Not specified"}</em></span>
+            <span><b>Assembly</b><em>{assemblySummaryLabels[summary.assemblyPreference] || "Not specified"}</em></span>
             <span><b>Reference</b><em>{summary.referenceUrl ? "Provided" : "None"}</em></span>
             <span><b>Attachments</b><em>{attachments.length ? `${attachments.length} attached` : "None"}</em></span>
           </div>
