@@ -144,9 +144,9 @@ export const shippingAddressSchema = z.object({
   street1: z.string().trim().min(3).max(120),
   street2: z.string().trim().max(120).default(""),
   city: z.string().trim().min(2).max(80),
-  state: z.string().trim().min(2).max(40),
-  zip: z.string().trim().min(5).max(12),
-  country: z.string().trim().length(2).default("US"),
+  state: z.string().trim().regex(/^[A-Za-z]{2}$/, "Use the 2-letter state code, such as NC.").transform((value) => value.toUpperCase()),
+  zip: z.string().trim().regex(/^\d{5}(?:-\d{4})?$/, "Use a 5-digit ZIP code or ZIP+4."),
+  country: z.literal("US").default("US"),
 });
 
 export const shippingSelectionSchema = z.object({
