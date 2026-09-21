@@ -21,7 +21,7 @@ export type ShippingOrigin = {
   city: string;
   state: string;
   zip: string;
-  country: string;
+  country: "US";
 };
 
 export type SiteContent = {
