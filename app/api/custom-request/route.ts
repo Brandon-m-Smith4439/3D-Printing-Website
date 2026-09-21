@@ -126,6 +126,7 @@ async function sendEmail(values: CustomRequest, risk: RequestRiskAssessment) {
     ["Project type", values.projectType],
     ["3D model status", values.modelStatus],
     ["Fulfillment", values.fulfillmentMethod],
+    ["Assembly preference", values.assemblyPreference === "assembled" ? "Assembled by Mesh Harbor 3D" : values.assemblyPreference === "disassembled" ? "Disassembled with assembly guide" : "Not sure yet"],
     ["Quantity", String(values.quantity)],
     ["Dimensions", values.dimensions || "—"],
     ["Material", values.materialPreference],
