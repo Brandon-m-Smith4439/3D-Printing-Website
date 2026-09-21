@@ -53,7 +53,7 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
   const assemblyDescription = input.quote.assemblyMode === "assembled"
     ? `Assembled by Mesh Harbor 3D (assembly labor ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.assemblyFeeCents / 100)} included).`
     : input.quote.assemblyMode === "disassembled"
-      ? "Ships disassembled; customer assembly with super glue is required."
+      ? "Ships disassembled; an assembly guide is included and final assembly may require super glue."
       : "No assembly required.";
   const fulfillmentDescription = input.quote.fulfillmentMode === "shipping" && input.quote.shippingSelection
     ? `${input.quote.shippingSelection.carrier} ${input.quote.shippingSelection.service} shipping ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.shippingSelection.rateCents / 100)} included.`
