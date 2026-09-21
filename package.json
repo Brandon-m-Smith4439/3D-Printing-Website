@@ -1,11 +1,11 @@
 {
   "name": "mesh-harbor-3d",
-  "version": "0.73.0",
+  "version": "0.74.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "lint": "eslint ."
   },
   "dependencies": {
