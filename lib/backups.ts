@@ -4,7 +4,8 @@ import path from "node:path";
 import { createDatabaseSnapshot } from "@/lib/database";
 import { copyPrivateObjectStore } from "@/lib/private-object-store";
 
-const BACKUP_ROOT = path.resolve((process.env.BACKUP_DIR || path.join(process.cwd(), "backups")).trim());
+const RAILWAY_VOLUME = (process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+const BACKUP_ROOT = path.resolve((process.env.BACKUP_DIR || (RAILWAY_VOLUME ? path.join(RAILWAY_VOLUME, "backups") : path.join(process.cwd(), "backups"))).trim());
 const RETAIN = Math.max(3, Math.min(90, Number(process.env.BACKUP_RETAIN_COUNT || 14) || 14));
 let running: Promise<BackupInfo> | null = null;
 
