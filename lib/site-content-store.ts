@@ -8,6 +8,16 @@ let writeChain = Promise.resolve();
 const localImagePath = z.string().trim().min(1).max(300).refine((value) => value.startsWith("/") && !value.includes("..") && !value.includes("\\"), "Use a local site image path.");
 const externalUrl = z.string().trim().url().max(500);
 
+const shippingOriginSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  street1: z.string().trim().max(120),
+  street2: z.string().trim().max(120),
+  city: z.string().trim().max(80),
+  state: z.string().trim().max(2).refine((value) => value === "" || /^[A-Za-z]{2}$/.test(value), "Use a 2-letter state code."),
+  zip: z.string().trim().max(10).refine((value) => value === "" || /^\d{5}(?:-\d{4})?$/.test(value), "Use a 5-digit ZIP code or ZIP+4."),
+  country: z.literal("US").default("US"),
+});
+
 export const galleryItemSchema = z.object({
   id: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/),
   title: z.string().trim().min(1).max(100),
@@ -28,6 +38,7 @@ export const siteContentSchema = z.object({
   businessTimeZone: z.string().trim().min(1).max(80),
   etsyUrl: externalUrl,
   whatnotUrl: externalUrl,
+  shippingOrigin: shippingOriginSchema.default(defaultSiteContent.shippingOrigin),
   galleryItems: z.array(galleryItemSchema).max(40),
 });
 
