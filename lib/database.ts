@@ -66,7 +66,7 @@ function insertLegacyRecords(db: DatabaseSync, collection: string, raw: unknown)
   db.exec("BEGIN IMMEDIATE");
   try {
     raw.forEach((item, index) => {
-      const record = item && typeof item === "object" ? item as Record<string, unknown> : { value: item };
+      const record: Record<string, unknown> = item && typeof item === "object" && !Array.isArray(item) ? item as Record<string, unknown> : { value: item };
       const id = typeof record.id === "string" && record.id ? record.id : `${collection}-${index}`;
       const updatedAt = typeof record.updatedAt === "string" && record.updatedAt ? record.updatedAt : now;
       insert.run(collection, id, JSON.stringify(item), updatedAt);
