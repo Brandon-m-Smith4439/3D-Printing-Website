@@ -2,7 +2,8 @@ import "server-only";
 import { cp, mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const ROOT = path.resolve((process.env.PRIVATE_STORAGE_DIR || path.join(process.cwd(), "storage", "private")).trim());
+const RAILWAY_VOLUME = (process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+const ROOT = path.resolve((process.env.PRIVATE_STORAGE_DIR || (RAILWAY_VOLUME ? path.join(RAILWAY_VOLUME, "private") : path.join(process.cwd(), "storage", "private"))).trim());
 
 function safeKey(key:string){
   if(!key || key.includes("..") || key.includes("\\") || path.isAbsolute(key)) throw new Error("Invalid private object key.");
