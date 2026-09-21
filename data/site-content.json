@@ -9,11 +9,62 @@
   "etsyUrl": "https://www.etsy.com/",
   "whatnotUrl": "https://www.whatnot.com/",
   "galleryItems": [
-    {"id":"display-character","title":"Character Display Print","category":"Display","description":"Multi-part display print with clean detail and a presentation-ready finish.","image":"/sample-display.svg","featured":true},
-    {"id":"desk-organizer","title":"Custom Desk Organizer","category":"Functional","description":"Purpose-built organization with dimensions tailored to the workspace.","image":"/sample-organizer.svg","featured":false},
-    {"id":"wall-art","title":"Layered Wall Art","category":"Decor","description":"Dimensional wall piece designed around color, depth, and clean layer changes.","image":"/sample-wall-art.svg","featured":false},
-    {"id":"controller-stand","title":"Controller Stand","category":"Gaming","description":"Stable, compact stand built to keep a gaming setup clean and organized.","image":"/sample-controller.svg","featured":false},
-    {"id":"prototype-part","title":"Prototype Part","category":"Custom","description":"A practical prototype used to validate fit, size, and geometry before a final run.","image":"/sample-prototype.svg","featured":false},
-    {"id":"display-base","title":"Collectible Display Base","category":"Display","description":"A custom base designed to elevate and organize collectible pieces.","image":"/sample-base.svg","featured":false}
-  ]
+    {
+      "id": "display-character",
+      "title": "Character Display Print",
+      "category": "Display",
+      "description": "Multi-part display print with clean detail and a presentation-ready finish.",
+      "image": "/sample-display.svg",
+      "featured": true
+    },
+    {
+      "id": "desk-organizer",
+      "title": "Custom Desk Organizer",
+      "category": "Functional",
+      "description": "Purpose-built organization with dimensions tailored to the workspace.",
+      "image": "/sample-organizer.svg",
+      "featured": false
+    },
+    {
+      "id": "wall-art",
+      "title": "Layered Wall Art",
+      "category": "Decor",
+      "description": "Dimensional wall piece designed around color, depth, and clean layer changes.",
+      "image": "/sample-wall-art.svg",
+      "featured": false
+    },
+    {
+      "id": "controller-stand",
+      "title": "Controller Stand",
+      "category": "Gaming",
+      "description": "Stable, compact stand built to keep a gaming setup clean and organized.",
+      "image": "/sample-controller.svg",
+      "featured": false
+    },
+    {
+      "id": "prototype-part",
+      "title": "Prototype Part",
+      "category": "Custom",
+      "description": "A practical prototype used to validate fit, size, and geometry before a final run.",
+      "image": "/sample-prototype.svg",
+      "featured": false
+    },
+    {
+      "id": "display-base",
+      "title": "Collectible Display Base",
+      "category": "Display",
+      "description": "A custom base designed to elevate and organize collectible pieces.",
+      "image": "/sample-base.svg",
+      "featured": false
+    }
+  ],
+  "shippingOrigin": {
+    "name": "Mesh Harbor 3D",
+    "street1": "",
+    "street2": "",
+    "city": "",
+    "state": "",
+    "zip": "",
+    "country": "US"
+  }
 }
