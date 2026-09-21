@@ -18,12 +18,13 @@ function historyLabel(item:QuoteHistoryEntry){
   if(item.event==="shipping-selected") return "Shipping selected";
   return "Deposit received";
 }
-function assemblyLabel(mode:AssemblyMode){if(mode==="assembled")return "Assembled by Mesh Harbor 3D";if(mode==="disassembled")return "Ship disassembled — customer assembles";return "No assembly required";}
+function assemblyLabel(mode:AssemblyMode){if(mode==="assembled")return "Assembled by Mesh Harbor 3D";if(mode==="disassembled")return "Disassembled — assembly guide included";return "No assembly required";}
 function fulfillmentLabel(mode:QuoteFulfillmentMode){if(mode==="shipping")return "Carrier shipping — customer chooses USPS, UPS, or FedEx";if(mode==="local-delivery")return "Local delivery";return "Local pickup";}
 
 export function OwnerQuoteEditor({request,quote,onChanged,onNotice,onClose}:{request:StoredRequest;quote:StoredQuote|null;onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void;onClose:()=>void}){
   const [basePrice,setBasePrice]=useState(quote?dollars(quote.basePriceCents):"");
-  const [assemblyMode,setAssemblyMode]=useState<AssemblyMode>(quote?.assemblyMode||"not-required");
+  const requestAssemblyDefault: AssemblyMode = request.assemblyPreference === "assembled" ? "assembled" : request.assemblyPreference === "disassembled" ? "disassembled" : "not-required";
+  const [assemblyMode,setAssemblyMode]=useState<AssemblyMode>(quote?.assemblyMode||requestAssemblyDefault);
   const [assemblyFee,setAssemblyFee]=useState(quote?.assemblyMode==="assembled"?dollars(quote.assemblyFeeCents):"");
   const defaultFulfillment:QuoteFulfillmentMode=quote?.fulfillmentMode||(request.fulfillmentMethod==="shipping"?"shipping":request.fulfillmentMethod==="local-delivery"?"local-delivery":"pickup");
   const [fulfillmentMode,setFulfillmentMode]=useState<QuoteFulfillmentMode>(defaultFulfillment);
@@ -69,7 +70,7 @@ export function OwnerQuoteEditor({request,quote,onChanged,onNotice,onClose}:{req
           <div className="quote-workspace-section quote-assembly-section"><div className="quote-section-title"><span>02</span><div><strong>Assembly configuration</strong><small>Make the handoff expectation and any assembly labor charge explicit.</small></div></div>
             <div className="quote-assembly-options" role="radiogroup" aria-label="Assembly configuration">
               <button type="button" disabled={locked||busy} className={`quote-assembly-option ${assemblyMode==="assembled"?"is-selected":""}`} onClick={()=>changeAssemblyMode("assembled")}><strong>Assembled by Mesh Harbor 3D</strong><span>You assemble/glue the multi-part print before pickup or shipment. An assembly labor charge is added.</span></button>
-              <button type="button" disabled={locked||busy} className={`quote-assembly-option ${assemblyMode==="disassembled"?"is-selected":""}`} onClick={()=>changeAssemblyMode("disassembled")}><strong>Ship disassembled</strong><span>No assembly labor charge. The customer receives separate pieces and will need super glue.</span></button>
+              <button type="button" disabled={locked||busy} className={`quote-assembly-option ${assemblyMode==="disassembled"?"is-selected":""}`} onClick={()=>changeAssemblyMode("disassembled")}><strong>Disassembled — customer assembles</strong><span>No assembly labor charge. The customer receives separate pieces, an assembly guide, and may need super glue for final assembly.</span></button>
               <button type="button" disabled={locked||busy} className={`quote-assembly-option ${assemblyMode==="not-required"?"is-selected":""}`} onClick={()=>changeAssemblyMode("not-required")}><strong>No assembly required</strong><span>Use this for a single-piece print or a project that does not require glued assembly.</span></button>
             </div>
             {assemblyMode==="assembled"&&<label className="quote-assembly-fee"><span>Assembly labor charge ($)</span><input value={assemblyFee} inputMode="decimal" disabled={locked||busy} onChange={e=>setAssemblyFee(e.target.value)} placeholder="15.00"/></label>}
