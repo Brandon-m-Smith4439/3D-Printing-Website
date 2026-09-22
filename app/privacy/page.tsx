@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <div className="container policy-page">
         <p className="eyebrow">PRIVACY</p>
         <h1>Privacy policy</h1>
-        <p className="lead">This starter policy describes how the website is designed to handle customer profiles and custom-print requests. Replace the bracketed business details before launch and have the final policy reviewed for your business and location.</p>
+        <p className="lead">This policy explains how Mesh Harbor 3D handles customer profiles, custom-print requests, quotes, payments, production status, attachments, and related service information.</p>
 
         <h2>Information collected</h2>
         <p>The custom request form may collect your name, email address, optional phone number, project requirements, requested timing, reference links, and files or images you deliberately attach to explain a requested 3D print.</p>
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         <p>Accepted print jobs may appear on the public Queue page using a generated order code, a generic public print name, status, quantity, owner-selected image, and estimated date. Customer names, email addresses, private notes, account details, and customer-uploaded attachments are not displayed publicly.</p>
 
         <h2>Profile privacy</h2>
-        <p>A profile is designed to show requests submitted while that customer account was signed in. The site does not automatically expose older requests merely because a newly created account uses the same email address.</p>
+        <p>A profile shows requests linked to that customer account. After an email address is verified, older guest requests submitted with the same email address may also be linked to that profile so the verified customer can track them.</p>
 
         <h2>Notifications</h2>
         <p>Profile-linked request and production status changes may appear as in-app notifications. Verified customers may choose to receive status emails. When an accepted print job is marked completed, the email address associated with that job may also be used to send a completion notification and coordinate pickup or shipping.</p>
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         <p>Request and profile information is not intended to be sold. It may be processed by service providers needed to operate the website and deliver its services, such as hosting, security, storage, authentication, malware-scanning, email-delivery, and payment providers. Stripe receives payment information when a customer chooses to pay a custom-order deposit through Stripe Checkout.</p>
 
         <h2>Contact</h2>
-        <p>Before launch, add your business contact email here so visitors can ask privacy-related questions or request deletion of information you still retain.</p>
+        <p>For privacy-related questions or deletion requests, contact Mesh Harbor 3D through the same business communication channel used for your request or order. If you have an active custom request, include its request code so the correct records can be located.</p>
       </div>
     </section>
   );
