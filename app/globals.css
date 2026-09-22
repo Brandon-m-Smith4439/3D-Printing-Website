@@ -2502,10 +2502,9 @@ main { min-height: 65vh; }
     gap: 8px;
   }
   .nav-links {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-start;
     overflow-x: visible;
     gap: 6px;
     padding-bottom: 2px;
@@ -2513,28 +2512,34 @@ main { min-height: 65vh; }
   .nav-links .nav-tab-compact,
   .nav-links > a.nav-tab-compact,
   .nav-links > a.nav-tab-compact:not(.button) {
-    flex: 1 1 54px;
-    width: auto;
-    min-width: 54px;
-    max-width: 72px;
+    grid-column: span 2;
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
     height: 38px;
+    min-height: 38px;
     padding-inline: 5px;
     font-size: .76rem;
   }
   .nav-links .nav-request-tab,
   .nav-links > a.nav-request-tab,
   .nav-links > a.nav-request-tab:not(.button) {
-    flex: 1 1 106px;
-    width: auto;
-    min-width: 100px;
-    max-width: 126px;
+    grid-column: span 3;
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
     height: 38px;
+    min-height: 38px;
     padding-inline: 7px;
     font-size: .74rem;
   }
   .nav-shop-links {
-    flex: 0 0 auto;
-    margin-left: auto;
+    grid-column: span 2;
+    justify-self: start;
+    flex: none;
+    margin-left: 0;
     gap: 6px;
   }
   .nav-shop-links .shop-icon-image-link {
@@ -2547,6 +2552,8 @@ main { min-height: 65vh; }
     height: 30px;
   }
   .account-nav-link {
+    grid-column: span 1;
+    justify-self: end;
     flex: 0 0 38px;
     width: 38px;
     min-width: 38px;
@@ -2555,6 +2562,8 @@ main { min-height: 65vh; }
     padding: 0;
   }
   .account-menu {
+    grid-column: span 1;
+    justify-self: end;
     flex: 0 0 auto;
     max-width: 160px;
   }
