@@ -111,7 +111,7 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
     proposedShipmentId: "",
     proposedRateId: "",
     proposedRateCents: 0,
-    refundStatus: purchased.refundStatus,
+    refundStatus: purchased.refundStatus as ShipmentRecord["refundStatus"],
     purchasedAt: now,
     trackingEvents: trackerEvents(purchased.tracker),
   });
