@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type SettingsAccount = {
@@ -21,14 +21,14 @@ export function AccountSettings() {
   const [notice, setNotice] = useState<Notice>(null);
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     const response = await fetch("/api/account/settings", { cache: "no-store" });
     if (response.status === 401) { router.push("/login"); return; }
     const result = await response.json() as { account?: SettingsAccount; message?: string };
     if (!response.ok || !result.account) { setNotice({ kind: "error", text: result.message || "Could not load account settings." }); return; }
     setAccount(result.account);
-  }
-  useEffect(() => { void load(); }, []);
+  }, [router]);
+  useEffect(() => { void load(); }, [load]);
 
   async function resendVerification() {
     setBusy(true); setNotice(null);

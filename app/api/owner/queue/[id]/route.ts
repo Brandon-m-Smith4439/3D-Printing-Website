@@ -70,10 +70,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       }
     } catch (error) {
       console.error("Completion email failed", error);
-      return NextResponse.json(
-        { message: "The customer email could not be sent, so the job was not marked completed." },
-        { status: 502 },
-      );
+      emailWarning = "The job was marked completed, but the completion email could not be sent. The customer still has the in-app completion update.";
     }
   }
 
