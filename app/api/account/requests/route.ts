@@ -4,13 +4,14 @@ import { notificationsForCustomer } from "@/lib/customer-notifications";
 import { readQueue } from "@/lib/queue-store";
 import { readRequests } from "@/lib/request-store";
 import { readQuotes } from "@/lib/quote-store";
+import { readShipments } from "@/lib/shipment-store";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const customer = await customerFromRequest(request);
   if (!customer) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
-  const [requests, queue, notifications, quotes] = await Promise.all([readRequests(), readQueue(), notificationsForCustomer(customer.id), readQuotes()]);
+  const [requests, queue, notifications, quotes, shipments] = await Promise.all([readRequests(), readQueue(), notificationsForCustomer(customer.id), readQuotes(), readShipments()]);
   const active = queue.filter((job) => job.status !== "completed").sort((a, b) => (a.status === "printing" ? -1 : 0) - (b.status === "printing" ? -1 : 0) || a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
   const activeIndex = new Map(active.map((job, index) => [job.id, index + 1]));
   const own = requests
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
     .map((item) => {
       const job = item.queueJobId ? queue.find((candidate) => candidate.id === item.queueJobId) : null;
       const quote = quotes.find((candidate) => candidate.requestId === item.id && !["void", "draft"].includes(candidate.status)) || null;
+      const shipment = shipments.find((candidate) => candidate.requestId === item.id) || null;
       return {
         id: item.id, requestCode: item.requestCode, status: item.status, projectType: item.projectType,
         quantity: item.quantity, neededBy: item.neededBySubmitted || item.neededBy, description: item.description,
@@ -28,6 +30,11 @@ export async function GET(request: NextRequest) {
           balanceCents: quote.balanceCents, currency: quote.currency, material: quote.material, dimensions: quote.dimensions,
           estimatedReadyDate: quote.estimatedReadyDate, notes: quote.notes, terms: quote.terms, sentAt: quote.sentAt,
           approvedAt: quote.approvedAt, depositPaidAt: quote.depositPaidAt, history: quote.history,
+        } : null,
+        shipment: shipment ? {
+          trackingCode: shipment.trackingCode, publicTrackingUrl: shipment.publicTrackingUrl, carrier: shipment.carrier, service: shipment.service,
+          status: shipment.status, statusDetail: shipment.statusDetail, estimatedDeliveryDate: shipment.estimatedDeliveryDate,
+          purchasedAt: shipment.purchasedAt, deliveredAt: shipment.deliveredAt, trackingEvents: shipment.trackingEvents,
         } : null,
         queue: job ? {
           publicCode: job.publicCode, publicTitle: job.publicTitle, status: job.status,

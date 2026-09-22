@@ -7,6 +7,7 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { updateQueueJobSchema } from "@/lib/queue-types";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { quoteForRequest } from "@/lib/quote-store";
+import { autoBuyLabelIfEligible } from "@/lib/shipping-service";
 
 export const runtime = "nodejs";
 
@@ -77,6 +78,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 
   const job = await updateQueueJob(id, parsed.data, emailSentAt);
+  let shippingWarning = "";
+  if (job?.sourceRequestId && parsed.data.status === "ready" && parsed.data.status !== existing.status && job.fulfillmentMethod === "shipping") {
+    const autoShipping = await autoBuyLabelIfEligible(job.sourceRequestId);
+    shippingWarning = autoShipping.warning;
+  }
   if (job?.sourceRequestId && parsed.data.status && parsed.data.status !== existing.status) {
     const sourceBefore = await getStoredRequest(job.sourceRequestId);
     if (job.status === "completed") {
@@ -95,7 +101,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     }
   }
   await writeAudit({actor:"owner",actorId:"owner",action:"queue-job-updated",targetType:"queue",targetId:id,summary:`${existing.publicCode} updated${parsed.data.status ? ` to ${parsed.data.status}` : ""}.`,ipHash:requestIpHash(request)});
-  return NextResponse.json({ job, emailWarning });
+  return NextResponse.json({ job, emailWarning, shippingWarning });
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {

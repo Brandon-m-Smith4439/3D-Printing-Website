@@ -1,6 +1,8 @@
 import "server-only";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ShippingAddress, StoredQuote } from "@/lib/quote-types";
 import { getSiteContent } from "@/lib/site-content-store";
+import type { ShipmentStatus } from "@/lib/shipment-types";
 
 const ALLOWED_CARRIERS = new Set(["USPS", "UPS", "FedEx"]);
 
@@ -13,9 +15,41 @@ export type EasyPostRate = {
   deliveryDate: string;
 };
 
+export type EasyPostTracker = {
+  id: string;
+  trackingCode: string;
+  status: ShipmentStatus;
+  statusDetail: string;
+  publicUrl: string;
+  estimatedDeliveryDate: string;
+  trackingDetails: Array<{
+    status: string;
+    statusDetail: string;
+    message: string;
+    datetime: string;
+    location: { city: string; state: string; country: string; zip: string } | null;
+  }>;
+};
+
 type EasyPostErrorBody = {
   error?: { message?: string; code?: string; errors?: Array<{ message?: string; field?: string }> } | string;
   message?: string;
+};
+
+type RawTracker = {
+  id?: string;
+  tracking_code?: string;
+  status?: string;
+  status_detail?: string;
+  public_url?: string;
+  est_delivery_date?: string | null;
+  tracking_details?: Array<{
+    status?: string;
+    status_detail?: string;
+    message?: string;
+    datetime?: string;
+    tracking_location?: { city?: string; state?: string; country?: string; zip?: string };
+  }>;
 };
 
 function apiKey() { return (process.env.EASYPOST_API_KEY || "").trim(); }
@@ -33,10 +67,14 @@ export async function easyPostConfigurationSummary() {
   const testMode = /^EZTK/i.test(key);
   const content = await getSiteContent();
   const fromReady = originReady(content.shippingOrigin);
+  const webhookSecret = (process.env.EASYPOST_WEBHOOK_SECRET || "").trim();
   return {
     configured: easyPostConfigured(),
     mode: easyPostConfigured() ? (testMode ? "test" : "production") : "unconfigured",
     fromAddressConfigured: fromReady,
+    webhookSecretConfigured: Boolean(webhookSecret && webhookSecret.length >= 16),
+    autoBuyLabels: /^(1|true|yes|on)$/i.test((process.env.EASYPOST_AUTO_BUY_LABELS || "").trim()),
+    webhookUrl: `${((process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").trim().replace(/\/$/, ""))}/api/shipping/easypost/webhook`,
     originLabel: fromReady ? `${content.shippingOrigin.city}, ${content.shippingOrigin.state} ${content.shippingOrigin.zip}` : "Not configured",
   } as const;
 }
@@ -66,6 +104,35 @@ function normalizeCarrier(carrier: string): EasyPostRate["carrier"] | null {
   return null;
 }
 
+function normalizeTrackerStatus(value: string): ShipmentStatus {
+  const normalized = value.trim().toLowerCase().replaceAll("-", "_");
+  const allowed = new Set<ShipmentStatus>(["pre_transit", "in_transit", "out_for_delivery", "delivered", "return_to_sender", "failure", "unknown"]);
+  return allowed.has(normalized as ShipmentStatus) ? normalized as ShipmentStatus : "unknown";
+}
+
+function normalizeTracker(raw: RawTracker | null | undefined): EasyPostTracker {
+  return {
+    id: raw?.id || "",
+    trackingCode: raw?.tracking_code || "",
+    status: normalizeTrackerStatus(raw?.status || "unknown"),
+    statusDetail: raw?.status_detail || "",
+    publicUrl: raw?.public_url || "",
+    estimatedDeliveryDate: raw?.est_delivery_date || "",
+    trackingDetails: (raw?.tracking_details || []).map((detail) => ({
+      status: detail.status || "",
+      statusDetail: detail.status_detail || "",
+      message: detail.message || "",
+      datetime: detail.datetime || "",
+      location: detail.tracking_location ? {
+        city: detail.tracking_location.city || "",
+        state: detail.tracking_location.state || "",
+        country: detail.tracking_location.country || "",
+        zip: detail.tracking_location.zip || "",
+      } : null,
+    })),
+  };
+}
+
 function errorMessage(body: EasyPostErrorBody, fallback: string) {
   if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
   if (body.error && typeof body.error === "object") {
@@ -82,8 +149,8 @@ async function easyPostFetch(url: string, init: RequestInit) {
   try {
     return await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error("The carrier-rate service took too long to respond. Please try again.");
-    throw new Error("Could not reach the carrier-rate service. Please try again shortly.");
+    if (error instanceof Error && error.name === "AbortError") throw new Error("The carrier service took too long to respond. Please try again.");
+    throw new Error("Could not reach the carrier service. Please try again shortly.");
   } finally {
     clearTimeout(timer);
   }
@@ -162,4 +229,68 @@ export async function verifySelectedEasyPostRate(shipmentId: string, rateId: str
     deliveryDays: Number.isFinite(raw.delivery_days) ? Number(raw.delivery_days) : null,
     deliveryDate: raw.delivery_date || "",
   } satisfies EasyPostRate;
+}
+
+export async function buyEasyPostShipment(shipmentId: string, rateId: string) {
+  if (!easyPostConfigured()) throw new Error("EasyPost label purchasing is not configured yet.");
+  const response = await easyPostFetch(`https://api.easypost.com/v2/shipments/${encodeURIComponent(shipmentId)}/buy`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ rate: { id: rateId } }),
+  });
+  const result = await response.json().catch(() => ({})) as EasyPostErrorBody & {
+    id?: string;
+    tracking_code?: string;
+    selected_rate?: { rate?: string };
+    postage_label?: { label_url?: string; label_pdf_url?: string; label_png_url?: string };
+    tracker?: RawTracker;
+    refund_status?: "submitted" | "refunded" | "rejected" | "not_applicable" | null;
+  };
+  if (!response.ok || !result.id || !result.tracking_code) throw new Error(errorMessage(result, "EasyPost could not purchase the shipping label."));
+  const tracker = normalizeTracker(result.tracker);
+  return {
+    shipmentId: result.id,
+    trackingCode: result.tracking_code,
+    postageCostCents: result.selected_rate?.rate ? dollarsToCents(result.selected_rate.rate) : 0,
+    labelUrl: result.postage_label?.label_url || "",
+    labelPdfUrl: result.postage_label?.label_pdf_url || "",
+    labelPngUrl: result.postage_label?.label_png_url || "",
+    refundStatus: result.refund_status || "",
+    tracker: { ...tracker, trackingCode: tracker.trackingCode || result.tracking_code },
+  };
+}
+
+export async function refundEasyPostShipment(shipmentId: string) {
+  if (!easyPostConfigured()) throw new Error("EasyPost label refunds are not configured yet.");
+  const response = await easyPostFetch(`https://api.easypost.com/v2/shipments/${encodeURIComponent(shipmentId)}/refund`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), Accept: "application/json" },
+  });
+  const result = await response.json().catch(() => ({})) as EasyPostErrorBody & { refund_status?: "submitted" | "refunded" | "rejected" | "not_applicable" | null };
+  if (!response.ok) throw new Error(errorMessage(result, "EasyPost could not submit the label refund."));
+  return { refundStatus: result.refund_status || "submitted" as const };
+}
+
+export function verifyEasyPostWebhook(rawBody: string, method: string, headers: Headers) {
+  const secret = (process.env.EASYPOST_WEBHOOK_SECRET || "").trim();
+  if (!secret) return process.env.NODE_ENV !== "production";
+  const timestamp = headers.get("x-timestamp") || "";
+  const path = headers.get("x-path") || "";
+  const supplied = (headers.get("x-hmac-signature-v2") || headers.get("x-hmac-signature") || "").replace(/^hmac-sha256-hex=/i, "").trim();
+  if (!timestamp || !path || !supplied) return false;
+  const sentAt = Date.parse(timestamp);
+  if (!Number.isFinite(sentAt)) return false;
+  const ageMs = Date.now() - sentAt;
+  if (ageMs > 60_000 || ageMs < -30_000) return false;
+  const expected = createHmac("sha256", secret).update(`${timestamp}${method.toUpperCase()}${path}${rawBody}`, "utf8").digest("hex");
+  const left = Buffer.from(supplied.toLowerCase());
+  const right = Buffer.from(expected.toLowerCase());
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+export function easyPostTrackerFromWebhook(value: unknown): EasyPostTracker | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as RawTracker;
+  if (!raw.id && !raw.tracking_code) return null;
+  return normalizeTracker(raw);
 }
