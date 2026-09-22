@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { QueueFulfillment, QueueJob, QueueStatus } from "@/lib/queue-types";
+import type { QueueJob, QueueStatus } from "@/lib/queue-types";
 import type { RequestStatus, StoredRequest } from "@/lib/request-types";
 import type { StoredQuote } from "@/lib/quote-types";
 import type { ShipmentRecord } from "@/lib/shipment-types";
@@ -30,6 +30,8 @@ export function OwnerQueueManager(){
   const [jobs,setJobs]=useState<QueueJob[]>([]); const [requests,setRequests]=useState<StoredRequest[]>([]); const [quotes,setQuotes]=useState<StoredQuote[]>([]); const [shipments,setShipments]=useState<ShipmentRecord[]>([]); const [siteContent,setSiteContent]=useState<SiteContent|null>(null);
   const [checking,setChecking]=useState(true); const [authenticated,setAuthenticated]=useState(false); const [notice,setNotice]=useState<Notice>(null); const [tab,setTab]=useState<OwnerTab>("production");
   async function loadAll(){ setChecking(true); try{ const [q,r,s]=await Promise.all([fetch("/api/owner/queue",{cache:"no-store"}),fetch("/api/owner/requests",{cache:"no-store"}),fetch("/api/owner/site-content",{cache:"no-store"})]); if([q.status,r.status,s.status].includes(401)){setAuthenticated(false);return;} const qr=await q.json() as {jobs?:QueueJob[];message?:string}; const rr=await r.json() as {requests?:StoredRequest[];quotes?:StoredQuote[];shipments?:ShipmentRecord[];message?:string}; const sr=await s.json() as {content?:SiteContent;message?:string}; if(!q.ok)throw new Error(qr.message); if(!r.ok)throw new Error(rr.message); if(!s.ok)throw new Error(sr.message); setJobs(qr.jobs||[]);setRequests(rr.requests||[]);setQuotes(rr.quotes||[]);setShipments(rr.shipments||[]);setSiteContent(sr.content||null);setAuthenticated(true);}catch(e){setNotice({kind:"error",text:e instanceof Error?e.message:"Could not load owner data."});}finally{setChecking(false);} }
+  // Owner data loads once on mount; subsequent refreshes are explicit after mutations.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{void loadAll();},[]);
   const activeCount=useMemo(()=>jobs.filter(j=>j.status!=="completed").length,[jobs]); const newCount=requests.filter(r=>r.status==="new").length;
   async function login(event:FormEvent<HTMLFormElement>){event.preventDefault();const data=new FormData(event.currentTarget);const response=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:data.get("password")})});const result=await response.json() as {message?:string};if(!response.ok){setNotice({kind:"error",text:result.message||"Could not sign in."});return;}await loadAll();}
