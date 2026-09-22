@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { CustomerNotification } from "@/lib/customer-types";
 import type { QueueStatus } from "@/lib/queue-types";
@@ -53,8 +53,8 @@ export function ProfileDashboard({customer}:Props){
   const router=useRouter();const search=useSearchParams();
   const [requests,setRequests]=useState<ProfileRequest[]>([]);const [notifications,setNotifications]=useState<CustomerNotification[]>([]);const [loading,setLoading]=useState(true);const [busyQuote,setBusyQuote]=useState("");const [message,setMessage]=useState("");
   const [counterQuoteId,setCounterQuoteId]=useState("");const [counterAmount,setCounterAmount]=useState("");const [counterMessage,setCounterMessage]=useState("");
-  async function load(){try{const response=await fetchWithTimeout("/api/account/requests",{cache:"no-store"});if(response.status===401){router.push("/login");return;}const result=await response.json() as {requests?:ProfileRequest[];notifications?:CustomerNotification[],message?:string};if(!response.ok)throw new Error(result.message||"Could not refresh your requests.");setRequests(result.requests||[]);setNotifications(result.notifications||[]);}catch(error){setMessage(error instanceof Error?error.message:"Could not refresh your requests.");}finally{setLoading(false);}}
-  useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),30_000);return()=>window.clearInterval(timer);},[]);
+  const load=useCallback(async()=>{try{const response=await fetchWithTimeout("/api/account/requests",{cache:"no-store"});if(response.status===401){router.push("/login");return;}const result=await response.json() as {requests?:ProfileRequest[];notifications?:CustomerNotification[],message?:string};if(!response.ok)throw new Error(result.message||"Could not refresh your requests.");setRequests(result.requests||[]);setNotifications(result.notifications||[]);}catch(error){setMessage(error instanceof Error?error.message:"Could not refresh your requests.");}finally{setLoading(false);}},[router]);
+  useEffect(()=>{void load();const timer=window.setInterval(()=>void load(),30_000);return()=>window.clearInterval(timer);},[load]);
   useEffect(()=>{const payment=search.get("payment");if(payment==="success")setMessage("Deposit payment completed. It may take a few seconds for Stripe to confirm it.");if(payment==="cancelled")setMessage("Deposit checkout was cancelled. Your quote is still available.");if(payment==="development")setMessage("Development mode: the deposit was simulated as paid; no real card was charged.");},[search]);
   async function markRead(){await fetch("/api/account/notifications/read",{method:"POST"});await load();router.refresh();}
   async function approveQuote(quoteId:string){setBusyQuote(quoteId);setMessage("");try{const r=await fetchWithTimeout(`/api/account/quotes/${quoteId}/approve`,{method:"POST"});const j=await r.json() as {message?:string};if(!r.ok)throw new Error(j.message||"Could not approve quote.");setMessage(j.message||"Quote approved.");await load();}catch(e){setMessage(e instanceof Error?e.message:"Could not approve quote.");}finally{setBusyQuote("");}}
