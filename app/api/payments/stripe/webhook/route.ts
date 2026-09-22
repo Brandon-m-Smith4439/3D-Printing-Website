@@ -5,14 +5,27 @@ import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { writeAudit } from "@/lib/audit-log";
 
+type StripeCheckoutSession = {
+  id?: unknown;
+  payment_status?: unknown;
+  amount_total?: unknown;
+  currency?: unknown;
+  metadata?: { quote_id?: unknown };
+};
+type StripeEvent = {
+  type?: unknown;
+  data?: { object?: StripeCheckoutSession };
+};
+
 export const runtime="nodejs";
 export async function POST(request:NextRequest){
   const raw=await request.text();
   if(!verifyStripeWebhook(raw,request.headers.get("stripe-signature")))return NextResponse.json({message:"Invalid webhook signature."},{status:400});
-  let event:any;try{event=JSON.parse(raw);}catch{return NextResponse.json({message:"Invalid webhook payload."},{status:400});}
-  if(event?.type==="checkout.session.completed"||event?.type==="checkout.session.async_payment_succeeded"){
+  let event:StripeEvent;try{event=JSON.parse(raw) as StripeEvent;}catch{return NextResponse.json({message:"Invalid webhook payload."},{status:400});}
+  const eventType=typeof event.type==="string"?event.type:"";
+  if(eventType==="checkout.session.completed"||eventType==="checkout.session.async_payment_succeeded"){
     const session=event.data?.object;const quoteId=session?.metadata?.quote_id;const sessionId=session?.id;const paymentStatus=session?.payment_status;
-    if(typeof quoteId==="string"&&typeof sessionId==="string"&&(paymentStatus==="paid"||event.type==="checkout.session.async_payment_succeeded")){
+    if(typeof quoteId==="string"&&typeof sessionId==="string"&&(paymentStatus==="paid"||eventType==="checkout.session.async_payment_succeeded")){
       const before=await quoteById(quoteId);
       if(before && (Number(session?.amount_total)!==before.depositCents || String(session?.currency||"").toLowerCase()!==before.currency)) return NextResponse.json({message:"Payment amount did not match the stored quote."},{status:400});
       if(!before?.depositPaidAt){const quote=await markQuoteDepositPaid(quoteId,sessionId);
