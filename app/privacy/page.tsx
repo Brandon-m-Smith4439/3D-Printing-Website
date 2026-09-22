@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <div className="container policy-page">
         <p className="eyebrow">PRIVACY</p>
         <h1>Privacy policy</h1>
-        <p className="lead">This starter policy describes how the website is designed to handle customer profiles and custom-print requests. Replace the bracketed business details before launch and have the final policy reviewed for your business and location.</p>
+        <p className="lead">This policy explains how Mesh Harbor 3D handles information submitted through customer profiles, custom-print requests, quotes, payments, shipping, and production updates.</p>
 
         <h2>Information collected</h2>
         <p>The custom request form may collect your name, email address, optional phone number, project requirements, requested timing, reference links, and files or images you deliberately attach to explain a requested 3D print.</p>
