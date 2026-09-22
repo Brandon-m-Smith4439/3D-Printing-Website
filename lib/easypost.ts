@@ -74,6 +74,7 @@ export async function easyPostConfigurationSummary() {
     fromAddressConfigured: fromReady,
     webhookSecretConfigured: Boolean(webhookSecret && webhookSecret.length >= 16),
     autoBuyLabels: /^(1|true|yes|on)$/i.test((process.env.EASYPOST_AUTO_BUY_LABELS || "").trim()),
+    webhookUrl: `${((process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").trim().replace(/\/$/, ""))}/api/shipping/easypost/webhook`,
     originLabel: fromReady ? `${content.shippingOrigin.city}, ${content.shippingOrigin.state} ${content.shippingOrigin.zip}` : "Not configured",
   } as const;
 }
