@@ -11,7 +11,7 @@ export default function PrivacyPage() {
       <div className="container policy-page">
         <p className="eyebrow">PRIVACY</p>
         <h1>Privacy policy</h1>
-        <p className="lead">This starter policy describes how the website is designed to handle customer profiles and custom-print requests. Replace the bracketed business details before launch and have the final policy reviewed for your business and location.</p>
+        <p className="lead">This policy explains how Mesh Harbor 3D handles customer profiles, custom-print requests, files, quotes, payments, shipping information, and service-related communications.</p>
 
         <h2>Information collected</h2>
         <p>The custom request form may collect your name, email address, optional phone number, project requirements, requested timing, reference links, and files or images you deliberately attach to explain a requested 3D print.</p>
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         <p>Accepted print jobs may appear on the public Queue page using a generated order code, a generic public print name, status, quantity, owner-selected image, and estimated date. Customer names, email addresses, private notes, account details, and customer-uploaded attachments are not displayed publicly.</p>
 
         <h2>Profile privacy</h2>
-        <p>A profile is designed to show requests submitted while that customer account was signed in. The site does not automatically expose older requests merely because a newly created account uses the same email address.</p>
+        <p>A profile shows requests linked to that customer account. If a request was originally submitted as a guest, it may be linked to a profile only after the customer verifies ownership of the matching email address.</p>
 
         <h2>Notifications</h2>
         <p>Profile-linked request and production status changes may appear as in-app notifications. Verified customers may choose to receive status emails. When an accepted print job is marked completed, the email address associated with that job may also be used to send a completion notification and coordinate pickup or shipping.</p>
@@ -44,10 +44,10 @@ export default function PrivacyPage() {
         <p>Request, account, quote, audit, and production records are stored in the private application database. Private customer attachments are kept outside the public website directory. Private backup snapshots may contain the application database and customer attachments and should be stored on access-controlled persistent storage with host or volume encryption enabled.</p>
 
         <h2>Data sharing</h2>
-        <p>Request and profile information is not intended to be sold. It may be processed by service providers needed to operate the website and deliver its services, such as hosting, security, storage, authentication, malware-scanning, email-delivery, and payment providers. Stripe receives payment information when a customer chooses to pay a custom-order deposit through Stripe Checkout.</p>
+        <p>Request and profile information is not intended to be sold. It may be processed by service providers needed to operate the website and deliver its services, including hosting, security, storage, malware scanning, email delivery, payment processing, and shipping-rate or tracking providers. Stripe receives payment information when a customer chooses to pay a custom-order deposit through Stripe Checkout. EasyPost may receive shipping addresses, parcel details, and carrier information when live shipping rates, labels, or tracking are used.</p>
 
         <h2>Contact</h2>
-        <p>Before launch, add your business contact email here so visitors can ask privacy-related questions or request deletion of information you still retain.</p>
+        <p>Privacy questions or requests to review or delete information you still retain can be submitted through the Custom Request page. Clearly label the message as a privacy request so it can be handled separately from print inquiries.</p>
       </div>
     </section>
   );
