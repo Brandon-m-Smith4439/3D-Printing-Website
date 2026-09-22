@@ -28,6 +28,8 @@ export function AccountSettings() {
     if (!response.ok || !result.account) { setNotice({ kind: "error", text: result.message || "Could not load account settings." }); return; }
     setAccount(result.account);
   }
+  // Initial account bootstrap only; explicit mutations call load() after they finish.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(); }, []);
 
   async function resendVerification() {
