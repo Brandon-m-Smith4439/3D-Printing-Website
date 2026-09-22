@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { QueueFulfillment, QueueJob, QueueStatus } from "@/lib/queue-types";
+import type { QueueJob, QueueStatus } from "@/lib/queue-types";
 import type { RequestStatus, StoredRequest } from "@/lib/request-types";
 import type { StoredQuote } from "@/lib/quote-types";
 import type { ShipmentRecord } from "@/lib/shipment-types";
