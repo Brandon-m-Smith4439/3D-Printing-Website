@@ -21,7 +21,7 @@ export default async function GalleryPage() {
           <p>A growing collection of custom, functional, decorative, gaming, and prototype work.</p>
         </div>
         <div className="gallery-grid gallery-grid-full">
-          {galleryItems.map((item) => <GalleryCard key={item.title} item={item} />)}
+          {galleryItems.map((item) => <GalleryCard key={item.title} item={item} headingLevel="h2" />)}
         </div>
         <div className="gallery-cta">
           <div>
