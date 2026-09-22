@@ -8,15 +8,21 @@ import type { CustomerNotification } from "@/lib/customer-types";
 import type { QueueStatus } from "@/lib/queue-types";
 import type { RequestStatus } from "@/lib/request-types";
 import type { AssemblyMode, QuoteFulfillmentMode, QuoteHistoryEntry, QuoteStatus, ShippingSelection } from "@/lib/quote-types";
+import type { ShipmentStatus, ShipmentTrackingEvent } from "@/lib/shipment-types";
 import { CustomerShippingSelector } from "@/components/CustomerShippingSelector";
 
 type ProfileQuote = {
   id:string; revision:number; status:QuoteStatus; basePriceCents:number; assemblyMode:AssemblyMode; assemblyFeeCents:number; fulfillmentMode:QuoteFulfillmentMode; localDeliveryFeeCents:number; shippingSelection:ShippingSelection|null; totalCents:number; depositCents:number; balanceCents:number; currency:"usd";
   material:string; dimensions:string; estimatedReadyDate:string; notes:string; terms:string; sentAt:string; approvedAt:string; depositPaidAt:string; history:QuoteHistoryEntry[];
 };
+type ProfileShipment = {
+  trackingCode:string; publicTrackingUrl:string; carrier:"USPS"|"UPS"|"FedEx"; service:string; status:ShipmentStatus; statusDetail:string;
+  estimatedDeliveryDate:string; purchasedAt:string; deliveredAt:string; trackingEvents:ShipmentTrackingEvent[];
+};
 type ProfileRequest = {
   id:string; requestCode:string; status:RequestStatus; projectType:string; quantity:number; neededBy:string; description:string; createdAt:string;
   quote:ProfileQuote|null;
+  shipment:ProfileShipment|null;
   queue:null|{publicCode:string;publicTitle:string;status:QueueStatus;position:number|null;estimatedReadyDate:string;publicNote:string;imageUrl:string};
 };
 type Props={customer:{displayName:string;email:string;emailVerified:boolean;showQueuePosition:boolean}};
@@ -26,7 +32,9 @@ const quoteLabels:Record<QuoteStatus,string>={draft:"Quote draft",sent:"Waiting 
 function money(cents:number){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(cents/100);}
 function assemblyLabel(mode:AssemblyMode){if(mode==="assembled")return "Assembled by Mesh Harbor 3D";if(mode==="disassembled")return "Ships disassembled — assembly guide included";return "No assembly required";}
 function fulfillmentLabel(mode:QuoteFulfillmentMode){if(mode==="shipping")return "Carrier shipping";if(mode==="local-delivery")return "Local delivery";return "Local pickup";}
-function displayedStatus(request:ProfileRequest){if(request.queue)return queueLabels[request.queue.status];if(request.quote?.depositPaidAt)return "Deposit paid";if(request.quote?.status==="deposit-paid")return "Payment record under review";if(request.quote)return quoteLabels[request.quote.status];if(request.status==="deposit-paid")return "Under review — no deposit recorded";if(request.status==="queued")return "Under review — not currently queued";return requestLabels[request.status];}
+function shipmentLabel(status:ShipmentStatus){return ({not_created:"Not shipped",review_required:"Shipping review",label_created:"Label created",pre_transit:"Label created",in_transit:"In transit",out_for_delivery:"Out for delivery",delivered:"Delivered",return_to_sender:"Returning to sender",failure:"Delivery exception",unknown:"Tracking update",refund_submitted:"Label refund pending",refunded:"Label refunded",refund_rejected:"Label refund rejected"} as Record<ShipmentStatus,string>)[status]||"Tracking update";}
+function trackingLocation(event:ShipmentTrackingEvent){const parts=[event.location?.city,event.location?.state,event.location?.zip].filter(Boolean);return parts.join(", ");}
+function displayedStatus(request:ProfileRequest){if(request.shipment?.status==="delivered")return "Delivered";if(request.shipment?.trackingCode&&["in_transit","out_for_delivery"].includes(request.shipment.status))return shipmentLabel(request.shipment.status);if(request.queue)return queueLabels[request.queue.status];if(request.quote?.depositPaidAt)return "Deposit paid";if(request.quote?.status==="deposit-paid")return "Payment record under review";if(request.quote)return quoteLabels[request.quote.status];if(request.status==="deposit-paid")return "Under review — no deposit recorded";if(request.status==="queued")return "Under review — not currently queued";return requestLabels[request.status];}
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000) {
   const controller = new AbortController();
@@ -75,6 +83,13 @@ export function ProfileDashboard({customer}:Props){
             {q.status==="approved"&&<button className={`button button-small ${busyQuote===q.id?"is-loading":""}`} disabled={!customer.emailVerified||busyQuote===q.id} onClick={()=>void payDeposit(q.id)} type="button">{busyQuote===q.id?<><span className="button-spinner" aria-hidden="true"/>Opening secure checkout…</>:`Pay ${money(q.depositCents)} Deposit Securely`}</button>}
             {q.status==="countered"&&<div className="quote-response-state">Your counter offer was sent. The owner can respond with a revised quote.</div>}{q.status==="declined"&&<div className="quote-response-state">You declined this quote. The owner may revise it or close the request.</div>}{q.status==="deposit-paid"&&<div className="quote-paid-badge">✓ Deposit received {q.depositPaidAt?new Date(q.depositPaidAt).toLocaleDateString():""}</div>}
             {q.history?.length>0&&<details className="customer-quote-history"><summary>Quote history ({q.history.length})</summary><div>{[...q.history].reverse().map(item=><article key={item.id}><div><strong>{item.summary}</strong><time>{new Date(item.createdAt).toLocaleString()}</time></div>{item.counterTotalCents&&<b>Counter: {money(item.counterTotalCents)}</b>}{item.message&&<p>{item.message}</p>}</article>)}</div></details>}
+          </section>}
+          {request.shipment?.trackingCode&&<section className="customer-shipment-card">
+            <div className="customer-shipment-heading"><div><span className="eyebrow">SHIPMENT TRACKING</span><h4>{shipmentLabel(request.shipment.status)}</h4></div><span className={`shipment-status-badge shipment-${request.shipment.status}`}>{request.shipment.carrier} {request.shipment.service}</span></div>
+            <div className="customer-shipment-facts"><span><b>Tracking number</b>{request.shipment.trackingCode}</span><span><b>Estimated delivery</b>{request.shipment.estimatedDeliveryDate||"Carrier estimate pending"}</span>{request.shipment.deliveredAt&&<span><b>Delivered</b>{new Date(request.shipment.deliveredAt).toLocaleString()}</span>}</div>
+            {request.shipment.publicTrackingUrl&&<a className="button button-secondary button-small shipment-track-link" href={request.shipment.publicTrackingUrl} target="_blank" rel="noreferrer">Track with carrier ↗</a>}
+            {request.shipment.statusDetail&&<p className="shipment-status-detail">{request.shipment.statusDetail.replaceAll("_"," ")}</p>}
+            {request.shipment.trackingEvents?.length>0&&<details className="customer-tracking-history"><summary>Tracking history ({request.shipment.trackingEvents.length})</summary><div className="tracking-timeline">{[...request.shipment.trackingEvents].sort((a,b)=>(b.datetime||"").localeCompare(a.datetime||"")).map(event=><article key={event.id}><span className="tracking-dot"/><div><strong>{event.message||event.status.replaceAll("_"," ")||"Carrier update"}</strong><small>{event.datetime?new Date(event.datetime).toLocaleString():""}{trackingLocation(event)?` · ${trackingLocation(event)}`:""}</small></div></article>)}</div></details>}
           </section>}
           {request.queue?.publicNote&&<small className="profile-public-note">{request.queue.publicNote}</small>}
         </div>
