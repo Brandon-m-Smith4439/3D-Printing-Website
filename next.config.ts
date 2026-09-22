@@ -22,6 +22,15 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "upload.wikimedia.org" }],
   },
+  async redirects() {
+    return [
+      {
+        source: "/favicon.ico",
+        destination: "/favicon.png",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
