@@ -6,10 +6,20 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { writeAudit } from "@/lib/audit-log";
 
 export const runtime="nodejs";
+type StripeCheckoutEvent = {
+  type?: string;
+  data?: { object?: {
+    id?: string;
+    payment_status?: string;
+    amount_total?: number;
+    currency?: string;
+    metadata?: { quote_id?: string };
+  } };
+};
 export async function POST(request:NextRequest){
   const raw=await request.text();
   if(!verifyStripeWebhook(raw,request.headers.get("stripe-signature")))return NextResponse.json({message:"Invalid webhook signature."},{status:400});
-  let event:any;try{event=JSON.parse(raw);}catch{return NextResponse.json({message:"Invalid webhook payload."},{status:400});}
+  let event:StripeCheckoutEvent;try{event=JSON.parse(raw) as StripeCheckoutEvent;}catch{return NextResponse.json({message:"Invalid webhook payload."},{status:400});}
   if(event?.type==="checkout.session.completed"||event?.type==="checkout.session.async_payment_succeeded"){
     const session=event.data?.object;const quoteId=session?.metadata?.quote_id;const sessionId=session?.id;const paymentStatus=session?.payment_status;
     if(typeof quoteId==="string"&&typeof sessionId==="string"&&(paymentStatus==="paid"||event.type==="checkout.session.async_payment_succeeded")){
