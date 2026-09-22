@@ -76,7 +76,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop"><Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized /></a>
         </div>
         {accountMenu}
-        {!customer && <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg><span>Login</span></Link>}
+        {!customer && <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login" aria-label="Login"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg><span>Login</span></Link>}
       </nav>
     </div>
   );
