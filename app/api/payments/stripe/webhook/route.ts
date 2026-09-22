@@ -9,7 +9,11 @@ export const runtime="nodejs";
 export async function POST(request:NextRequest){
   const raw=await request.text();
   if(!verifyStripeWebhook(raw,request.headers.get("stripe-signature")))return NextResponse.json({message:"Invalid webhook signature."},{status:400});
-  let event:any;try{event=JSON.parse(raw);}catch{return NextResponse.json({message:"Invalid webhook payload."},{status:400});}
+  let event: {
+    type?: string;
+    data?: { object?: { id?: unknown; payment_status?: unknown; amount_total?: unknown; currency?: unknown; metadata?: { quote_id?: unknown } } };
+  };
+  try { event = JSON.parse(raw) as typeof event; } catch { return NextResponse.json({message:"Invalid webhook payload."},{status:400}); }
   if(event?.type==="checkout.session.completed"||event?.type==="checkout.session.async_payment_succeeded"){
     const session=event.data?.object;const quoteId=session?.metadata?.quote_id;const sessionId=session?.id;const paymentStatus=session?.payment_status;
     if(typeof quoteId==="string"&&typeof sessionId==="string"&&(paymentStatus==="paid"||event.type==="checkout.session.async_payment_succeeded")){
