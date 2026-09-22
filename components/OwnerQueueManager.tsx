@@ -24,6 +24,7 @@ type OwnerTab = "production" | "site" | "security";
 
 async function uploadOwnerImage(file: File) { const form=new FormData(); form.append("image",file); const response=await fetch("/api/owner/upload",{method:"POST",body:form}); const result=await response.json() as {path?:string;message?:string}; if(!response.ok||!result.path) throw new Error(result.message||"Could not upload image."); return result.path; }
 function formatSubmitted(value:string){ const d=new Date(value); return Number.isNaN(d.getTime())?value:new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}).format(d); }
+function money(cents:number){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(cents/100);}
 
 export function OwnerQueueManager(){
   const [jobs,setJobs]=useState<QueueJob[]>([]); const [requests,setRequests]=useState<StoredRequest[]>([]); const [quotes,setQuotes]=useState<StoredQuote[]>([]); const [shipments,setShipments]=useState<ShipmentRecord[]>([]); const [siteContent,setSiteContent]=useState<SiteContent|null>(null);
