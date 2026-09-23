@@ -5,6 +5,7 @@ import { quoteForRequest } from "@/lib/quote-store";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { applyTrackingUpdate, shipmentForRequest, upsertShipment } from "@/lib/shipment-store";
 import type { ShipmentRecord, ShipmentTrackingEvent } from "@/lib/shipment-types";
+import { quoteDepositSatisfied } from "@/lib/quote-types";
 
 function maxIncreaseCents(customerRateCents: number) {
   const fixed = Number(process.env.EASYPOST_AUTO_BUY_MAX_INCREASE_CENTS || 200);
@@ -41,7 +42,7 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
   const quote = await quoteForRequest(requestId);
   if (!quote) throw new Error("No active quote is attached to this request.");
   if (quote.fulfillmentMode !== "shipping" || !quote.shippingSelection) throw new Error("This order does not have customer-selected carrier shipping.");
-  if (!quote.depositPaidAt) throw new Error("The customer deposit must be recorded before a shipping label can be purchased.");
+  if (quote.status !== "deposit-paid" || !quoteDepositSatisfied(quote)) throw new Error("The current quote's 50% deposit requirement must be satisfied before a shipping label can be purchased.");
 
   const existing = await shipmentForRequest(requestId);
   if (existing?.trackingCode && existing.refundStatus !== "refunded") {
