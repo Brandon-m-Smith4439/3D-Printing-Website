@@ -325,7 +325,7 @@ export async function recordQuoteRefund(id: string, refund: Omit<QuoteRefundReco
         actor:"system",
         event:"refund-issued",
         revision:refund.revision,
-        summary:`Deposit refund of ${(refund.amountCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} ${refund.status === "pending" ? "submitted" : "issued"} for quote revision ${refund.revision}.`,
+        summary:`Deposit refund of ${(refund.amountCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} ${refund.status === "succeeded" ? "issued" : refund.status === "pending" ? "submitted" : "started"} for quote revision ${refund.revision}.`,
         snapshot:quoteSnapshot(current),
       })],
     };
