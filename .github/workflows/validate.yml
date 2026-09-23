@@ -65,9 +65,9 @@ jobs:
       - name: Capture visual smoke screenshots
         run: |
           mkdir -p visual-smoke
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,1400             --screenshot=visual-smoke/custom-request-desktop.png http://127.0.0.1:3000/custom-request
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,1000             --screenshot=visual-smoke/custom-request-mobile-390.png http://127.0.0.1:3000/custom-request
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,1000             --screenshot=visual-smoke/register-mobile-390.png 'http://127.0.0.1:3000/login?mode=register'
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,3400             --screenshot=visual-smoke/custom-request-desktop.png http://127.0.0.1:3000/custom-request
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,3600             --screenshot=visual-smoke/custom-request-mobile-390.png http://127.0.0.1:3000/custom-request
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,3600             --screenshot=visual-smoke/register-mobile-390.png 'http://127.0.0.1:3000/login?mode=register'
       - name: Upload visual smoke screenshots
         uses: actions/upload-artifact@v4
         with:
