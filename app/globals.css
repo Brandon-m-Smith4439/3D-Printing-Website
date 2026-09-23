@@ -2529,8 +2529,11 @@ main { min-height: 65vh; }
   }
 
   .mobile-header-title {
-    display: block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 0;
+    gap: 7px;
     overflow: hidden;
     color: #f4fbfb;
     font-size: 1.02rem;
@@ -2539,8 +2542,20 @@ main { min-height: 65vh; }
     line-height: 1.1;
     text-align: center;
     text-decoration: none;
-    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .mobile-header-title span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-header-logo {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
   }
 
   .mobile-menu-button,
@@ -2675,8 +2690,8 @@ main { min-height: 65vh; }
     z-index: 90;
     display: flex;
     flex-direction: column;
-    width: min(86vw, 350px);
-    max-width: 350px;
+    width: min(78vw, 315px);
+    max-width: 315px;
     min-height: 100dvh;
     border-right: 1px solid rgba(92,231,222,.15);
     background:
@@ -2785,6 +2800,8 @@ main { min-height: 65vh; }
   .mobile-drawer-link {
     display: flex;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     min-height: 49px;
     padding: 0 14px;
     border: 1px solid transparent;
@@ -2832,9 +2849,19 @@ main { min-height: 65vh; }
     color: #031219;
   }
 
+  .mobile-drawer-lower {
+    display: grid;
+    gap: 12px;
+    margin-top: auto;
+  }
+
   .mobile-drawer-shop {
     display: grid;
     gap: 9px;
+  }
+
+  .mobile-drawer-shop .mobile-drawer-label {
+    text-align: center;
   }
 
   .mobile-drawer-label {
@@ -2853,11 +2880,13 @@ main { min-height: 65vh; }
 
   .mobile-drawer-shop-link {
     display: flex;
+    flex-direction: column;
     align-items: center;
+    justify-content: center;
     min-width: 0;
-    min-height: 52px;
-    gap: 9px;
-    padding: 7px 10px;
+    min-height: 66px;
+    gap: 4px;
+    padding: 7px 6px;
     border: 1px solid rgba(106,190,190,.12);
     border-radius: 13px;
     background: rgba(255,255,255,.02);
@@ -2882,7 +2911,7 @@ main { min-height: 65vh; }
   .mobile-drawer-account {
     display: grid;
     gap: 10px;
-    margin-top: auto;
+    margin-top: 0;
     padding-top: 15px;
     border-top: 1px solid rgba(106,190,190,.1);
   }
@@ -3009,11 +3038,37 @@ main { min-height: 65vh; }
   }
 
   .mobile-nav-drawer {
-    width: min(88vw, 330px);
+    width: min(80vw, 300px);
   }
 
   .mobile-drawer-top {
-    padding-inline: 14px;
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .mobile-drawer-brand {
+    gap: 8px;
+  }
+
+  .mobile-drawer-logo {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .mobile-drawer-logo img {
+    width: 35px;
+    height: 35px;
+  }
+
+  .mobile-drawer-brand-copy strong {
+    font-size: .9rem;
+  }
+
+  .mobile-drawer-close {
+    flex-basis: 38px;
+    width: 38px;
+    height: 38px;
   }
 
   .mobile-drawer-content {
