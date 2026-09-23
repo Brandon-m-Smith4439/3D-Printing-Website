@@ -13,6 +13,7 @@ const schema = z.object({
   displayName: z.string().trim().min(2).max(80),
   email: z.string().trim().toLowerCase().email().max(160),
   password: z.string().min(10).max(128),
+  emailStatusUpdates: z.boolean().optional().default(false),
 });
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
   let body: unknown; try { const raw = await request.text(); if (raw.length > 4_000) return NextResponse.json({ message: "Account request is too large." }, { status: 413 }); body = JSON.parse(raw); } catch { return NextResponse.json({ message: "Invalid request body." }, { status: 400 }); }
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ message: "Enter a valid name, email, and a password of at least 10 characters." }, { status: 400 });
-  const result = await createCustomerAccount(parsed.data.displayName, parsed.data.email, parsed.data.password);
+  const result = await createCustomerAccount(parsed.data.displayName, parsed.data.email, parsed.data.password, { emailStatusUpdates: parsed.data.emailStatusUpdates });
   if (result.exists || !result.account) return NextResponse.json({ message: "An account with that email already exists." }, { status: 409 });
   attempts.delete(ip);
 
