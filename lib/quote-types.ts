@@ -54,7 +54,7 @@ export type QuoteSnapshot = {
   terms: string;
 };
 
-export type QuoteHistoryEvent = "draft-saved" | "sent" | "approved" | "declined" | "counter-offer" | "shipping-selected" | "deposit-paid";
+export type QuoteHistoryEvent = "draft-saved" | "sent" | "approved" | "declined" | "counter-offer" | "shipping-selected" | "deposit-paid" | "refund-issued";
 export type QuoteHistoryEntry = {
   id: string;
   createdAt: string;
@@ -65,6 +65,27 @@ export type QuoteHistoryEntry = {
   message?: string;
   counterTotalCents?: number;
   snapshot?: QuoteSnapshot;
+};
+
+export type QuotePaymentRecord = {
+  id: string;
+  revision: number;
+  amountCents: number;
+  checkoutSessionId: string;
+  paymentIntentId: string;
+  paidAt: string;
+};
+
+export type QuoteRefundRecord = {
+  id: string;
+  revision: number;
+  paymentRecordId: string;
+  paymentIntentId: string;
+  stripeRefundId: string;
+  amountCents: number;
+  status: "pending" | "requires_action" | "succeeded" | "failed" | "canceled" | "unknown";
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type StoredQuote = QuoteSnapshot & {
@@ -80,10 +101,40 @@ export type StoredQuote = QuoteSnapshot & {
   approvedByCustomerId: string;
   approvalSnapshot: QuoteSnapshot | null;
   stripeCheckoutSessionId: string;
+  stripeCheckoutAmountCents: number;
   depositPaidAt: string;
   paymentProvider: "" | "stripe";
+  payments: QuotePaymentRecord[];
+  refunds: QuoteRefundRecord[];
   history: QuoteHistoryEntry[];
 };
+
+export function quoteNetDepositPaidCents(quote: Pick<StoredQuote, "payments" | "refunds">) {
+  const paid = (quote.payments || []).reduce((sum, item) => sum + Math.max(0, Number(item.amountCents || 0)), 0);
+  const refunded = (quote.refunds || [])
+    .filter((item) => !["failed", "canceled"].includes(item.status))
+    .reduce((sum, item) => sum + Math.max(0, Number(item.amountCents || 0)), 0);
+  return Math.max(0, paid - refunded);
+}
+
+export function quoteDepositOutstandingCents(quote: Pick<StoredQuote, "depositCents" | "payments" | "refunds">) {
+  return Math.max(0, quote.depositCents - quoteNetDepositPaidCents(quote));
+}
+
+export function quoteDepositRefundDueCents(quote: Pick<StoredQuote, "depositCents" | "payments" | "refunds">) {
+  return Math.max(0, quoteNetDepositPaidCents(quote) - quote.depositCents);
+}
+
+export function quoteDepositRefundPending(quote: Pick<StoredQuote, "refunds">) {
+  return (quote.refunds || []).some((item) => item.status === "pending" || item.status === "requires_action" || item.status === "unknown");
+}
+
+export function quoteDepositSatisfied(quote: Pick<StoredQuote, "depositCents" | "payments" | "refunds">) {
+  return quote.depositCents > 0
+    && quoteDepositOutstandingCents(quote) === 0
+    && quoteDepositRefundDueCents(quote) === 0
+    && !quoteDepositRefundPending(quote);
+}
 
 const cents = z.coerce.number().int().min(50).max(10_000_000);
 const feeCents = z.coerce.number().int().min(0).max(2_000_000);
