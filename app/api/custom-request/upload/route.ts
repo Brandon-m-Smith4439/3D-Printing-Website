@@ -11,7 +11,6 @@ export const runtime = "nodejs";
 const MAX_FILE = 10 * 1024 * 1024;
 const buckets = new Map<string, { count: number; resetAt: number }>();
 function clientIp(request: NextRequest) { return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown"; }
-catch{return false;} }
 function limited(ip:string){const now=Date.now();const b=buckets.get(ip);if(!b||b.resetAt<=now){buckets.set(ip,{count:1,resetAt:now+10*60_000});return false;}b.count+=1;return b.count>12;}
 function safeName(name:string){return name.replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,120)||"attachment";}
 function extension(name:string){return path.extname(name).toLowerCase();}
