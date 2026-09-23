@@ -37,19 +37,20 @@ function normalizeShippingSelection(value: ShippingSelection | null | undefined)
 function normalizeSnapshot(snapshot: QuoteSnapshot | null | undefined): QuoteSnapshot | null {
   if (!snapshot) return null;
   const raw = snapshot as QuoteSnapshot & {
-    basePriceCents?: number; assemblyMode?: AssemblyMode; assemblyFeeCents?: number;
+    basePriceCents?: number; assemblyMode?: AssemblyMode; assemblyFeeCents?: number; rushFeeCents?: number;
     fulfillmentMode?: QuoteFulfillmentMode; localDeliveryFeeCents?: number; packageWeightOz?: number;
     packageLengthIn?: number; packageWidthIn?: number; packageHeightIn?: number; shippingSelection?: ShippingSelection | null;
   };
   const assemblyMode: AssemblyMode = raw.assemblyMode || "not-required";
   const assemblyFeeCents = Number.isFinite(raw.assemblyFeeCents) ? Number(raw.assemblyFeeCents) : 0;
+  const rushFeeCents = Number.isFinite(raw.rushFeeCents) ? Number(raw.rushFeeCents) : 0;
   const fulfillmentMode: QuoteFulfillmentMode = raw.fulfillmentMode || "pickup";
   const localDeliveryFeeCents = Number.isFinite(raw.localDeliveryFeeCents) ? Number(raw.localDeliveryFeeCents) : 0;
   const shippingSelection = normalizeShippingSelection(raw.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
-  const basePriceCents = Number.isFinite(raw.basePriceCents) ? Number(raw.basePriceCents) : Math.max(0, raw.totalCents - assemblyFeeCents - localDeliveryFeeCents - shippingCents);
+  const basePriceCents = Number.isFinite(raw.basePriceCents) ? Number(raw.basePriceCents) : Math.max(0, raw.totalCents - assemblyFeeCents - rushFeeCents - localDeliveryFeeCents - shippingCents);
   return {
-    ...raw, basePriceCents, assemblyMode, assemblyFeeCents, fulfillmentMode, localDeliveryFeeCents,
+    ...raw, basePriceCents, assemblyMode, assemblyFeeCents, rushFeeCents, fulfillmentMode, localDeliveryFeeCents,
     packageWeightOz: Number(raw.packageWeightOz || 0), packageLengthIn: Number(raw.packageLengthIn || 0), packageWidthIn: Number(raw.packageWidthIn || 0), packageHeightIn: Number(raw.packageHeightIn || 0),
     shippingSelection,
   };
@@ -58,11 +59,12 @@ function normalizeSnapshot(snapshot: QuoteSnapshot | null | undefined): QuoteSna
 function normalizeQuote(item: StoredQuote): StoredQuote {
   const assemblyMode: AssemblyMode = item.assemblyMode || "not-required";
   const assemblyFeeCents = Number.isFinite(item.assemblyFeeCents) ? item.assemblyFeeCents : 0;
+  const rushFeeCents = Number.isFinite(item.rushFeeCents) ? item.rushFeeCents : 0;
   const fulfillmentMode: QuoteFulfillmentMode = item.fulfillmentMode || "pickup";
   const localDeliveryFeeCents = Number.isFinite(item.localDeliveryFeeCents) ? item.localDeliveryFeeCents : 0;
   const shippingSelection = normalizeShippingSelection(item.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
-  const basePriceCents = Number.isFinite(item.basePriceCents) ? item.basePriceCents : Math.max(0, item.totalCents - assemblyFeeCents - localDeliveryFeeCents - shippingCents);
+  const basePriceCents = Number.isFinite(item.basePriceCents) ? item.basePriceCents : Math.max(0, item.totalCents - assemblyFeeCents - rushFeeCents - localDeliveryFeeCents - shippingCents);
   const refunds: QuoteRefundRecord[] = Array.isArray(item.refunds) ? item.refunds.map((refund) => ({
     id: refund.id || randomUUID(),
     revision: Number(refund.revision || item.revision || 1),
@@ -91,7 +93,7 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
     paidAt: item.depositPaidAt,
   }] : [];
   const normalized: StoredQuote = {
-    ...item, assemblyMode, assemblyFeeCents, basePriceCents, fulfillmentMode, localDeliveryFeeCents,
+    ...item, assemblyMode, assemblyFeeCents, rushFeeCents, basePriceCents, fulfillmentMode, localDeliveryFeeCents,
     packageWeightOz:Number(item.packageWeightOz||0), packageLengthIn:Number(item.packageLengthIn||0), packageWidthIn:Number(item.packageWidthIn||0), packageHeightIn:Number(item.packageHeightIn||0), shippingSelection,
     stripeCheckoutAmountCents: Number(item.stripeCheckoutAmountCents || 0), payments, refunds,
   };
@@ -116,6 +118,7 @@ export function quoteSnapshot(quote: Pick<StoredQuote, keyof QuoteSnapshot>): Qu
     basePriceCents: quote.basePriceCents,
     assemblyMode: quote.assemblyMode,
     assemblyFeeCents: quote.assemblyFeeCents,
+    rushFeeCents: quote.rushFeeCents,
     fulfillmentMode: quote.fulfillmentMode,
     localDeliveryFeeCents: quote.localDeliveryFeeCents,
     packageWeightOz: quote.packageWeightOz,
@@ -140,7 +143,7 @@ export async function quoteForRequest(requestId: string) { const items = await r
 export async function quoteById(id: string) { const items = await readQuotes(); return items.find((item) => item.id === id) || null; }
 
 export async function upsertQuote(input: {
-  requestId: string; requestCode: string; customerAccountId: string; basePriceCents: number; assemblyMode: AssemblyMode; assemblyFeeCents: number;
+  requestId: string; requestCode: string; customerAccountId: string; basePriceCents: number; assemblyMode: AssemblyMode; assemblyFeeCents: number; rushFeeCents: number;
   fulfillmentMode: QuoteFulfillmentMode; localDeliveryFeeCents: number; packageWeightOz:number; packageLengthIn:number; packageWidthIn:number; packageHeightIn:number;
   totalCents: number; depositCents: number; material: string; dimensions: string; estimatedReadyDate: string; notes: string; terms: string; send: boolean;
 }) {
@@ -149,7 +152,7 @@ export async function upsertQuote(input: {
     const index = items.findIndex((item) => item.requestId === input.requestId && item.status !== "void");
     const now = new Date().toISOString();
     const existing = index >= 0 ? normalizeQuote(items[index]) : null;
-    const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","fulfillmentMode","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
+    const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","rushFeeCents","fulfillmentMode","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
     const changed = !existing || changedKeys.some((key) => String((existing as unknown as Record<string, unknown>)[key]) !== String((input as unknown as Record<string, unknown>)[key]));
     const hadCustomerDecision = Boolean(existing && ["approved","countered","declined","deposit-paid"].includes(existing.status));
     const revision = existing ? existing.revision + (((changed && (existing.sentAt || hadCustomerDecision)) || (input.send && hadCustomerDecision)) ? 1 : 0) : 1;
@@ -158,11 +161,11 @@ export async function upsertQuote(input: {
     const keepShipping = Boolean(existing && !changed && existing.shippingSelection && !hadCustomerDecision);
     const shippingSelection = keepShipping ? existing!.shippingSelection : null;
     const shippingCents = shippingSelection?.rateCents || 0;
-    const totalCents = input.basePriceCents + input.assemblyFeeCents + input.localDeliveryFeeCents + shippingCents;
+    const totalCents = input.basePriceCents + input.assemblyFeeCents + input.rushFeeCents + input.localDeliveryFeeCents + shippingCents;
     const depositCents = Math.round(totalCents / 2);
     const quote: StoredQuote = {
       id: existing?.id || randomUUID(), requestId: input.requestId, requestCode: input.requestCode, customerAccountId: input.customerAccountId,
-      revision, basePriceCents: input.basePriceCents, assemblyMode: input.assemblyMode, assemblyFeeCents: input.assemblyFeeCents,
+      revision, basePriceCents: input.basePriceCents, assemblyMode: input.assemblyMode, assemblyFeeCents: input.assemblyFeeCents, rushFeeCents: input.rushFeeCents,
       fulfillmentMode: input.fulfillmentMode, localDeliveryFeeCents: input.localDeliveryFeeCents, packageWeightOz: input.packageWeightOz,
       packageLengthIn: input.packageLengthIn, packageWidthIn: input.packageWidthIn, packageHeightIn: input.packageHeightIn, shippingSelection,
       totalCents, depositCents, balanceCents: totalCents - depositCents,
@@ -194,7 +197,7 @@ export async function selectQuoteShipping(id:string, customerId:string, rate:Eas
     if(current.customerAccountId!==customerId || current.fulfillmentMode!=="shipping" || current.status!=="sent") return null;
     const now=new Date().toISOString();
     const shippingSelection:ShippingSelection={shipmentId,rateId:rate.id,carrier:rate.carrier,service:rate.service,rateCents:rate.rateCents,deliveryDays:rate.deliveryDays,deliveryDate:rate.deliveryDate,address,selectedAt:now};
-    const totalCents=current.basePriceCents+current.assemblyFeeCents+current.localDeliveryFeeCents+rate.rateCents;
+    const totalCents=current.basePriceCents+current.assemblyFeeCents+current.rushFeeCents+current.localDeliveryFeeCents+rate.rateCents;
     const depositCents=Math.round(totalCents/2);
     const next:StoredQuote={...current,shippingSelection,totalCents,depositCents,balanceCents:totalCents-depositCents,updatedAt:now,
       history:[...current.history,event({actor:"customer",event:"shipping-selected",revision:current.revision,summary:`Customer selected ${rate.carrier} ${rate.service} shipping for ${(rate.rateCents/100).toLocaleString("en-US",{style:"currency",currency:"USD"})}.`,snapshot:{...quoteSnapshot(current),shippingSelection,totalCents,depositCents,balanceCents:totalCents-depositCents}})]};
