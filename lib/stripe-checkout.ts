@@ -59,12 +59,15 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
     : input.quote.assemblyMode === "disassembled"
       ? "Ships disassembled; an assembly guide is included and final assembly may require super glue."
       : "No assembly required.";
+  const rushDescription = input.quote.rushFeeCents > 0
+    ? `Rush scheduling fee ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.rushFeeCents / 100)} included.`
+    : "";
   const fulfillmentDescription = input.quote.fulfillmentMode === "shipping" && input.quote.shippingSelection
     ? `${input.quote.shippingSelection.carrier} ${input.quote.shippingSelection.service} shipping ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.shippingSelection.rateCents / 100)} included.`
     : input.quote.fulfillmentMode === "local-delivery"
       ? `Local delivery ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(input.quote.localDeliveryFeeCents / 100)} included.`
       : "Local pickup; no fulfillment fee.";
-  params.set("line_items[0][price_data][product_data][description]", `Quote revision ${input.quote.revision}. ${assemblyDescription} ${fulfillmentDescription} Remaining balance due before shipment or at pickup/delivery handoff.`);
+  params.set("line_items[0][price_data][product_data][description]", `Quote revision ${input.quote.revision}. ${assemblyDescription} ${rushDescription} ${fulfillmentDescription} Remaining balance due before shipment or at pickup/delivery handoff.`.replace(/\s+/g, " ").trim());
   params.set("line_items[0][quantity]", "1");
   params.set("metadata[quote_id]", input.quote.id);
   params.set("metadata[request_id]", input.quote.requestId);
