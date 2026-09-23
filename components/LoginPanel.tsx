@@ -3,9 +3,9 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function LoginPanel({ adminMode = false }: { adminMode?: boolean }) {
+export function LoginPanel({ adminMode = false, initialMode = "login" }: { adminMode?: boolean; initialMode?: "login" | "register" }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
