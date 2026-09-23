@@ -19,14 +19,22 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
   const ownerTapCount = useRef(0);
   const ownerTapStartedAt = useRef(0);
   const accountMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileDrawerRef = useRef<HTMLElement | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     function closeOnOutside(event: PointerEvent) {
       const target = event.target;
       if (!(target instanceof Node)) return;
+
       const accountMenu = accountMenuRef.current;
       if (accountMenu?.open && !accountMenu.contains(target)) accountMenu.removeAttribute("open");
+
+      if (!mobileMenuOpen) return;
+      if (mobileDrawerRef.current?.contains(target)) return;
+      if (mobileMenuButtonRef.current?.contains(target)) return;
+      setMobileMenuOpen(false);
     }
 
     function closeOnEscape(event: KeyboardEvent) {
@@ -41,7 +49,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
       document.removeEventListener("pointerdown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, []);
+  }, [mobileMenuOpen]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -142,6 +150,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
 
       <div className="mobile-header-bar">
         <button
+          ref={mobileMenuButtonRef}
           className={`mobile-menu-button ${mobileMenuOpen ? "is-open" : ""}`}
           type="button"
           aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
@@ -181,6 +190,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
       />
 
       <aside
+        ref={mobileDrawerRef}
         id="mobile-navigation-drawer"
         className={`mobile-nav-drawer ${mobileMenuOpen ? "is-open" : ""}`}
         aria-label="Mobile navigation"
