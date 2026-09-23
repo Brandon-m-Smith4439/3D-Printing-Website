@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requestIsOwner } from "@/lib/owner-auth";
+import { sameOrigin } from "@/lib/owner-api";
 import { sendCompletionEmail } from "@/lib/completion-email";
 import { readQueue, updateQueueJob, deleteQueueJob } from "@/lib/queue-store";
 import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
@@ -10,16 +11,6 @@ import { quoteForRequest } from "@/lib/quote-store";
 import { autoBuyLabelIfEligible } from "@/lib/shipping-service";
 
 export const runtime = "nodejs";
-
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
-}
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!requestIsOwner(request)) {
