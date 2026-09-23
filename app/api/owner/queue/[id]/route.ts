@@ -8,6 +8,7 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { updateQueueJobSchema } from "@/lib/queue-types";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { quoteForRequest } from "@/lib/quote-store";
+import { quoteDepositSatisfied } from "@/lib/quote-types";
 import { autoBuyLabelIfEligible } from "@/lib/shipping-service";
 
 export const runtime = "nodejs";
@@ -105,7 +106,8 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   const deleted = await deleteQueueJob(id);
   if (deleted && existing?.sourceRequestId) {
     const quote = await quoteForRequest(existing.sourceRequestId);
-    const restoredStatus = quote?.depositPaidAt
+    const satisfiedDeposit = Boolean(quote && quote.status === "deposit-paid" && quoteDepositSatisfied(quote));
+    const restoredStatus = satisfiedDeposit
       ? "deposit-paid"
       : quote?.status === "approved"
         ? "accepted"
@@ -116,9 +118,9 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     if (source) {
       await notifyCustomer(
         source,
-        quote?.depositPaidAt
-          ? "Your request was removed from the active production queue. Your deposit remains recorded while production details are reviewed."
-          : "Your request was removed from the active production queue and returned to review. No deposit is recorded for this request.",
+        satisfiedDeposit
+          ? "Your request was removed from the active production queue. Your satisfied deposit remains recorded while production details are reviewed."
+          : "Your request was removed from the active production queue and returned to review while the current quote/payment state is resolved.",
       );
     }
   }
