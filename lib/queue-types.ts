@@ -33,6 +33,7 @@ export type PublicQueueJob = Pick<
 >;
 
 const optionalDate = z.string().trim().max(10).refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "Invalid date.");
+const optionalEmail = z.union([z.literal(""), z.string().trim().email().max(160)]);
 const localImage = z.string().trim().max(300).refine(
   (value) => value === "" || (value.startsWith("/") && !value.includes("..") && !value.includes("\\")),
   "Invalid image path.",
@@ -42,7 +43,7 @@ export const createQueueJobSchema = z.object({
   sourceRequestId: z.string().trim().max(100).optional().default(""),
   publicTitle: z.string().trim().min(2).max(100),
   customerName: z.string().trim().min(2).max(100),
-  customerEmail: z.string().trim().email().max(160),
+  customerEmail: optionalEmail,
   fulfillmentMethod: z.enum(fulfillmentMethods),
   quantity: z.coerce.number().int().min(1).max(500),
   estimatedReadyDate: optionalDate.default(""),
@@ -54,7 +55,7 @@ export const createQueueJobSchema = z.object({
 export const updateQueueJobSchema = z.object({
   publicTitle: z.string().trim().min(2).max(100).optional(),
   customerName: z.string().trim().min(2).max(100).optional(),
-  customerEmail: z.string().trim().email().max(160).optional(),
+  customerEmail: optionalEmail.optional(),
   fulfillmentMethod: z.enum(fulfillmentMethods).optional(),
   quantity: z.coerce.number().int().min(1).max(500).optional(),
   status: z.enum(queueStatuses).optional(),
