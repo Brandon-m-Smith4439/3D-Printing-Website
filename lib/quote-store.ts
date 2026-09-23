@@ -1,7 +1,20 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { readCollection, writeCollection } from "@/lib/database";
-import type { AssemblyMode, QuoteFulfillmentMode, QuoteHistoryEntry, QuoteSnapshot, ShippingAddress, ShippingSelection, StoredQuote } from "@/lib/quote-types";
+import {
+  quoteDepositRefundDueCents,
+  quoteDepositSatisfied,
+  quoteNetDepositPaidCents,
+  type AssemblyMode,
+  type QuoteFulfillmentMode,
+  type QuoteHistoryEntry,
+  type QuotePaymentRecord,
+  type QuoteRefundRecord,
+  type QuoteSnapshot,
+  type ShippingAddress,
+  type ShippingSelection,
+  type StoredQuote,
+} from "@/lib/quote-types";
 import type { EasyPostRate } from "@/lib/easypost";
 
 let mutationChain = Promise.resolve();
@@ -50,9 +63,37 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
   const shippingSelection = normalizeShippingSelection(item.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
   const basePriceCents = Number.isFinite(item.basePriceCents) ? item.basePriceCents : Math.max(0, item.totalCents - assemblyFeeCents - localDeliveryFeeCents - shippingCents);
-  const normalized = {
+  const refunds: QuoteRefundRecord[] = Array.isArray(item.refunds) ? item.refunds.map((refund) => ({
+    id: refund.id || randomUUID(),
+    revision: Number(refund.revision || item.revision || 1),
+    paymentRecordId: refund.paymentRecordId || "",
+    paymentIntentId: refund.paymentIntentId || "",
+    stripeRefundId: refund.stripeRefundId || "",
+    amountCents: Math.max(0, Number(refund.amountCents || 0)),
+    status: refund.status || "unknown",
+    createdAt: refund.createdAt || item.updatedAt || item.createdAt,
+    updatedAt: refund.updatedAt || refund.createdAt || item.updatedAt || item.createdAt,
+  })) : [];
+  const existingPayments = Array.isArray(item.payments) ? item.payments : [];
+  const payments: QuotePaymentRecord[] = existingPayments.length ? existingPayments.map((payment) => ({
+    id: payment.id || randomUUID(),
+    revision: Number(payment.revision || item.revision || 1),
+    amountCents: Math.max(0, Number(payment.amountCents || 0)),
+    checkoutSessionId: payment.checkoutSessionId || "",
+    paymentIntentId: payment.paymentIntentId || "",
+    paidAt: payment.paidAt || item.depositPaidAt || item.updatedAt || item.createdAt,
+  })) : item.depositPaidAt ? [{
+    id: `legacy-${item.id}`,
+    revision: Number(item.revision || 1),
+    amountCents: Math.max(0, Number(item.depositCents || 0)),
+    checkoutSessionId: item.stripeCheckoutSessionId || "",
+    paymentIntentId: "",
+    paidAt: item.depositPaidAt,
+  }] : [];
+  const normalized: StoredQuote = {
     ...item, assemblyMode, assemblyFeeCents, basePriceCents, fulfillmentMode, localDeliveryFeeCents,
     packageWeightOz:Number(item.packageWeightOz||0), packageLengthIn:Number(item.packageLengthIn||0), packageWidthIn:Number(item.packageWidthIn||0), packageHeightIn:Number(item.packageHeightIn||0), shippingSelection,
+    stripeCheckoutAmountCents: Number(item.stripeCheckoutAmountCents || 0), payments, refunds,
   };
   const approvalSnapshot = normalizeSnapshot(item.approvalSnapshot);
   if (Array.isArray(item.history) && item.history.length) {
@@ -108,10 +149,9 @@ export async function upsertQuote(input: {
     const index = items.findIndex((item) => item.requestId === input.requestId && item.status !== "void");
     const now = new Date().toISOString();
     const existing = index >= 0 ? normalizeQuote(items[index]) : null;
-    if (existing?.depositPaidAt) throw new Error("A paid quote cannot be edited. Create a manual adjustment instead.");
     const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","fulfillmentMode","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
     const changed = !existing || changedKeys.some((key) => String((existing as unknown as Record<string, unknown>)[key]) !== String((input as unknown as Record<string, unknown>)[key]));
-    const hadCustomerDecision = Boolean(existing && ["approved","countered","declined"].includes(existing.status));
+    const hadCustomerDecision = Boolean(existing && ["approved","countered","declined","deposit-paid"].includes(existing.status));
     const revision = existing ? existing.revision + (((changed && (existing.sentAt || hadCustomerDecision)) || (input.send && hadCustomerDecision)) ? 1 : 0) : 1;
     const preserveExistingState = Boolean(existing && !changed && !input.send);
     const status = input.send ? "sent" : preserveExistingState ? existing!.status : "draft";
@@ -134,8 +174,11 @@ export async function upsertQuote(input: {
       approvedByCustomerId: preserveExistingState ? existing!.approvedByCustomerId : "",
       approvalSnapshot: preserveExistingState ? existing!.approvalSnapshot : null,
       stripeCheckoutSessionId: preserveExistingState ? existing!.stripeCheckoutSessionId : "",
-      depositPaidAt: preserveExistingState ? existing!.depositPaidAt : "",
-      paymentProvider: preserveExistingState ? existing!.paymentProvider : "",
+      stripeCheckoutAmountCents: preserveExistingState ? existing!.stripeCheckoutAmountCents : 0,
+      depositPaidAt: existing?.depositPaidAt || "",
+      paymentProvider: existing?.paymentProvider || "",
+      payments: [...(existing?.payments || [])],
+      refunds: [...(existing?.refunds || [])],
       history: [...(existing?.history || [])],
     };
     if (!existing || changed || input.send) quote.history.push(event({ actor:"owner", event:input.send?"sent":"draft-saved", revision, summary:input.send?`Quote revision ${revision} sent to customer.`:`Quote revision ${revision} saved as draft.`, snapshot:quoteSnapshot(quote) }));
@@ -148,7 +191,7 @@ export async function selectQuoteShipping(id:string, customerId:string, rate:Eas
   return mutate(async()=>{
     const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
     const current=normalizeQuote(items[index]);
-    if(current.customerAccountId!==customerId || current.fulfillmentMode!=="shipping" || current.depositPaidAt || current.status!=="sent") return null;
+    if(current.customerAccountId!==customerId || current.fulfillmentMode!=="shipping" || current.status!=="sent") return null;
     const now=new Date().toISOString();
     const shippingSelection:ShippingSelection={shipmentId,rateId:rate.id,carrier:rate.carrier,service:rate.service,rateCents:rate.rateCents,deliveryDays:rate.deliveryDays,deliveryDate:rate.deliveryDate,address,selectedAt:now};
     const totalCents=current.basePriceCents+current.assemblyFeeCents+current.localDeliveryFeeCents+rate.rateCents;
@@ -185,19 +228,148 @@ export async function respondToQuote(id:string, customerId:string, response:{act
   });
 }
 
-export async function markQuoteCheckoutSession(id: string, sessionId: string) {
-  return mutate(async () => { const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null; items[index] = { ...normalizeQuote(items[index]), stripeCheckoutSessionId: sessionId, paymentProvider: "stripe", updatedAt: new Date().toISOString() }; await writeQuotes(items); return items[index]; });
-}
-export async function markQuoteDepositPaid(id: string, sessionId: string) {
+export async function markQuoteCheckoutSession(id: string, sessionId: string, amountCents: number) {
   return mutate(async () => {
     const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
-    const current = normalizeQuote(items[index]); if (current.depositPaidAt) return current; if (current.stripeCheckoutSessionId && current.stripeCheckoutSessionId !== sessionId) return null;
+    items[index] = {
+      ...normalizeQuote(items[index]),
+      stripeCheckoutSessionId: sessionId,
+      stripeCheckoutAmountCents: Math.max(0, Math.round(amountCents)),
+      paymentProvider: "stripe",
+      updatedAt: new Date().toISOString(),
+    };
+    await writeQuotes(items); return items[index];
+  });
+}
+
+export async function recordQuoteDepositPayment(id: string, input: { sessionId: string; paymentIntentId: string; amountCents: number; revision?: number }) {
+  return mutate(async () => {
+    const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
+    const current = normalizeQuote(items[index]);
+    const existingPayment = current.payments.find((item) => item.checkoutSessionId === input.sessionId);
+    if (existingPayment) return current;
     const now = new Date().toISOString();
-    const next:StoredQuote={ ...current, status: "deposit-paid", depositPaidAt: now, stripeCheckoutSessionId: sessionId, paymentProvider: "stripe", updatedAt: now,
-      history:[...current.history,event({actor:"system",event:"deposit-paid",revision:current.revision,summary:`50% deposit recorded for quote revision ${current.revision}.`,snapshot:quoteSnapshot(current)})] };
+    const payment: QuotePaymentRecord = {
+      id: randomUUID(),
+      revision: input.revision || current.revision,
+      amountCents: Math.max(0, Math.round(input.amountCents)),
+      checkoutSessionId: input.sessionId,
+      paymentIntentId: input.paymentIntentId,
+      paidAt: now,
+    };
+    const payments = [...current.payments, payment];
+    const candidate: StoredQuote = {
+      ...current,
+      payments,
+      stripeCheckoutSessionId: input.sessionId,
+      stripeCheckoutAmountCents: 0,
+      paymentProvider: "stripe",
+      updatedAt: now,
+    };
+    const satisfied = current.status === "approved" && quoteDepositSatisfied(candidate);
+    const previousPaid = quoteNetDepositPaidCents(current);
+    const summary = previousPaid > 0
+      ? `Additional deposit of ${(payment.amountCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} recorded for quote revision ${payment.revision}.`
+      : `50% deposit recorded for quote revision ${payment.revision}.`;
+    const next: StoredQuote = {
+      ...candidate,
+      status: satisfied ? "deposit-paid" : candidate.status,
+      depositPaidAt: satisfied ? (current.depositPaidAt || now) : current.depositPaidAt,
+      history: [...current.history, event({ actor:"system", event:"deposit-paid", revision:payment.revision, summary, snapshot:quoteSnapshot(current) })],
+    };
     items[index]=next; await writeQuotes(items); return next;
   });
 }
+
+export function quoteRefundPlan(quote: StoredQuote, amountCents = quoteDepositRefundDueCents(quote)) {
+  let remaining = Math.max(0, Math.round(amountCents));
+  const plan: Array<{ payment: QuotePaymentRecord; amountCents: number; attempt: number }> = [];
+  const refundsByPayment = new Map<string, number>();
+  for (const refund of quote.refunds) {
+    if (["failed", "canceled"].includes(refund.status)) continue;
+    refundsByPayment.set(refund.paymentRecordId, (refundsByPayment.get(refund.paymentRecordId) || 0) + refund.amountCents);
+  }
+  for (const payment of [...quote.payments].reverse()) {
+    if (remaining <= 0) break;
+    const available = Math.max(0, payment.amountCents - (refundsByPayment.get(payment.id) || 0));
+    if (!available) continue;
+    const amount = Math.min(available, remaining);
+    const failedAttempts = quote.refunds.filter((refund) =>
+      refund.paymentRecordId === payment.id
+      && refund.revision === quote.revision
+      && refund.amountCents === amount
+      && ["failed", "canceled"].includes(refund.status)
+    ).length;
+    plan.push({ payment, amountCents: amount, attempt: failedAttempts + 1 });
+    remaining -= amount;
+  }
+  return { plan, remainingCents: remaining };
+}
+
+export async function recordQuoteRefund(id: string, refund: Omit<QuoteRefundRecord, "id" | "createdAt" | "updatedAt">) {
+  return mutate(async () => {
+    const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
+    const current = normalizeQuote(items[index]);
+    const existing = current.refunds.find((item) => item.stripeRefundId && item.stripeRefundId === refund.stripeRefundId);
+    if (existing) return current;
+    const now = new Date().toISOString();
+    const record: QuoteRefundRecord = { id: randomUUID(), createdAt: now, updatedAt: now, ...refund };
+    const next: StoredQuote = {
+      ...current,
+      refunds: [...current.refunds, record],
+      updatedAt: now,
+      history: [...current.history, event({
+        actor:"system",
+        event:"refund-issued",
+        revision:refund.revision,
+        summary:`Deposit refund of ${(refund.amountCents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} ${refund.status === "pending" ? "submitted" : "issued"} for quote revision ${refund.revision}.`,
+        snapshot:quoteSnapshot(current),
+      })],
+    };
+    items[index]=next; await writeQuotes(items); return next;
+  });
+}
+
+export async function markQuoteDepositSatisfied(id: string) {
+  return mutate(async () => {
+    const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
+    const current = normalizeQuote(items[index]);
+    if (!quoteDepositSatisfied(current)) return current;
+    const now = new Date().toISOString();
+    const next: StoredQuote = {
+      ...current,
+      status: "deposit-paid",
+      depositPaidAt: current.depositPaidAt || now,
+      stripeCheckoutAmountCents: 0,
+      updatedAt: now,
+    };
+    items[index]=next; await writeQuotes(items); return next;
+  });
+}
+
+export async function updateQuoteRefundStatus(stripeRefundId: string, status: QuoteRefundRecord["status"]) {
+  return mutate(async () => {
+    const items = await readQuotes();
+    const quoteIndex = items.findIndex((item) => normalizeQuote(item).refunds.some((refund) => refund.stripeRefundId === stripeRefundId));
+    if (quoteIndex < 0) return null;
+    const current = normalizeQuote(items[quoteIndex]);
+    const refundIndex = current.refunds.findIndex((refund) => refund.stripeRefundId === stripeRefundId);
+    if (refundIndex < 0) return null;
+    const now = new Date().toISOString();
+    const refunds = [...current.refunds];
+    refunds[refundIndex] = { ...refunds[refundIndex], status, updatedAt: now };
+    let next: StoredQuote = { ...current, refunds, updatedAt: now };
+    if (["failed", "canceled"].includes(status) && quoteDepositRefundDueCents(next) > 0 && next.status === "deposit-paid") {
+      next = { ...next, status: "approved" };
+    } else if (next.status === "approved" && quoteDepositSatisfied(next)) {
+      next = { ...next, status: "deposit-paid", depositPaidAt: next.depositPaidAt || now };
+    }
+    items[quoteIndex] = next;
+    await writeQuotes(items);
+    return next;
+  });
+}
+
 export async function voidQuoteForRequest(requestId: string) {
   return mutate(async () => { const items = await readQuotes(); let changed = false; const now = new Date().toISOString(); for (let i=0;i<items.length;i++) if (items[i].requestId === requestId && items[i].status !== "void" && !items[i].depositPaidAt) { items[i] = { ...normalizeQuote(items[i]), status: "void", updatedAt: now }; changed = true; } if (changed) await writeQuotes(items); });
 }
