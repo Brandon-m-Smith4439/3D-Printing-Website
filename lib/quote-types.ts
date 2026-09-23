@@ -36,6 +36,7 @@ export type QuoteSnapshot = {
   basePriceCents: number;
   assemblyMode: AssemblyMode;
   assemblyFeeCents: number;
+  rushFeeCents: number;
   fulfillmentMode: QuoteFulfillmentMode;
   localDeliveryFeeCents: number;
   packageWeightOz: number;
@@ -146,6 +147,7 @@ export const ownerQuoteSchema = z.object({
   basePriceCents: cents,
   assemblyMode: z.enum(assemblyModes),
   assemblyFeeCents: feeCents,
+  rushFeeCents: feeCents,
   fulfillmentMode: z.enum(quoteFulfillmentModes),
   localDeliveryFeeCents: feeCents,
   packageWeightOz: packageWeight,
@@ -179,7 +181,7 @@ export const ownerQuoteSchema = z.object({
       ctx.addIssue({ code: "custom", path: ["packageLengthIn"], message: "Enter all packed box dimensions so live carrier rates can be calculated." });
     }
   }
-  const requiredTotal = value.basePriceCents + value.assemblyFeeCents + value.localDeliveryFeeCents;
+  const requiredTotal = value.basePriceCents + value.assemblyFeeCents + value.rushFeeCents + value.localDeliveryFeeCents;
   if (value.totalCents !== requiredTotal) ctx.addIssue({ code: "custom", path: ["totalCents"], message: "The quote total does not match the current print, assembly, and delivery charges." });
   const requiredDeposit = Math.round(value.totalCents / 2);
   if (value.depositCents !== requiredDeposit) ctx.addIssue({ code: "custom", path: ["depositCents"], message: "The deposit must be exactly 50% of the current quote total." });
