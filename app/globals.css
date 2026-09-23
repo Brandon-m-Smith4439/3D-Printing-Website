@@ -2502,7 +2502,7 @@ main { min-height: 65vh; }
   display: none;
 }
 
-@media (max-width: 650px) {
+@media (max-width: 720px) {
   .site-header {
     position: sticky;
     top: 0;
