@@ -41,6 +41,8 @@ export type StoredRequest = {
   customerAccountId?: string;
   riskLevel?: "none" | "review";
   riskFlags?: string[];
+  source?: "customer" | "owner";
+  emailNotifications?: boolean;
 };
 
 export const updateStoredRequestSchema = z.object({ status: z.enum(requestStatuses) });

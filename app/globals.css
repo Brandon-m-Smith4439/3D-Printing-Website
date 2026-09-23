@@ -3076,3 +3076,166 @@ main { min-height: 65vh; }
   }
 }
 
+
+
+/* v0.84 — revised quotes, account opt-in, and owner in-person requests */
+.quote-revision-lock,
+.quote-refund-review,
+.quote-schedule-guidance,
+.quote-adjustment-preview,
+.customer-deposit-adjustment,
+.request-account-options,
+.in-person-request-form {
+  border: 1px solid rgba(92, 231, 222, .18);
+  background: linear-gradient(135deg, rgba(21, 154, 154, .08), rgba(7, 30, 37, .72));
+  border-radius: 14px;
+}
+
+.quote-revision-lock,
+.quote-refund-review,
+.quote-schedule-guidance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+}
+.quote-revision-lock > div,
+.quote-refund-review > div,
+.quote-schedule-guidance > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.quote-revision-lock strong,
+.quote-refund-review strong,
+.quote-schedule-guidance strong,
+.quote-adjustment-preview strong,
+.customer-deposit-adjustment strong {
+  color: #a9f0eb;
+}
+.quote-revision-lock span,
+.quote-refund-review span,
+.quote-schedule-guidance span,
+.quote-adjustment-preview span,
+.customer-deposit-adjustment span {
+  color: #9bb6b8;
+  font-size: .78rem;
+  line-height: 1.5;
+}
+.quote-revision-lock small,
+.quote-schedule-guidance small {
+  color: #f0c884;
+  font-size: .72rem;
+}
+.quote-adjustment-preview,
+.customer-deposit-adjustment {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+.customer-deposit-adjustment { margin-top: 10px; }
+.quote-refund-review,
+.quote-schedule-guidance.is-rush {
+  border-color: rgba(255, 196, 91, .28);
+  background: rgba(255, 196, 91, .055);
+}
+.quote-refund-review strong,
+.quote-schedule-guidance.is-rush strong { color: #ffe0a0; }
+.quote-refund-review.is-processing {
+  border-color: rgba(92, 231, 222, .2);
+  background: rgba(46, 214, 202, .05);
+}
+.quote-schedule-guidance label {
+  min-width: 160px;
+}
+.quote-schedule-guidance label span {
+  display: block;
+  margin-bottom: 5px;
+}
+.quote-schedule-guidance input {
+  width: 100%;
+}
+
+.request-account-options {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+.request-account-options-heading strong,
+.in-person-request-heading strong {
+  display: block;
+  color: #d9fbf8;
+}
+.request-account-options-heading small,
+.in-person-request-heading span {
+  color: #8fa9ab;
+  line-height: 1.45;
+}
+.request-account-passwords {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.request-account-result {
+  margin: 8px 0 0;
+  color: #b5d8d6;
+  line-height: 1.45;
+}
+
+.in-person-request-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  margin: 0 0 18px;
+}
+.in-person-request-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+.in-person-request-heading > div {
+  display: grid;
+  gap: 4px;
+}
+.in-person-request-form > label {
+  display: grid;
+  gap: 6px;
+}
+.owner-source-badge {
+  display: inline-flex;
+  margin-left: 7px;
+  padding: 2px 7px;
+  border: 1px solid rgba(92, 231, 222, .18);
+  border-radius: 999px;
+  color: #8edbd7;
+  font-size: .62rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.quote-response-state.quote-refund-processing,
+.quote-response-state.quote-refund-review {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+.quote-response-state.quote-refund-processing strong { color: #9ceae5; }
+.quote-response-state.quote-refund-review {
+  border-color: rgba(255, 196, 91, .22);
+  background: rgba(255, 196, 91, .045);
+}
+.quote-response-state.quote-refund-review strong { color: #ffe0a0; }
+
+@media (max-width: 720px) {
+  .quote-revision-lock,
+  .quote-refund-review,
+  .quote-schedule-guidance,
+  .in-person-request-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .quote-schedule-guidance label { min-width: 0; }
+  .request-account-passwords { grid-template-columns: 1fr; }
+  .in-person-request-form .owner-edit-grid { grid-template-columns: 1fr; }
+}

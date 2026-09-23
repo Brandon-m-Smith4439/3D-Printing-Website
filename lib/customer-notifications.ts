@@ -24,7 +24,8 @@ function mutate<T>(operation: () => Promise<T>): Promise<T> {
 async function maybeEmail(request: StoredRequest, message: string) {
   if (!request.customerAccountId) return;
   const account = await findCustomerById(request.customerAccountId);
-  if (!account?.emailVerifiedAt || !account.preferences.emailStatusUpdates) return;
+  const wantsEmail = request.emailNotifications ?? account?.preferences.emailStatusUpdates ?? false;
+  if (!account?.emailVerifiedAt || !wantsEmail) return;
   const apiKey = process.env.RESEND_API_KEY || "";
   const from = process.env.REQUEST_FROM_EMAIL || "";
   if (!apiKey || apiKey.startsWith("YOUR_") || !from || from.includes("yourdomain.com")) {

@@ -61,6 +61,67 @@ export async function createStoredRequest(
       customerAccountId: metadata.customerAccountId || "",
       riskLevel: metadata.riskFlags?.length ? "review" : "none",
       riskFlags: metadata.riskFlags || [],
+      source: "customer",
+      emailNotifications: values.emailNotifications,
+    };
+    requests.push(stored);
+    await writeRequestsNow(requests);
+    return stored;
+  });
+}
+
+export async function createOwnerStoredRequest(values: {
+  name?: string;
+  email?: string;
+  phone?: string;
+  projectType?: string;
+  modelStatus?: string;
+  fulfillmentMethod?: StoredRequest["fulfillmentMethod"];
+  assemblyPreference?: StoredRequest["assemblyPreference"];
+  quantity?: number;
+  dimensions?: string;
+  materialPreference?: string;
+  colorPreference?: string;
+  budget?: string;
+  neededBy?: string;
+  description?: string;
+  internalNote?: string;
+}) {
+  return mutate(async () => {
+    const requests = await readRequests();
+    const now = new Date().toISOString();
+    const stored: StoredRequest = {
+      id: randomUUID(),
+      requestCode: makeRequestCode(),
+      status: "new",
+      name: values.name?.trim() || "In-person customer",
+      email: values.email?.trim().toLowerCase() || "",
+      phone: values.phone?.trim() || "",
+      projectType: values.projectType || "other",
+      modelStatus: values.modelStatus || "idea-only",
+      fulfillmentMethod: values.fulfillmentMethod || "unsure",
+      assemblyPreference: values.assemblyPreference || "unsure",
+      quantity: Math.max(1, Math.min(500, Math.round(values.quantity || 1))),
+      dimensions: values.dimensions?.trim() || "",
+      materialPreference: values.materialPreference || "no-preference",
+      colorPreference: values.colorPreference?.trim() || "",
+      budget: values.budget?.trim() || "",
+      neededBy: values.neededBy?.trim() || "",
+      neededBySubmitted: values.neededBy?.trim() || "",
+      referenceUrl: "",
+      description: values.description?.trim() || "In-person request added by owner.",
+      imageUrl: "",
+      attachments: [],
+      internalNote: values.internalNote?.trim() || "",
+      createdAt: now,
+      updatedAt: now,
+      queuedAt: "",
+      queueJobId: "",
+      customerAccountId: "",
+      riskLevel: "none",
+      riskFlags: [],
+      source: "owner",
+      emailNotifications: false,
     };
     requests.push(stored);
     await writeRequestsNow(requests);

@@ -5,12 +5,12 @@ import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { cleanupOrphanCustomerUploads, createCustomerUpload } from "@/lib/customer-upload-store";
 import { deletePrivateObject, privateObjectPath, putPrivateObject } from "@/lib/private-object-store";
+import { sameOrigin } from "@/lib/owner-api";
 
 export const runtime = "nodejs";
 const MAX_FILE = 10 * 1024 * 1024;
 const buckets = new Map<string, { count: number; resetAt: number }>();
 function clientIp(request: NextRequest) { return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown"; }
-function sameOrigin(request: NextRequest) { const origin=request.headers.get("origin"); if(!origin) return process.env.NODE_ENV!=="production"; try{return new URL(origin).origin===request.nextUrl.origin;}catch{return false;} }
 function limited(ip:string){const now=Date.now();const b=buckets.get(ip);if(!b||b.resetAt<=now){buckets.set(ip,{count:1,resetAt:now+10*60_000});return false;}b.count+=1;return b.count>12;}
 function safeName(name:string){return name.replace(/[^a-zA-Z0-9._ -]/g,"_").slice(0,120)||"attachment";}
 function extension(name:string){return path.extname(name).toLowerCase();}

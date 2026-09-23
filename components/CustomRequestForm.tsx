@@ -45,7 +45,7 @@ const friendlyMessages: Record<string, string> = {
   consent: "Please agree to be contacted about this request.",
 };
 
-export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededBy: string; initialCustomer?: { displayName: string; email: string } | null }) {
+export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededBy: string; initialCustomer?: { displayName: string; email: string; emailVerified: boolean; emailStatusUpdates: boolean } | null }) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -55,6 +55,9 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [createAccount, setCreateAccount] = useState(false);
+  const [emailNotifications, setEmailNotifications] = useState(Boolean(initialCustomer?.emailStatusUpdates));
+  const [accountMessage, setAccountMessage] = useState("");
   const [summary, setSummary] = useState<RequestSummary>({
     name: initialCustomer?.displayName || "",
     email: initialCustomer?.email || "",
@@ -179,6 +182,14 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
     const form = event.currentTarget;
     const data = new FormData(form);
     const neededByRaw = String(data.get("neededBy") || "").trim();
+    const wantsAccount = !initialCustomer && createAccount;
+    const accountPassword = String(data.get("accountPassword") || "");
+    const accountPasswordConfirm = String(data.get("accountPasswordConfirm") || "");
+    if (wantsAccount && (accountPassword.length < 10 || accountPassword !== accountPasswordConfirm)) {
+      setStatus("error");
+      setMessage(accountPassword.length < 10 ? "Use at least 10 characters for the new account password." : "The account passwords do not match.");
+      return;
+    }
     if (neededByRaw && (!normalizeBusinessDate(neededByRaw) || !isFutureBusinessDate(neededByRaw))) {
       setStatus("error");
       setMessage("Please correct the highlighted fields and try again.");
@@ -206,6 +217,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
       website: data.get("website") || "",
       turnstileToken: data.get("cf-turnstile-response") || "",
       attachments: attachments.map((item) => ({ id: item.id, token: item.token })),
+      emailNotifications,
     };
 
     try {
@@ -235,12 +247,36 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
       setStatus("success");
       setFieldErrors({});
       setMessage("");
+      setAccountMessage("");
       setSuccessCode(result.requestCode || "");
+      if (wantsAccount) {
+        try {
+          const accountResponse = await fetch("/api/account/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              displayName: String(data.get("name") || ""),
+              email: String(data.get("email") || ""),
+              password: accountPassword,
+              emailStatusUpdates: emailNotifications,
+            }),
+          });
+          const accountResult = await accountResponse.json() as { verificationMessage?: string; message?: string };
+          if (!accountResponse.ok) {
+            setAccountMessage(`Your request was saved, but the account was not created: ${accountResult.message || "Please use the Login page to sign in or create an account."}`);
+          } else {
+            setAccountMessage(accountResult.verificationMessage || "Account created. Verify your email to link this request to your profile.");
+          }
+        } catch {
+          setAccountMessage("Your request was saved, but account creation could not finish. You can create an account from the Login page using the same email.");
+        }
+      }
       setSuccessOpen(true);
       form.reset();
       setNeededByValue("");
       setAttachments([]);
       setUploadMessage("");
+      setCreateAccount(false);
       setSummary({
         name: initialCustomer?.displayName || "",
         email: initialCustomer?.email || "",
@@ -344,11 +380,11 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
             </div>
             <div className="form-grid request-spec-grid">
               <label className={fieldClass("quantity")}><span>Quantity *</span><input name="quantity" type="number" min={1} max={500} defaultValue={1} required aria-invalid={Boolean(fieldErrors.quantity)} />{fieldErrors.quantity && <small className="field-error">{fieldErrors.quantity}</small>}</label>
-              <label className={fieldClass("dimensions")}><span>Approx. dimensions</span><input name="dimensions" maxLength={120} placeholder={'Example: 8" × 5" × 3"'} /></label>
-              <label className={fieldClass("materialPreference")}><span>Material</span><select name="materialPreference" defaultValue="no-preference"><option value="no-preference">No preference</option><option value="pla">PLA</option><option value="petg">PETG</option><option value="asa">ASA</option><option value="tpu">TPU / flexible</option><option value="resin">Resin</option><option value="other">Other / unsure</option></select></label>
-              <label className={fieldClass("colorPreference")}><span>Color preference</span><input name="colorPreference" maxLength={120} placeholder="Black, multicolor, match a reference…" /></label>
+              <label className={fieldClass("dimensions")}><span>Approx. dimensions <small className="optional-label">Optional</small></span><input name="dimensions" maxLength={120} placeholder={'Example: 8" × 5" × 3"'} /></label>
+              <label className={fieldClass("materialPreference")}><span>Material <small className="optional-label">Optional</small></span><select name="materialPreference" defaultValue="no-preference"><option value="no-preference">No preference</option><option value="pla">PLA</option><option value="petg">PETG</option><option value="asa">ASA</option><option value="tpu">TPU / flexible</option><option value="resin">Resin</option><option value="other">Other / unsure</option></select></label>
+              <label className={fieldClass("colorPreference")}><span>Color preference <small className="optional-label">Optional</small></span><input name="colorPreference" maxLength={120} placeholder="Black, multicolor, match a reference…" /></label>
               <div className={fieldClass("neededBy", "needed-by-field")}>
-                <label className="field-label" htmlFor="neededBy">Needed by</label>
+                <label className="field-label" htmlFor="neededBy">Needed by <small className="optional-label">Optional</small></label>
                 <div className="date-entry-shell">
                   <input id="neededBy" name="neededBy" type="text" inputMode="numeric" maxLength={24} placeholder="M/D/YYYY" value={neededByValue} onChange={(event) => setNeededByValue(event.target.value)} aria-invalid={Boolean(fieldErrors.neededBy)} />
                   <span className="calendar-picker-button" aria-label="Choose a needed-by date" title="Choose from calendar">
@@ -360,7 +396,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
                 {rushRequested && <small className="rush-date-note"><strong>Rush timing:</strong> this date is less than 3 days away. A rush fee may apply and will be quoted based on the print.</small>}
                 {fieldErrors.neededBy && <small className="field-error">{fieldErrors.neededBy}</small>}
               </div>
-              <label className={fieldClass("budget", "budget-field")}><span>Budget</span><input name="budget" maxLength={80} inputMode="decimal" placeholder="Optional" /><small>Final pricing is confirmed after review.</small></label>
+              <label className={fieldClass("budget", "budget-field")}><span>Budget <small className="optional-label">Optional</small></span><input name="budget" maxLength={80} inputMode="decimal" placeholder="Optional" /><small>Final pricing is confirmed after review.</small></label>
             </div>
           </section>
 
@@ -385,6 +421,12 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
 
           <label className="honeypot" aria-hidden="true">Company site<input name="website" tabIndex={-1} autoComplete="off" /></label>
           <label className={`consent-row request-consent-card ${fieldErrors.consent ? "field-invalid" : ""}`}><input name="consent" type="checkbox" required aria-invalid={Boolean(fieldErrors.consent)} /><span>I agree to be contacted about this custom print request. *</span>{fieldErrors.consent && <small className="field-error">{fieldErrors.consent}</small>}</label>
+          <section className="request-account-options">
+            <div className="request-account-options-heading"><div><strong>Track this request</strong><small>{initialCustomer?"Your signed-in profile will automatically keep this request and its notifications together.":"Optional — create a free account so you can track this request, approve quotes, and see status notifications."}</small></div></div>
+            {!initialCustomer&&<label className="settings-check"><input name="createAccount" type="checkbox" checked={createAccount} onChange={(event)=>{setCreateAccount(event.target.checked);if(!event.target.checked)setEmailNotifications(false);}} /><span><strong>Create an account with this request</strong><small>You will verify the same email used above. After verification, this request will be securely linked to your profile.</small></span></label>}
+            {!initialCustomer&&createAccount&&<div className="request-account-passwords"><label><span>Password</span><input name="accountPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required={createAccount}/></label><label><span>Confirm password</span><input name="accountPasswordConfirm" type="password" minLength={10} maxLength={128} autoComplete="new-password" required={createAccount}/></label></div>}
+            <label className="settings-check"><input name="emailNotifications" type="checkbox" checked={emailNotifications} disabled={!initialCustomer&&!createAccount} onChange={(event)=>setEmailNotifications(event.target.checked)} /><span><strong>Email me request status updates</strong><small>{initialCustomer?.emailVerified?"Status changes for this request can also be sent to your verified email.":createAccount?"Email status updates begin after the new account email is verified.":"Create an account with this request to enable verified email status updates."}</small></span></label>
+          </section>
           <div className="payment-terms-note payment-terms-prominent"><strong>50% deposit before production</strong><p>After the quote, design details, and final price are confirmed, a 50% deposit is required before production begins. The remaining 50% is due before shipment or at the pickup/delivery handoff. If a confirmed project is canceled after materials have been purchased or printing has begun, the deposit may be applied to materials, machine time, and work already completed, subject to the final agreed order terms.</p></div>
         </div>
 
@@ -423,7 +465,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
         <div className="request-success-popup" role="dialog" aria-modal="false" aria-labelledby="request-success-title">
           <button className="request-success-close" type="button" onClick={() => setSuccessOpen(false)} aria-label="Close success message">×</button>
           <span className="request-success-icon" aria-hidden="true">✓</span>
-          <div><strong id="request-success-title">Custom request received.</strong><p>You will receive a response in the next 24–48 hours.</p>{successCode && <small>Request {successCode}</small>}</div>
+          <div><strong id="request-success-title">Custom request received.</strong><p>You will receive a response in the next 24–48 hours.</p>{successCode && <small>Request {successCode}</small>}{accountMessage&&<p className="request-account-result">{accountMessage}</p>}{!initialCustomer&&!accountMessage&&<p className="request-account-result">Want to track this request later? Create or sign in to an account using the same email, then verify that email to securely link matching guest requests.</p>}</div>
         </div>
       )}
     </form>

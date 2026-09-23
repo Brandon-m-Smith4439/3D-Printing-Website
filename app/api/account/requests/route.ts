@@ -4,6 +4,7 @@ import { notificationsForCustomer } from "@/lib/customer-notifications";
 import { readQueue } from "@/lib/queue-store";
 import { readRequests } from "@/lib/request-store";
 import { readQuotes } from "@/lib/quote-store";
+import { quoteDepositOutstandingCents, quoteDepositRefundDueCents, quoteDepositRefundPending, quoteNetDepositPaidCents } from "@/lib/quote-types";
 import { readShipments } from "@/lib/shipment-store";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,13 @@ export async function GET(request: NextRequest) {
         quantity: item.quantity, neededBy: item.neededBySubmitted || item.neededBy, description: item.description,
         createdAt: item.createdAt,
         quote: quote ? {
-          id: quote.id, revision: quote.revision, status: quote.status, basePriceCents: quote.basePriceCents, assemblyMode: quote.assemblyMode, assemblyFeeCents: quote.assemblyFeeCents, fulfillmentMode: quote.fulfillmentMode, localDeliveryFeeCents: quote.localDeliveryFeeCents, shippingSelection: quote.shippingSelection, totalCents: quote.totalCents, depositCents: quote.depositCents,
+          id: quote.id, revision: quote.revision, status: quote.status, basePriceCents: quote.basePriceCents, assemblyMode: quote.assemblyMode, assemblyFeeCents: quote.assemblyFeeCents, rushFeeCents: quote.rushFeeCents, fulfillmentMode: quote.fulfillmentMode, localDeliveryFeeCents: quote.localDeliveryFeeCents, shippingSelection: quote.shippingSelection, totalCents: quote.totalCents, depositCents: quote.depositCents,
           balanceCents: quote.balanceCents, currency: quote.currency, material: quote.material, dimensions: quote.dimensions,
           estimatedReadyDate: quote.estimatedReadyDate, notes: quote.notes, terms: quote.terms, sentAt: quote.sentAt,
-          approvedAt: quote.approvedAt, depositPaidAt: quote.depositPaidAt, history: quote.history,
+          approvedAt: quote.approvedAt, depositPaidAt: quote.depositPaidAt,
+          depositPaidCents: quoteNetDepositPaidCents(quote), depositOutstandingCents: quoteDepositOutstandingCents(quote),
+          depositRefundDueCents: quoteDepositRefundDueCents(quote), depositRefundPending: quoteDepositRefundPending(quote),
+          history: quote.history,
         } : null,
         shipment: shipment ? {
           trackingCode: shipment.trackingCode, publicTrackingUrl: shipment.publicTrackingUrl, carrier: shipment.carrier, service: shipment.service,

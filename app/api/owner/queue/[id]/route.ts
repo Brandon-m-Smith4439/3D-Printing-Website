@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requestIsOwner } from "@/lib/owner-auth";
+import { sameOrigin } from "@/lib/owner-api";
 import { sendCompletionEmail } from "@/lib/completion-email";
 import { readQueue, updateQueueJob, deleteQueueJob } from "@/lib/queue-store";
 import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
@@ -7,19 +8,10 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { updateQueueJobSchema } from "@/lib/queue-types";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { quoteForRequest } from "@/lib/quote-store";
+import { quoteDepositSatisfied } from "@/lib/quote-types";
 import { autoBuyLabelIfEligible } from "@/lib/shipping-service";
 
 export const runtime = "nodejs";
-
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
-}
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!requestIsOwner(request)) {
@@ -114,7 +106,8 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
   const deleted = await deleteQueueJob(id);
   if (deleted && existing?.sourceRequestId) {
     const quote = await quoteForRequest(existing.sourceRequestId);
-    const restoredStatus = quote?.depositPaidAt
+    const satisfiedDeposit = Boolean(quote && quote.status === "deposit-paid" && quoteDepositSatisfied(quote));
+    const restoredStatus = satisfiedDeposit
       ? "deposit-paid"
       : quote?.status === "approved"
         ? "accepted"
@@ -125,9 +118,9 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
     if (source) {
       await notifyCustomer(
         source,
-        quote?.depositPaidAt
-          ? "Your request was removed from the active production queue. Your deposit remains recorded while production details are reviewed."
-          : "Your request was removed from the active production queue and returned to review. No deposit is recorded for this request.",
+        satisfiedDeposit
+          ? "Your request was removed from the active production queue. Your satisfied deposit remains recorded while production details are reviewed."
+          : "Your request was removed from the active production queue and returned to review while the current quote/payment state is resolved.",
       );
     }
   }

@@ -1,0 +1,76 @@
+name: Validate Website
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Start production app
+        env:
+          NEXT_PUBLIC_SITE_URL: https://meshharbor3d.com
+          DATABASE_PATH: /tmp/meshharbor-v084.sqlite
+          PRIVATE_STORAGE_DIR: /tmp/meshharbor-private
+          CUSTOMER_SESSION_SECRET: ci-customer-session-secret-12345678901234567890
+          OWNER_SESSION_SECRET: ci-owner-session-secret-12345678901234567890123
+          OWNER_PASSWORD: ci-owner-password-12345
+        run: |
+          npm start > /tmp/meshharbor-server.log 2>&1 &
+          echo $! > /tmp/meshharbor-server.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/api/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/meshharbor-server.log
+          exit 1
+      - name: Verify proxied origin validation
+        run: |
+          REG_CODE=$(curl -sS -o /tmp/register.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -H "Content-Type: application/json"             --data '{"displayName":"","email":"bad","password":"short"}'             http://127.0.0.1:3000/api/account/register)
+          test "$REG_CODE" = "400" || { cat /tmp/register.json; exit 1; }
+
+          EVIL_CODE=$(curl -sS -o /tmp/evil.json -w "%{http_code}"             -H "Origin: https://example.invalid" -H "Content-Type: application/json"             --data '{"displayName":"","email":"bad","password":"short"}'             http://127.0.0.1:3000/api/account/register)
+          test "$EVIL_CODE" = "403" || { cat /tmp/evil.json; exit 1; }
+
+          UPLOAD_CODE=$(curl -sS -o /tmp/upload.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "note=test"             http://127.0.0.1:3000/api/custom-request/upload)
+          test "$UPLOAD_CODE" = "400" || { cat /tmp/upload.json; exit 1; }
+      - name: Verify 3MF reaches malware scanning
+        run: |
+          mkdir -p /tmp/three-mf/3D
+          printf '%s' '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>' > /tmp/three-mf/'[Content_Types].xml'
+          printf '%s' '<?xml version="1.0" encoding="UTF-8"?><model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources/><build/></model>' > /tmp/three-mf/3D/3dmodel.model
+          (cd /tmp/three-mf && zip -qr /tmp/meshharbor-test.3mf .)
+          CODE=$(curl -sS -o /tmp/3mf.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "file=@/tmp/meshharbor-test.3mf;type=model/3mf"             http://127.0.0.1:3000/api/custom-request/upload)
+          test "$CODE" = "503" || { cat /tmp/3mf.json; exit 1; }
+          grep -q "File scanning is temporarily unavailable" /tmp/3mf.json
+      - name: Capture visual smoke screenshots
+        run: |
+          mkdir -p visual-smoke
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,3400             --screenshot=visual-smoke/custom-request-desktop.png http://127.0.0.1:3000/custom-request
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,3600             --screenshot=visual-smoke/custom-request-mobile-390.png http://127.0.0.1:3000/custom-request
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,3600             --screenshot=visual-smoke/register-mobile-390.png 'http://127.0.0.1:3000/login?mode=register'
+      - name: Upload visual smoke screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-smoke-v084
+          path: visual-smoke/*.png
+          retention-days: 7

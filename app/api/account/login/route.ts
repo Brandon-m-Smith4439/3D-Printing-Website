@@ -4,6 +4,7 @@ import { createCustomerSession, setCustomerCookie } from "@/lib/customer-auth";
 import { findCustomerByEmail, verifyCustomerPassword } from "@/lib/customer-store";
 import { sameOrigin } from "@/lib/owner-api";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
+import { claimGuestRequestsByEmail } from "@/lib/request-store";
 
 export const runtime = "nodejs";
 const schema = z.object({ email: z.string().trim().toLowerCase().email().max(160), password: z.string().min(1).max(128) });
@@ -23,7 +24,8 @@ export async function POST(request: NextRequest) {
   const account = await findCustomerByEmail(parsed.data.email);
   if (!account || !(await verifyCustomerPassword(account, parsed.data.password))) return NextResponse.json({ message: "Incorrect email or password." }, { status: 401 });
   attempts.delete(ip);
-  await writeAudit({actor:"customer",actorId:account.id,action:"login",targetType:"customer",targetId:account.id,summary:"Customer signed in.",ipHash:requestIpHash(request)});
+  const claimed = account.emailVerifiedAt ? await claimGuestRequestsByEmail(account.id, account.email) : 0;
+  await writeAudit({actor:"customer",actorId:account.id,action:"login",targetType:"customer",targetId:account.id,summary:`Customer signed in${claimed ? `; ${claimed} matching guest request(s) linked to verified account` : ""}.`,ipHash:requestIpHash(request)});
   const response = NextResponse.json({ customer: { id: account.id, email: account.email, displayName: account.displayName } });
   setCustomerCookie(response, createCustomerSession(account.id, account.sessionVersion));
   return response;

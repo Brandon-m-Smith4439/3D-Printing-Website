@@ -12,6 +12,7 @@ function escapeHtml(value: string) {
 }
 
 export async function sendCompletionEmail(job: QueueJob) {
+  if (!job.customerEmail.trim()) return { sent: false, developmentOnly: false };
   const site = await getSiteContent();
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.REQUEST_FROM_EMAIL;
