@@ -37,7 +37,7 @@ export default async function CustomRequestPage() {
           <div><span>3</span><div><strong>Deposit & production</strong><small>50% deposit starts the job</small></div></div>
         </div>
 
-        <CustomRequestForm minNeededBy={minNeededBy} initialCustomer={customer ? { displayName: customer.displayName, email: customer.email } : null} />
+        <CustomRequestForm minNeededBy={minNeededBy} initialCustomer={customer ? { displayName: customer.displayName, email: customer.email, emailVerified: customer.emailVerified, emailStatusUpdates: customer.preferences.emailStatusUpdates } : null} />
       </div>
     </section>
   );
