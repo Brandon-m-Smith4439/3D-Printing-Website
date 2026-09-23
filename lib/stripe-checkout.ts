@@ -62,7 +62,6 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
       : "Local pickup; no fulfillment fee.";
   params.set("line_items[0][price_data][product_data][description]", `Quote revision ${input.quote.revision}. ${assemblyDescription} ${fulfillmentDescription} Remaining balance due before shipment or at pickup/delivery handoff.`);
   params.set("line_items[0][quantity]", "1");
-  params.set("payment_method_types[0]", "card");
   params.set("metadata[quote_id]", input.quote.id);
   params.set("metadata[request_id]", input.quote.requestId);
   params.set("metadata[request_code]", input.requestCode);
