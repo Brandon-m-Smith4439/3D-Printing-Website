@@ -13,7 +13,7 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
     event.preventDefault(); setBusy(true); setMessage("");
     const data = new FormData(event.currentTarget);
     const payload = mode === "register"
-      ? { displayName: data.get("displayName"), email: data.get("email"), password: data.get("password") }
+      ? { displayName: data.get("displayName"), email: data.get("email"), password: data.get("password"), emailStatusUpdates: data.get("emailStatusUpdates") === "on" }
       : { email: data.get("email"), password: data.get("password") };
     try {
       const response = await fetch(`/api/account/${mode === "register" ? "register" : "login"}`, {
@@ -82,7 +82,7 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
         {mode === "register" && <label><span>Name</span><input name="displayName" autoComplete="name" minLength={2} maxLength={80} required /></label>}
         <label><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={160} required /></label>
         <label><span>Password</span><input name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "register" ? 10 : 1} maxLength={128} required /></label>
-        {mode === "register" && <small>Use at least 10 characters. New profiles only show requests submitted while signed in.</small>}
+        {mode === "register" && <><small>Use at least 10 characters. After you verify your email, matching guest requests submitted with that email can be securely linked to your profile.</small><label className="settings-check"><input name="emailStatusUpdates" type="checkbox" /><span><strong>Email me status updates</strong><small>You can change this later in Account Settings.</small></span></label></>}
         <button className="button" type="submit" disabled={busy}>{busy ? "Working…" : mode === "login" ? "Sign In" : "Create Profile"}</button>
         {mode === "login" && <button className="text-button login-forgot-link" type="button" onClick={() => { setMode("forgot"); setMessage(""); }}>Forgot password?</button>}
       </form>}
