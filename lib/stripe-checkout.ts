@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { quoteNetDepositPaidCents, type QuotePaymentRecord, type StoredQuote } from "@/lib/quote-types";
 
 export function siteOrigin() {
@@ -74,7 +74,6 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
   params.set("payment_intent_data[metadata][quote_id]", input.quote.id);
   params.set("payment_intent_data[metadata][request_id]", input.quote.requestId);
   params.set("payment_intent_data[metadata][quote_revision]", String(input.quote.revision));
-  params.set("integration_identifier", `meshharbor_${randomBytes(4).toString("hex")}`);
 
   const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
