@@ -47,7 +47,7 @@ async function hashPassword(password: string, saltHex: string) {
   });
 }
 
-export async function createCustomerAccount(displayName: string, email: string, password: string) {
+export async function createCustomerAccount(displayName: string, email: string, password: string, preferences: Partial<CustomerPreferences> = {}) {
   return mutate(async () => {
     const accounts = await readAccounts();
     const normalized = normalizeCustomerEmail(email);
@@ -62,7 +62,7 @@ export async function createCustomerAccount(displayName: string, email: string, 
       passwordHash: await hashPassword(password, salt),
       emailVerifiedAt: "",
       sessionVersion: 1,
-      preferences: { ...DEFAULT_PREFERENCES },
+      preferences: { ...DEFAULT_PREFERENCES, ...preferences },
       createdAt: now,
       updatedAt: now,
     };
