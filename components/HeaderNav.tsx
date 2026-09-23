@@ -153,7 +153,8 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         </button>
 
         <Link href="/" className="mobile-header-title" aria-label={`${site.name} home`} onClick={closeMobileMenu}>
-          {site.name}
+          <Image className="mobile-header-logo" src={site.logoImage} alt="" width={30} height={30} priority />
+          <span>{site.name}</span>
         </Link>
 
         <Link
@@ -205,24 +206,26 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
             <Link href="/" className={`mobile-drawer-link ${active("/") ? "is-active" : ""}`} onClick={closeMobileMenu}>Home</Link>
             <Link href="/gallery" className={`mobile-drawer-link ${active("/gallery") ? "is-active" : ""}`} onClick={closeMobileMenu}>Gallery</Link>
             <Link href="/queue" className={`mobile-drawer-link ${active("/queue") ? "is-active" : ""}`} onClick={closeMobileMenu}>Queue</Link>
-            <Link href="/custom-request" className={`mobile-drawer-link mobile-drawer-primary ${active("/custom-request") ? "is-active" : ""}`} onClick={closeMobileMenu}>Custom Request</Link>
           </nav>
 
-          <section className="mobile-drawer-shop">
-            <span className="mobile-drawer-label">Shop</span>
-            <div className="mobile-drawer-shop-grid">
-              <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
-                <Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized />
-                <span>Whatnot</span>
-              </a>
-              <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
-                <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
-                <span>Etsy</span>
-              </a>
-            </div>
-          </section>
+          <div className="mobile-drawer-lower">
+            <section className="mobile-drawer-shop">
+              <span className="mobile-drawer-label">Shop</span>
+              <div className="mobile-drawer-shop-grid">
+                <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
+                  <Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized />
+                  <span>Whatnot</span>
+                </a>
+                <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
+                  <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
+                  <span>Etsy</span>
+                </a>
+              </div>
+            </section>
 
-          <div className="mobile-drawer-account">
+            <Link href="/custom-request" className={`mobile-drawer-link mobile-drawer-primary ${active("/custom-request") ? "is-active" : ""}`} onClick={closeMobileMenu}>Custom Request</Link>
+
+            <div className="mobile-drawer-account">
             {customer ? (
               <>
                 <Link href="/profile" className="mobile-drawer-customer" onClick={closeMobileMenu}>
@@ -247,6 +250,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
       </aside>
