@@ -4,6 +4,7 @@ import { createStoredRequest } from "@/lib/request-store";
 import { assessCustomRequestRisk, type RequestRiskAssessment } from "@/lib/request-risk";
 import { customerFromRequest } from "@/lib/customer-auth";
 import { claimCustomerUploads, validateCustomerUploadClaims } from "@/lib/customer-upload-store";
+import { sameOrigin } from "@/lib/owner-api";
 
 export const runtime = "nodejs";
 
@@ -90,18 +91,6 @@ async function verifyTurnstile(token: string, ip: string) {
   }
 }
 
-function originAllowed(request: NextRequest) {
-  const expected = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!expected || process.env.NODE_ENV !== "production") return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    return new URL(origin).origin === new URL(expected).origin;
-  } catch {
-    return false;
-  }
-}
-
 async function sendEmail(values: CustomRequest, risk: RequestRiskAssessment) {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.REQUEST_TO_EMAIL;
@@ -168,7 +157,7 @@ async function sendEmail(values: CustomRequest, risk: RequestRiskAssessment) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!originAllowed(request)) {
+  if (!sameOrigin(request)) {
     return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
   }
 
