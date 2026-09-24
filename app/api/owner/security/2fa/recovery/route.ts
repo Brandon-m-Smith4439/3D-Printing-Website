@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       security: await ownerSecurityStatus(),
       recoveryCodes: result.recoveryCodes,
       message: "New recovery codes generated. Save them now; the old codes no longer work.",
-    });
+    }, { headers: { "Cache-Control": "no-store, private" } });
   } catch (error) {
     return NextResponse.json({ message: error instanceof Error ? error.message : "Could not regenerate recovery codes." }, { status: 400 });
   }
