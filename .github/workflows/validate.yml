@@ -352,6 +352,8 @@ jobs:
               await wait(200);
             }
             if(!secondFactor)throw new Error("Owner login did not transition to the second-factor UI");
+            const secondFactorValue=await send("Runtime.evaluate",{expression:`document.querySelector('input[name="code"]')?.value || ""`,returnByValue:true});
+            if(secondFactorValue.result.value)throw new Error("Second-factor input retained a previous credential value.");
             const loginShot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
             fs.writeFileSync("visual-smoke/owner-login-second-factor-v088.png",Buffer.from(loginShot.data,"base64"));
             ws.close();
