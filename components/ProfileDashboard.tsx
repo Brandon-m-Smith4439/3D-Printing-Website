@@ -9,11 +9,16 @@ import type { QueueStatus } from "@/lib/queue-types";
 import type { RequestStatus } from "@/lib/request-types";
 import type { AssemblyMode, QuoteFulfillmentMode, QuoteHistoryEntry, QuoteStatus, ShippingSelection } from "@/lib/quote-types";
 import type { ShipmentStatus, ShipmentTrackingEvent } from "@/lib/shipment-types";
+import type { FinalInvoiceStatus } from "@/lib/final-invoice-types";
 import { CustomerShippingSelector } from "@/components/CustomerShippingSelector";
 
 type ProfileQuote = {
   id:string; revision:number; status:QuoteStatus; basePriceCents:number; assemblyMode:AssemblyMode; assemblyFeeCents:number; rushFeeCents:number; fulfillmentMode:QuoteFulfillmentMode; localDeliveryFeeCents:number; shippingSelection:ShippingSelection|null; totalCents:number; depositCents:number; balanceCents:number; currency:"usd";
   material:string; dimensions:string; estimatedReadyDate:string; notes:string; terms:string; sentAt:string; approvedAt:string; depositPaidAt:string; depositPaidCents:number; depositOutstandingCents:number; depositRefundDueCents:number; depositRefundPending:boolean; history:QuoteHistoryEntry[];
+};
+type ProfileFinalInvoice = {
+  id:string; status:FinalInvoiceStatus; stripeInvoiceNumber:string; amountDueCents:number; amountPaidCents:number; amountRemainingCents:number; currency:"usd";
+  hostedInvoiceUrl:string; invoicePdfUrl:string; dueDate:string; sentAt:string; paidAt:string; paymentFailedAt:string;
 };
 type ProfileShipment = {
   trackingCode:string; publicTrackingUrl:string; carrier:"USPS"|"UPS"|"FedEx"; service:string; status:ShipmentStatus; statusDetail:string;
@@ -22,6 +27,7 @@ type ProfileShipment = {
 type ProfileRequest = {
   id:string; requestCode:string; status:RequestStatus; projectType:string; quantity:number; neededBy:string; description:string; createdAt:string;
   quote:ProfileQuote|null;
+  finalInvoice:ProfileFinalInvoice|null;
   shipment:ProfileShipment|null;
   queue:null|{publicCode:string;publicTitle:string;status:QueueStatus;position:number|null;estimatedReadyDate:string;publicNote:string;imageUrl:string};
 };
@@ -34,7 +40,7 @@ function assemblyLabel(mode:AssemblyMode){if(mode==="assembled")return "Assemble
 function fulfillmentLabel(mode:QuoteFulfillmentMode){if(mode==="shipping")return "Carrier shipping";if(mode==="local-delivery")return "Local delivery";return "Local pickup";}
 function shipmentLabel(status:ShipmentStatus){return ({not_created:"Not shipped",review_required:"Shipping review",label_created:"Label created",pre_transit:"Label created",in_transit:"In transit",out_for_delivery:"Out for delivery",delivered:"Delivered",return_to_sender:"Returning to sender",failure:"Delivery exception",unknown:"Tracking update",refund_submitted:"Label refund pending",refunded:"Label refunded",refund_rejected:"Label refund rejected"} as Record<ShipmentStatus,string>)[status]||"Tracking update";}
 function trackingLocation(event:ShipmentTrackingEvent){const parts=[event.location?.city,event.location?.state,event.location?.zip].filter(Boolean);return parts.join(", ");}
-function displayedStatus(request:ProfileRequest){if(request.shipment?.trackingCode&&!["refunded","refund_rejected"].includes(request.shipment.status))return shipmentLabel(request.shipment.status);if(request.queue)return queueLabels[request.queue.status];if(request.quote)return quoteLabels[request.quote.status];if(request.status==="deposit-paid")return "Under review — no satisfied deposit recorded";if(request.status==="queued")return "Under review — not currently queued";return requestLabels[request.status];}
+function displayedStatus(request:ProfileRequest){if(request.shipment?.trackingCode&&!["refunded","refund_rejected"].includes(request.shipment.status))return shipmentLabel(request.shipment.status);if(request.queue?.status==="ready"&&request.finalInvoice?.status==="paid")return "Ready — balance paid";if(request.queue?.status==="ready"&&request.finalInvoice&&request.finalInvoice.status!=="paid")return request.finalInvoice.paymentFailedAt?"Ready — payment needs attention":"Ready — final balance due";if(request.queue)return queueLabels[request.queue.status];if(request.quote)return quoteLabels[request.quote.status];if(request.status==="deposit-paid")return "Under review — no satisfied deposit recorded";if(request.status==="queued")return "Under review — not currently queued";return requestLabels[request.status];}
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000) {
   const controller = new AbortController();
@@ -86,6 +92,12 @@ export function ProfileDashboard({customer}:Props){
             {q.status==="approved"&&!q.depositRefundPending&&q.depositRefundDueCents>0&&<div className="quote-response-state quote-refund-review"><strong>Refund needs owner review</strong><span>The revised quote is approved, but {money(q.depositRefundDueCents)} of deposit credit still needs to be refunded. You do not need to make another payment.</span></div>}
             {q.status==="countered"&&<div className="quote-response-state">Your counter offer was sent. The owner can respond with a revised quote.</div>}{q.status==="declined"&&<div className="quote-response-state">You declined this quote. The owner may revise it or close the request.</div>}{q.status==="deposit-paid"&&<div className="quote-paid-badge">✓ Deposit requirement satisfied · {money(q.depositPaidCents)} applied {q.depositPaidAt?`· first payment ${new Date(q.depositPaidAt).toLocaleDateString()}`:""}</div>}
             {q.history?.length>0&&<details className="customer-quote-history"><summary>Quote history ({q.history.length})</summary><div>{[...q.history].reverse().map(item=><article key={item.id}><div><strong>{item.summary}</strong><time>{new Date(item.createdAt).toLocaleString()}</time></div>{item.counterTotalCents&&<b>Counter: {money(item.counterTotalCents)}</b>}{item.message&&<p>{item.message}</p>}</article>)}</div></details>}
+          </section>}
+          {request.finalInvoice&&<section className="customer-final-invoice-card">
+            <div className="customer-shipment-heading"><div><span className="eyebrow">FINAL BALANCE</span><h4>{request.finalInvoice.status==="paid"?"Paid in full":request.finalInvoice.paymentFailedAt?"Payment needs attention":"Invoice ready"}</h4></div><span className={`final-invoice-status status-${request.finalInvoice.status}`}>{request.finalInvoice.status}</span></div>
+            <div className="customer-shipment-facts"><span><b>Invoice</b>{request.finalInvoice.stripeInvoiceNumber||"Stripe invoice"}</span><span><b>Total due</b>{money(request.finalInvoice.amountDueCents)}</span><span><b>Paid</b>{money(request.finalInvoice.amountPaidCents)}</span><span><b>Remaining</b>{money(request.finalInvoice.amountRemainingCents)}</span>{request.finalInvoice.dueDate&&<span><b>Due date</b>{new Date(request.finalInvoice.dueDate).toLocaleDateString()}</span>}</div>
+            {request.finalInvoice.paymentFailedAt&&<div className="quote-response-state quote-refund-review"><strong>Payment attempt failed</strong><span>Stripe could not complete the last payment attempt. Use the secure invoice page below to try again.</span></div>}
+            {request.finalInvoice.status==="paid"?<div className="quote-paid-badge">✓ Final balance paid {request.finalInvoice.paidAt?`· ${new Date(request.finalInvoice.paidAt).toLocaleDateString()}`:""}</div>:<div className="owner-job-actions">{request.finalInvoice.hostedInvoiceUrl&&<a className="button button-small" href={request.finalInvoice.hostedInvoiceUrl} target="_blank" rel="noreferrer">Pay Final Balance Securely ↗</a>}{request.finalInvoice.invoicePdfUrl&&<a className="button button-secondary button-small" href={request.finalInvoice.invoicePdfUrl} target="_blank" rel="noreferrer">Invoice PDF ↗</a>}</div>}
           </section>}
           {request.shipment?.trackingCode&&<section className="customer-shipment-card">
             <div className="customer-shipment-heading"><div><span className="eyebrow">SHIPMENT TRACKING</span><h4>{shipmentLabel(request.shipment.status)}</h4></div><span className={`shipment-status-badge shipment-${request.shipment.status}`}>{request.shipment.carrier} {request.shipment.service}</span></div>

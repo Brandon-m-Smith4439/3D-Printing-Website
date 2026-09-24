@@ -4,6 +4,8 @@ import { quoteById, recordQuoteDepositPayment, updateQuoteRefundStatus } from "@
 import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { writeAudit } from "@/lib/audit-log";
+import { updateFinalInvoiceFromStripe } from "@/lib/final-invoice-store";
+import type { FinalInvoiceStatus } from "@/lib/final-invoice-types";
 
 type StripeCheckoutSession = {
   id?: unknown;
@@ -24,13 +26,35 @@ type StripeRefund = {
   metadata?: { quote_id?: unknown };
 };
 
+type StripeInvoice = {
+  id?: unknown;
+  status?: unknown;
+  number?: unknown;
+  amount_due?: unknown;
+  amount_paid?: unknown;
+  amount_remaining?: unknown;
+  hosted_invoice_url?: unknown;
+  invoice_pdf?: unknown;
+  due_date?: unknown;
+  status_transitions?: { paid_at?: unknown };
+  metadata?: { request_id?: unknown; request_code?: unknown };
+};
+
 type StripeEvent = {
   type?: unknown;
-  data?: { object?: StripeCheckoutSession | StripeRefund };
+  data?: { object?: StripeCheckoutSession | StripeRefund | StripeInvoice };
 };
 
 function refundStatus(value: unknown): "pending" | "requires_action" | "succeeded" | "failed" | "canceled" | "unknown" {
   return value === "pending" || value === "requires_action" || value === "succeeded" || value === "failed" || value === "canceled" ? value : "unknown";
+}
+
+function invoiceStatus(value: unknown): FinalInvoiceStatus {
+  return value === "open" || value === "paid" || value === "uncollectible" || value === "void" ? value : "draft";
+}
+
+function unixIso(value: unknown) {
+  return typeof value === "number" && value > 0 ? new Date(value * 1000).toISOString() : "";
 }
 
 export const runtime = "nodejs";
@@ -102,6 +126,29 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (eventType === "checkout.session.async_payment_failed") {
+    const session = event.data?.object as StripeCheckoutSession | undefined;
+    const quoteId = session?.metadata?.quote_id;
+    if (typeof quoteId === "string") {
+      const quote = await quoteById(quoteId);
+      if (quote) {
+        const source = await getStoredRequest(quote.requestId);
+        if (source) {
+          await notifyCustomer(source, "Stripe could not complete your deposit payment. Your quote remains approved and you can try the secure payment again.", { email: false });
+          await writeAudit({
+            actor: "system",
+            actorId: "stripe",
+            action: "deposit-payment-failed",
+            targetType: "quote",
+            targetId: quote.id,
+            summary: `Stripe reported a failed asynchronous deposit payment for ${source.requestCode}.`,
+            ipHash: "",
+          });
+        }
+      }
+    }
+  }
+
   if (eventType === "refund.updated" || eventType === "refund.failed") {
     const refund = event.data?.object as StripeRefund | undefined;
     const refundId = refund?.id;
@@ -123,6 +170,54 @@ export async function POST(request: NextRequest) {
             targetType: "quote",
             targetId: quote.id,
             summary: `Stripe refund ${refundId} is now ${refundStatus(refund?.status)}.`,
+            ipHash: "",
+          });
+        }
+      }
+    }
+  }
+
+  if (["invoice.finalized", "invoice.updated", "invoice.paid", "invoice.payment_failed", "invoice.voided", "invoice.marked_uncollectible"].includes(eventType)) {
+    const invoice = event.data?.object as StripeInvoice | undefined;
+    const invoiceId = typeof invoice?.id === "string" ? invoice.id : "";
+    if (invoiceId) {
+      const finalInvoice = await updateFinalInvoiceFromStripe({
+        stripeInvoiceId: invoiceId,
+        status: invoiceStatus(invoice?.status),
+        stripeInvoiceNumber: typeof invoice?.number === "string" ? invoice.number : "",
+        amountDueCents: Number(invoice?.amount_due || 0),
+        amountPaidCents: Number(invoice?.amount_paid || 0),
+        amountRemainingCents: Number(invoice?.amount_remaining || 0),
+        hostedInvoiceUrl: typeof invoice?.hosted_invoice_url === "string" ? invoice.hosted_invoice_url : "",
+        invoicePdfUrl: typeof invoice?.invoice_pdf === "string" ? invoice.invoice_pdf : "",
+        dueDate: unixIso(invoice?.due_date),
+        paidAt: eventType === "invoice.paid" ? unixIso(invoice?.status_transitions?.paid_at) || new Date().toISOString() : undefined,
+        paymentFailedAt: eventType === "invoice.payment_failed" ? new Date().toISOString() : undefined,
+        lastError: eventType === "invoice.payment_failed" ? "Stripe reported a failed final-balance payment attempt." : "",
+      });
+
+      if (finalInvoice) {
+        const source = await getStoredRequest(finalInvoice.requestId);
+        if (source && eventType === "invoice.paid") {
+          await notifyCustomer(source, "Your final balance has been paid. Thank you — your order can now proceed to pickup, delivery, or shipping.");
+          await writeAudit({
+            actor: "system",
+            actorId: "stripe",
+            action: "final-invoice-paid",
+            targetType: "request",
+            targetId: source.id,
+            summary: `Stripe final invoice ${finalInvoice.stripeInvoiceNumber || invoiceId} was paid for ${source.requestCode}.`,
+            ipHash: "",
+          });
+        } else if (source && eventType === "invoice.payment_failed") {
+          await notifyCustomer(source, "Stripe could not complete your final balance payment. Open your request in your profile to try the secure invoice payment again.", { email: false });
+          await writeAudit({
+            actor: "system",
+            actorId: "stripe",
+            action: "final-invoice-payment-failed",
+            targetType: "request",
+            targetId: source.id,
+            summary: `Stripe reported a failed final invoice payment for ${source.requestCode}.`,
             ipHash: "",
           });
         }
