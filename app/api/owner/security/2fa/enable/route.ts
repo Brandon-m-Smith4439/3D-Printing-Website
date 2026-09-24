@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       security: await ownerSecurityStatus(),
       recoveryCodes: result.recoveryCodes,
       message: "Two-factor authentication enabled. Save the recovery codes now.",
-    });
+    }, { headers: { "Cache-Control": "no-store, private" } });
     setOwnerCookie(response, createOwnerSession(result.state.sessionGeneration));
     return response;
   } catch (error) {
