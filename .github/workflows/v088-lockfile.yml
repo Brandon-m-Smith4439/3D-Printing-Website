@@ -1,0 +1,31 @@
+name: Generate v0.88 lockfile
+
+on:
+  push:
+    branches: [feature/v088-owner-security]
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v088-owner-security
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Update package lock
+        run: |
+          if grep -q '"node_modules/qrcode"' package-lock.json; then
+            echo "QR package already present in lockfile."
+            exit 0
+          fi
+          npm install --package-lock-only --ignore-scripts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "V0.88 update lockfile for QR setup"
+          git push
