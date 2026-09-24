@@ -133,6 +133,20 @@ jobs:
           if((stored.recoveryCodeHashes||[]).some(value=>data.recoveryCodes.includes(value))) throw new Error("Recovery codes were stored in plaintext");
           NODE
 
+          rm -f /tmp/v088-challenge.cookies /tmp/v088-2fa-password.headers
+          LOGIN_2FA_CODE=$(curl -sS -D /tmp/v088-2fa-password.headers -c /tmp/v088-challenge.cookies -o /tmp/v088-2fa-password.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login)
+          test "$LOGIN_2FA_CODE" = "200" || { cat /tmp/v088-2fa-password.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const body=JSON.parse(fs.readFileSync("/tmp/v088-2fa-password.json","utf8"));
+          if(body.requiresSecondFactor!==true) throw new Error("Password login did not require the configured second factor");
+          const cookies=fs.readFileSync("/tmp/v088-challenge.cookies","utf8");
+          if(!cookies.includes("lc3d_owner_challenge")) throw new Error("Second-factor challenge cookie missing");
+          if(/\tlc3d_owner\t/.test(cookies)) throw new Error("Full owner session was issued before second-factor verification");
+          NODE
+          CHALLENGE_ACCESS=$(curl -sS -b /tmp/v088-challenge.cookies -o /tmp/v088-challenge-access.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
+          test "$CHALLENGE_ACCESS" = "401" || { echo "Challenge cookie unexpectedly authorized owner access"; cat /tmp/v088-challenge-access.json; exit 1; }
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
