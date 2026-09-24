@@ -222,6 +222,21 @@ jobs:
           AFTER_DISABLE_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-after-disable-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
           test "$AFTER_DISABLE_STATUS" = "200" || { echo "Current owner was not kept signed in after disabling 2FA"; cat /tmp/v088-after-disable-access.json; exit 1; }
 
+          BACKUP_CREATE_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-create.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             http://127.0.0.1:3000/api/owner/backups)
+          test "$BACKUP_CREATE_STATUS" = "201" || { echo "Could not create verification fixture backup"; cat /tmp/v088-backup-create.json; exit 1; }
+          BACKUP_NAME=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("/tmp/v088-backup-create.json","utf8")).backup.name)')
+          BACKUP_VERIFY_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-verify.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({name:process.argv[1]}))' "$BACKUP_NAME")"             http://127.0.0.1:3000/api/owner/backups/verify)
+          test "$BACKUP_VERIFY_STATUS" = "200" || { echo "Backup verification endpoint failed"; cat /tmp/v088-backup-verify.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-backup-verify.json","utf8"));
+          if(data.verification?.healthy!==true) throw new Error("Generated backup did not verify healthy");
+          if(data.verification?.quickCheck!=="ok") throw new Error("SQLite quick_check did not report ok");
+          if(!Array.isArray(data.verification?.requiredTables)||!data.verification.requiredTables.includes("app_records")) throw new Error("Backup verification did not confirm required tables");
+          NODE
+          BAD_BACKUP_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-bad.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"name":"../escape"}'             http://127.0.0.1:3000/api/owner/backups/verify)
+          test "$BAD_BACKUP_STATUS" = "400" || { echo "Unsafe backup name was not rejected"; cat /tmp/v088-backup-bad.json; exit 1; }
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
