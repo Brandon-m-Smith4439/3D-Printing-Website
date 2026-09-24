@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     method: result.method,
     recoveryCodesRemaining: result.state.recoveryCodeHashes.length,
   });
-  setOwnerCookie(response, createOwnerSession());
+  setOwnerCookie(response, createOwnerSession(result.state.sessionGeneration));
   clearOwnerChallengeCookie(response);
   return response;
 }
