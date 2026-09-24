@@ -82,9 +82,16 @@ jobs:
           if(typeof data.security?.recoveryCodesRemaining!=="number") throw new Error("recoveryCodesRemaining status missing");
           NODE
 
-          SETUP_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-setup.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             http://127.0.0.1:3000/api/owner/security/2fa/setup)
+          SETUP_NO_PASSWORD_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-setup-no-password.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{}'             http://127.0.0.1:3000/api/owner/security/2fa/setup)
+          test "$SETUP_NO_PASSWORD_CODE" = "401" || {
+            echo "2FA enrollment should require owner password re-authentication; got $SETUP_NO_PASSWORD_CODE"
+            cat /tmp/v088-2fa-setup-no-password.json
+            exit 1
+          }
+
+          SETUP_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-setup.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/security/2fa/setup)
           test "$SETUP_CODE" = "200" || {
-            echo "Expected 2FA setup endpoint to return 200, got $SETUP_CODE"
+            echo "Expected password-confirmed 2FA setup endpoint to return 200, got $SETUP_CODE"
             cat /tmp/v088-2fa-setup.json
             exit 1
           }
