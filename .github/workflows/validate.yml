@@ -324,6 +324,12 @@ jobs:
             ws.close();
           })().catch(error=>{console.error(error);process.exit(1);});
           NODE
+          if [ -f /tmp/v088-security-server.pid ]; then kill "$(cat /tmp/v088-security-server.pid)" 2>/dev/null || true; fi
+          if [ -f /tmp/v088-security-chrome.pid ]; then kill "$(cat /tmp/v088-security-chrome.pid)" 2>/dev/null || true; fi
+          for i in {1..20}; do
+            if ! curl -fsS http://127.0.0.1:3002/api/health >/dev/null 2>&1; then break; fi
+            sleep 0.25
+          done
 
       - name: Verify final-balance invoice workflow
         run: |
