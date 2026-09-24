@@ -53,6 +53,10 @@ jobs:
 
           UPLOAD_CODE=$(curl -sS -o /tmp/upload.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "note=test"             http://127.0.0.1:3000/api/custom-request/upload)
           test "$UPLOAD_CODE" = "400" || { cat /tmp/upload.json; exit 1; }
+
+          OWNER_CODE=$(curl -sS -o /tmp/owner-login.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"definitely-not-the-owner-password"}'             http://127.0.0.1:3000/api/owner/login)
+          test "$OWNER_CODE" = "401" || { cat /tmp/owner-login.json; exit 1; }
+          grep -q "Incorrect password" /tmp/owner-login.json
       - name: Verify 3MF reaches malware scanning
         run: |
           mkdir -p /tmp/three-mf/3D
@@ -62,15 +66,21 @@ jobs:
           CODE=$(curl -sS -o /tmp/3mf.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "file=@/tmp/meshharbor-test.3mf;type=model/3mf"             http://127.0.0.1:3000/api/custom-request/upload)
           test "$CODE" = "503" || { cat /tmp/3mf.json; exit 1; }
           grep -q "File scanning is temporarily unavailable" /tmp/3mf.json
-      - name: Capture visual smoke screenshots
+      - name: Capture responsive visual matrix
         run: |
           mkdir -p visual-smoke
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=1440,3400             --screenshot=visual-smoke/custom-request-desktop.png http://127.0.0.1:3000/custom-request
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,3600             --screenshot=visual-smoke/custom-request-mobile-390.png http://127.0.0.1:3000/custom-request
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size=390,3600             --screenshot=visual-smoke/register-mobile-390.png 'http://127.0.0.1:3000/login?mode=register'
-      - name: Upload visual smoke screenshots
+          for W in 320 390 430 650 720 721 1024 1440 1920 2560 3440; do
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,1200 --screenshot=visual-smoke/home-$W.png http://127.0.0.1:3000/
+          done
+          for W in 320 390 720 721 1440 1920 3440; do
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,3000 --screenshot=visual-smoke/custom-request-$W.png http://127.0.0.1:3000/custom-request
+          done
+          for W in 390 720 721 1440 1920 3440; do
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,1300 --screenshot=visual-smoke/owner-login-$W.png 'http://127.0.0.1:3000/login?admin=1'
+          done
+      - name: Upload responsive visual matrix
         uses: actions/upload-artifact@v4
         with:
-          name: visual-smoke-v084
+          name: responsive-visual-matrix-v085
           path: visual-smoke/*.png
           retention-days: 7
