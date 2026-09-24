@@ -122,6 +122,7 @@ jobs:
           if(!Array.isArray(data.recoveryCodes)||data.recoveryCodes.length!==10) throw new Error("Expected 10 recovery codes");
           if(!data.recoveryCodes.every(code=>/^MH3D-[A-Z2-7]{4}-[A-Z2-7]{4}-[A-Z2-7]{4}$/.test(code))) throw new Error("Recovery code format invalid");
           fs.writeFileSync("/tmp/v088-recovery.txt",data.recoveryCodes[0]);
+          fs.writeFileSync("/tmp/v088-recovery-old2.txt",data.recoveryCodes[1]);
           const secret=fs.readFileSync("/tmp/v088-secret.txt","utf8");
           const db=new DatabaseSync("/tmp/meshharbor-v086.sqlite");
           const row=db.prepare("SELECT json FROM app_records WHERE collection='owner-security' AND id='singleton'").get();
@@ -181,6 +182,45 @@ jobs:
           test "$OLD_SESSION_STATUS" = "401" || { echo "Old owner session survived session generation revocation"; cat /tmp/v088-old-session.json; exit 1; }
           CURRENT_SESSION_STATUS=$(curl -sS -b /tmp/v088-current-owner.cookies -o /tmp/v088-current-session.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
           test "$CURRENT_SESSION_STATUS" = "200" || { echo "Current owner session was not refreshed after revocation"; cat /tmp/v088-current-session.json; exit 1; }
+
+          node <<'NODE'
+          const fs=require("node:fs"),crypto=require("node:crypto");
+          const secret=fs.readFileSync("/tmp/v088-secret.txt","utf8").trim();
+          const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,buffer=0;const bytes=[];
+          for(const char of secret){buffer=(buffer<<5)|alphabet.indexOf(char);bits+=5;if(bits>=8){bytes.push((buffer>>>(bits-8))&255);bits-=8;}}
+          const counter=Math.floor(Date.now()/1000/30);const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+          const digest=crypto.createHmac("sha1",Buffer.from(bytes)).update(msg).digest();const offset=digest[digest.length-1]&15;
+          const value=((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))>>>0)%1000000;
+          fs.writeFileSync("/tmp/v088-management-totp.txt",String(value).padStart(6,"0"));
+          NODE
+
+          REGEN_STATUS=$(curl -sS -b /tmp/v088-current-owner.cookies -o /tmp/v088-recovery-regen.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-management-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/recovery)
+          test "$REGEN_STATUS" = "200" || { echo "Recovery regeneration endpoint failed"; cat /tmp/v088-recovery-regen.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-recovery-regen.json","utf8"));
+          if(!Array.isArray(data.recoveryCodes)||data.recoveryCodes.length!==10) throw new Error("Recovery regeneration did not return 10 new one-time codes");
+          fs.writeFileSync("/tmp/v088-recovery-new.txt",data.recoveryCodes[0]);
+          NODE
+
+          curl -fsS -c /tmp/v088-oldcode-challenge.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-oldcode-login.json
+          OLD_RECOVERY=$(cat /tmp/v088-recovery-old2.txt)
+          OLD_RECOVERY_STATUS=$(curl -sS -b /tmp/v088-oldcode-challenge.cookies -o /tmp/v088-oldcode-use.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({code:process.argv[1]}))' "$OLD_RECOVERY")"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$OLD_RECOVERY_STATUS" = "401" || { echo "Regenerated recovery codes did not invalidate old codes"; cat /tmp/v088-oldcode-use.json; exit 1; }
+
+          cp /tmp/v088-current-owner.cookies /tmp/v088-before-disable.cookies
+          DISABLE_STATUS=$(curl -sS -b /tmp/v088-current-owner.cookies -c /tmp/v088-after-disable.cookies -o /tmp/v088-disable.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({password:"ci-owner-password-12345",code:require("fs").readFileSync("/tmp/v088-management-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/disable)
+          test "$DISABLE_STATUS" = "200" || { echo "2FA disable endpoint failed"; cat /tmp/v088-disable.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-disable.json","utf8"));
+          if(data.security?.twoFactorEnabled!==false) throw new Error("2FA disable response still reports enabled");
+          if(data.security?.recoveryCodesRemaining!==0) throw new Error("Recovery codes were not cleared when 2FA was disabled");
+          NODE
+          BEFORE_DISABLE_STATUS=$(curl -sS -b /tmp/v088-before-disable.cookies -o /tmp/v088-before-disable-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$BEFORE_DISABLE_STATUS" = "401" || { echo "Pre-disable owner session survived generation change"; cat /tmp/v088-before-disable-access.json; exit 1; }
+          AFTER_DISABLE_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-after-disable-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$AFTER_DISABLE_STATUS" = "200" || { echo "Current owner was not kept signed in after disabling 2FA"; cat /tmp/v088-after-disable-access.json; exit 1; }
 
       - name: Verify final-balance invoice workflow
         run: |
