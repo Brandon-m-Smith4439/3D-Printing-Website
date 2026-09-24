@@ -8,6 +8,8 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
   const [mode, setMode] = useState<"login" | "register" | "forgot">(initialMode);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adminStep, setAdminStep] = useState<"password" | "second-factor">("password");
+  const [adminRecoveryMode, setAdminRecoveryMode] = useState(false);
 
   async function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -24,6 +26,25 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
       router.push("/profile"); router.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not sign in."); }
     finally { setBusy(false); }
+  }
+
+  async function submitAdminSecondFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    const data = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/owner/login/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: data.get("code") }),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Could not verify the second factor.");
+      router.push("/owner"); router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not verify the second factor.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submitForgot(event: FormEvent<HTMLFormElement>) {
@@ -43,8 +64,14 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
     const data = new FormData(event.currentTarget);
     try {
       const response = await fetch("/api/owner/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: data.get("password") }) });
-      const result = await response.json() as { message?: string };
+      const result = await response.json() as { message?: string; requiresSecondFactor?: boolean };
       if (!response.ok) throw new Error(result.message || "Could not sign in.");
+      if (result.requiresSecondFactor) {
+        setAdminStep("second-factor");
+        setAdminRecoveryMode(false);
+        setMessage("");
+        return;
+      }
       router.push("/owner"); router.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not sign in."); }
     finally { setBusy(false); }
@@ -54,12 +81,38 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
     return (
       <div className="account-card admin-login-card">
         <p className="eyebrow">ADMIN ACCESS</p>
-        <h1>Owner sign in</h1>
-        <p>This entrance is separate from customer accounts and requires the owner password.</p>
-        <form className="account-form" onSubmit={submitAdmin}>
+        <h1>{adminStep === "password" ? "Owner sign in" : "Verify it’s you"}</h1>
+        <p>{adminStep === "password"
+          ? "This entrance is separate from customer accounts and requires the owner password."
+          : adminRecoveryMode
+            ? "Enter one unused Mesh Harbor recovery code. Recovery codes work once."
+            : "Enter the 6-digit code from your authenticator app."}</p>
+        {adminStep === "password" ? <form className="account-form" onSubmit={submitAdmin}>
           <label><span>Owner password</span><input name="password" type="password" autoComplete="current-password" required maxLength={200} /></label>
-          <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Open Owner Dashboard"}</button>
-        </form>
+          <button className="button" type="submit" disabled={busy}>{busy ? "Signing in…" : "Continue"}</button>
+        </form> : <form className="account-form admin-second-factor-form" onSubmit={submitAdminSecondFactor}>
+          <label>
+            <span>{adminRecoveryMode ? "Recovery code" : "Authenticator code"}</span>
+            <input
+              name="code"
+              inputMode={adminRecoveryMode ? "text" : "numeric"}
+              autoComplete="one-time-code"
+              placeholder={adminRecoveryMode ? "MH3D-XXXX-XXXX-XXXX" : "000000"}
+              maxLength={adminRecoveryMode ? 19 : 8}
+              required
+              autoFocus
+            />
+          </label>
+          <button className="button" type="submit" disabled={busy}>{busy ? "Verifying…" : "Verify & Open Dashboard"}</button>
+          <div className="admin-second-factor-actions">
+            <button className="text-button" type="button" onClick={() => { setAdminRecoveryMode((value) => !value); setMessage(""); }}>
+              {adminRecoveryMode ? "Use authenticator code" : "Use a recovery code"}
+            </button>
+            <button className="text-button" type="button" onClick={() => { setAdminStep("password"); setAdminRecoveryMode(false); setMessage(""); }}>
+              Start over
+            </button>
+          </div>
+        </form>}
         {message && <div className="form-status error">{message}</div>}
       </div>
     );
