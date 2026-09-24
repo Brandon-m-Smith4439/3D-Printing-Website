@@ -1,5 +1,7 @@
 import "server-only";
-import { access, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createDatabaseSnapshot } from "@/lib/database";
@@ -11,6 +13,13 @@ const RETAIN = Math.max(3, Math.min(90, Number(process.env.BACKUP_RETAIN_COUNT |
 let running: Promise<BackupInfo> | null = null;
 
 export type BackupInfo = { name: string; createdAt: string; databaseBytes: number; includesPrivateFiles: boolean };
+type BackupManifest = {
+  version: 1;
+  createdAt: string;
+  databaseBytes: number;
+  databaseSha256: string;
+  includesPrivateFiles: boolean;
+};
 export type BackupVerification = {
   name: string;
   healthy: boolean;
@@ -19,10 +28,38 @@ export type BackupVerification = {
   requiredTables: string[];
   privateFilesExpected: boolean;
   privateFilesPresent: boolean;
+  manifestPresent: boolean;
+  checksumMatches: boolean;
   verifiedAt: string;
 };
 
 function stamp(date = new Date()) { return date.toISOString().replace(/[:.]/g, "-"); }
+
+function hashFile(filePath: string) {
+  return new Promise<string>((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(filePath);
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+async function readManifest(folder: string): Promise<BackupManifest | null> {
+  try {
+    const raw = JSON.parse(await readFile(path.join(folder, "backup-manifest.json"), "utf8")) as Partial<BackupManifest>;
+    if (
+      raw.version !== 1 ||
+      typeof raw.createdAt !== "string" ||
+      typeof raw.databaseBytes !== "number" ||
+      typeof raw.databaseSha256 !== "string" ||
+      typeof raw.includesPrivateFiles !== "boolean"
+    ) return null;
+    return raw as BackupManifest;
+  } catch {
+    return null;
+  }
+}
 
 export async function createBackup(reason = "manual"): Promise<BackupInfo> {
   if (running) return running;
@@ -34,6 +71,14 @@ export async function createBackup(reason = "manual"): Promise<BackupInfo> {
     await mkdir(folder, { recursive: true });
     const snapshot = await createDatabaseSnapshot(path.join(folder, "3d-printing-business.sqlite"));
     const includesPrivateFiles = await copyPrivateObjectStore(path.join(folder, "private-storage"));
+    const manifest: BackupManifest = {
+      version: 1,
+      createdAt,
+      databaseBytes: snapshot.bytes,
+      databaseSha256: await hashFile(snapshot.path),
+      includesPrivateFiles,
+    };
+    await writeFile(path.join(folder, "backup-manifest.json"), JSON.stringify(manifest, null, 2), { flag: "wx" });
     const entries = (await readdir(BACKUP_ROOT, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort().reverse();
     for (const old of entries.slice(RETAIN)) await rm(path.join(BACKUP_ROOT, old), { recursive: true, force: true });
     return { name, createdAt, databaseBytes: snapshot.bytes, includesPrivateFiles };
@@ -55,9 +100,16 @@ export async function listBackups(): Promise<BackupInfo[]> {
   const result: BackupInfo[] = [];
   for (const name of entries.slice(0, RETAIN)) {
     try {
-      const info = await stat(path.join(BACKUP_ROOT, name, "3d-printing-business.sqlite"));
-      const includesPrivateFiles = await access(path.join(BACKUP_ROOT, name, "private-storage")).then(() => true).catch(() => false);
-      result.push({ name, createdAt: info.mtime.toISOString(), databaseBytes: info.size, includesPrivateFiles });
+      const folder = path.join(BACKUP_ROOT, name);
+      const info = await stat(path.join(folder, "3d-printing-business.sqlite"));
+      const manifest = await readManifest(folder);
+      const privateFilesPresent = await access(path.join(folder, "private-storage")).then(() => true).catch(() => false);
+      result.push({
+        name,
+        createdAt: manifest?.createdAt || info.mtime.toISOString(),
+        databaseBytes: info.size,
+        includesPrivateFiles: manifest?.includesPrivateFiles ?? privateFilesPresent,
+      });
     } catch { /* ignore partial */ }
   }
   return result;
@@ -96,11 +148,14 @@ export async function verifyBackup(name: string): Promise<BackupVerification> {
     db.close();
   }
 
+  const manifest = await readManifest(folder);
   const privateFilesPresent = await access(path.join(folder, "private-storage")).then(() => true).catch(() => false);
   const requiredTables = ["app_meta", "app_records"];
   const tablesHealthy = requiredTables.every((table) => tableNames.includes(table));
-  const privateFilesHealthy = !info.includesPrivateFiles || privateFilesPresent;
-  const healthy = quickCheck.toLowerCase() === "ok" && tablesHealthy && privateFilesHealthy;
+  const privateFilesExpected = manifest?.includesPrivateFiles ?? info.includesPrivateFiles;
+  const privateFilesHealthy = !privateFilesExpected || privateFilesPresent;
+  const checksumMatches = manifest ? (await hashFile(databaseFile)) === manifest.databaseSha256 : true;
+  const healthy = quickCheck.toLowerCase() === "ok" && tablesHealthy && privateFilesHealthy && checksumMatches;
 
   return {
     name: safeName,
@@ -108,8 +163,10 @@ export async function verifyBackup(name: string): Promise<BackupVerification> {
     quickCheck,
     databaseBytes: databaseInfo.size,
     requiredTables: tableNames,
-    privateFilesExpected: info.includesPrivateFiles,
+    privateFilesExpected,
     privateFilesPresent,
+    manifestPresent: Boolean(manifest),
+    checksumMatches,
     verifiedAt: new Date().toISOString(),
   };
 }
