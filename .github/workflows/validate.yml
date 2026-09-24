@@ -206,6 +206,10 @@ jobs:
             await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"}); await wait(1200);
             const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return {status:r.status,text:await r.text()};})()`,awaitPromise:true,returnByValue:true});
             if(login.result.value?.status!==200) throw new Error("Owner browser login failed: "+JSON.stringify(login.result.value));
+            const apiCheck=await send("Runtime.evaluate",{expression:`(async()=>{const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);try{return await Promise.all(["/api/owner/queue","/api/owner/requests","/api/owner/site-content"].map(async url=>{try{const r=await fetch(url,{cache:"no-store",signal:controller.signal});return {url,status:r.status,text:(await r.text()).slice(0,300)};}catch(error){return {url,error:String(error)}};}));}finally{clearTimeout(timer);}})()`,awaitPromise:true,returnByValue:true});
+            if(!Array.isArray(apiCheck.result.value)||apiCheck.result.value.some(item=>item.status!==200)){
+              throw new Error("Owner browser API preflight failed: "+JSON.stringify(apiCheck.result.value));
+            }
             await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"});
             let cardVisible=false;
             for(let i=0;i<30;i++){
@@ -215,7 +219,9 @@ jobs:
             }
             if(!cardVisible){
               const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,6000)`,returnByValue:true});
-              throw new Error("Production request card was not visible. Body: "+debug.result.value);
+              const resources=await send("Runtime.evaluate",{expression:`performance.getEntriesByType("resource").map(r=>r.name).filter(n=>n.includes("/api/owner/")).slice(-30)`,returnByValue:true});
+              let serverLog="";try{serverLog=fs.readFileSync("/tmp/meshharbor-invoice-server.log","utf8").slice(-12000);}catch{}
+              throw new Error("Production request card was not visible. API preflight: "+JSON.stringify(apiCheck.result.value)+" Resources: "+JSON.stringify(resources.result.value)+" Body: "+debug.result.value+" Server log: "+serverLog);
             }
             await send("Runtime.evaluate",{expression:`document.querySelector(".production-request-header")?.click()`});
             let invoiceVisible=false;
