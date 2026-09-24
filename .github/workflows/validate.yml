@@ -237,6 +237,42 @@ jobs:
           BAD_BACKUP_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-bad.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"name":"../escape"}'             http://127.0.0.1:3000/api/owner/backups/verify)
           test "$BAD_BACKUP_STATUS" = "400" || { echo "Unsafe backup name was not rejected"; cat /tmp/v088-backup-bad.json; exit 1; }
 
+      - name: Verify owner security management UI
+        run: |
+          rm -rf /tmp/meshharbor-v088-security-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars             --remote-debugging-port=9226 --user-data-dir=/tmp/meshharbor-v088-security-chrome about:blank >/tmp/v088-security-chrome.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:9226/json/version >/dev/null && break
+            sleep 0.5
+          done
+          curl -fsS http://127.0.0.1:9226/json/version >/dev/null || { cat /tmp/v088-security-chrome.log; exit 1; }
+          node <<'NODE'
+          (async()=>{
+            const pages=await (await fetch("http://127.0.0.1:9226/json/list")).json();
+            const page=pages.find(p=>p.type==="page"); if(!page)throw new Error("No Chrome page target");
+            const ws=new WebSocket(page.webSocketDebuggerUrl);
+            await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+            let id=0;const pending=new Map();
+            ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}};
+            const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params}));});
+            const wait=ms=>new Promise(r=>setTimeout(r,ms));
+            await send("Page.enable"); await send("Runtime.enable");
+            await send("Page.navigate",{url:"http://localhost:3000/login?admin=1"}); await wait(700);
+            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return r.status;})()`,awaitPromise:true,returnByValue:true});
+            if(login.result.value!==200)throw new Error("Owner security UI browser login failed");
+            await send("Page.navigate",{url:"http://localhost:3000/owner"}); await wait(1000);
+            const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Security & Backups"));b?.click();return Boolean(b);})()`,returnByValue:true});
+            if(!clicked.result.value)throw new Error("Security & Backups tab missing");
+            await wait(600);
+            const body=await send("Runtime.evaluate",{expression:`document.body.innerText`,returnByValue:true});
+            const text=body.result.value||"";
+            for(const required of ["Two-factor authentication","Sign out other owner sessions","Verify backup"]){
+              if(!text.includes(required))throw new Error("Owner security UI missing: "+required);
+            }
+            ws.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
