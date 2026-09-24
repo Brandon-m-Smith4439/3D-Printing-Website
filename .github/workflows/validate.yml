@@ -108,7 +108,7 @@ jobs:
           fs.writeFileSync("/tmp/v088-secret.txt",data.manualSecret);
           NODE
 
-          ENABLE_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-enable.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/enable)
+          ENABLE_CODE=$(curl -sS -b /tmp/v088-owner.cookies -c /tmp/v088-enabled-owner.cookies -o /tmp/v088-2fa-enable.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/enable)
           test "$ENABLE_CODE" = "200" || {
             echo "Expected 2FA enable endpoint to return 200, got $ENABLE_CODE"
             cat /tmp/v088-2fa-enable.json
@@ -133,6 +133,11 @@ jobs:
           if(!stored.totpSecretCiphertext||stored.totpSecretCiphertext===secret) throw new Error("Encrypted TOTP secret missing");
           if((stored.recoveryCodeHashes||[]).some(value=>data.recoveryCodes.includes(value))) throw new Error("Recovery codes were stored in plaintext");
           NODE
+
+          PRE_ENABLE_SESSION_STATUS=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-pre-enable-session.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$PRE_ENABLE_SESSION_STATUS" = "401" || { echo "Enabling 2FA did not revoke the pre-2FA owner session"; cat /tmp/v088-pre-enable-session.json; exit 1; }
+          ENABLED_SESSION_STATUS=$(curl -sS -b /tmp/v088-enabled-owner.cookies -o /tmp/v088-enabled-session.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$ENABLED_SESSION_STATUS" = "200" || { echo "Current owner session was not refreshed after enabling 2FA"; cat /tmp/v088-enabled-session.json; exit 1; }
 
           rm -f /tmp/v088-challenge.cookies /tmp/v088-2fa-password.headers
           LOGIN_2FA_CODE=$(curl -sS -D /tmp/v088-2fa-password.headers -c /tmp/v088-challenge.cookies -o /tmp/v088-2fa-password.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login)
