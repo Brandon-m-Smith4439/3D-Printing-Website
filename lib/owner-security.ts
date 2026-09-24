@@ -13,6 +13,7 @@ import { base32Encode, generateTotpSecret, verifyTotpCode } from "@/lib/owner-to
 
 const COLLECTION = "owner-security";
 const PENDING_TTL_MS = 15 * 60 * 1000;
+let securityMutationChain = Promise.resolve();
 
 export type OwnerSecurityState = {
   twoFactorEnabled: boolean;
@@ -28,10 +29,18 @@ export type OwnerSecurityState = {
 };
 
 function masterSecret() {
+  const dedicated = (process.env.OWNER_2FA_ENCRYPTION_KEY || "").trim();
+  if (dedicated) {
+    if (process.env.NODE_ENV === "production" && dedicated.length < 32) {
+      throw new Error("Owner 2FA encryption key is not configured securely.");
+    }
+    return dedicated;
+  }
+
   const configured = process.env.OWNER_SESSION_SECRET || "";
   if (process.env.NODE_ENV === "production") {
     if (configured.length < 32 || configured === "replace-with-a-long-random-secret-before-production") {
-      throw new Error("Owner session secret is not configured.");
+      throw new Error("Owner security encryption is not configured.");
     }
     return configured;
   }
@@ -68,6 +77,12 @@ export async function readOwnerSecurityState() {
 async function writeOwnerSecurityState(state: OwnerSecurityState) {
   const next = { ...normalizeState(state), updatedAt: new Date().toISOString() };
   await writeSingleton(COLLECTION, next);
+  return next;
+}
+
+function mutateOwnerSecurity<T>(operation: () => Promise<T>): Promise<T> {
+  const next = securityMutationChain.then(operation, operation);
+  securityMutationChain = next.then(() => undefined, () => undefined);
   return next;
 }
 
@@ -112,18 +127,21 @@ export function generateRecoveryCodes(count = 10) {
 }
 
 export async function beginOwnerTotpEnrollment() {
-  const state = await readOwnerSecurityState();
-  const secret = generateTotpSecret();
-  const now = new Date().toISOString();
-  await writeOwnerSecurityState({
-    ...state,
-    pendingTotpSecretCiphertext: encryptSecret(secret),
-    pendingTotpCreatedAt: now,
+  return mutateOwnerSecurity(async () => {
+    const state = await readOwnerSecurityState();
+    const secret = generateTotpSecret();
+    const now = new Date().toISOString();
+    await writeOwnerSecurityState({
+      ...state,
+      pendingTotpSecretCiphertext: encryptSecret(secret),
+      pendingTotpCreatedAt: now,
+    });
+    return { secret, createdAt: now };
   });
-  return { secret, createdAt: now };
 }
 
 export async function enableOwnerTotp(code: string) {
+  return mutateOwnerSecurity(async () => {
   const state = await readOwnerSecurityState();
   if (!state.pendingTotpSecretCiphertext || !state.pendingTotpCreatedAt) throw new Error("Start two-factor setup first.");
   const createdAt = Date.parse(state.pendingTotpCreatedAt);
@@ -147,9 +165,11 @@ export async function enableOwnerTotp(code: string) {
     sessionGeneration: state.sessionGeneration + 1,
   });
   return { state: next, recoveryCodes };
+  });
 }
 
 export async function verifyOwnerSecondFactor(value: string) {
+  return mutateOwnerSecurity(async () => {
   const state = await readOwnerSecurityState();
   if (!state.twoFactorEnabled || !state.totpSecretCiphertext) return { ok: false as const, method: "none" as const, state };
   const secret = decryptSecret(state.totpSecretCiphertext);
@@ -166,9 +186,11 @@ export async function verifyOwnerSecondFactor(value: string) {
     lastRecoveryUsedAt: new Date().toISOString(),
   });
   return { ok: true as const, method: "recovery" as const, state: next };
+  });
 }
 
 export async function regenerateOwnerRecoveryCodes(totpCode: string) {
+  return mutateOwnerSecurity(async () => {
   const state = await readOwnerSecurityState();
   if (!state.twoFactorEnabled || !state.totpSecretCiphertext) throw new Error("Two-factor authentication is not enabled.");
   const secret = decryptSecret(state.totpSecretCiphertext);
@@ -181,9 +203,11 @@ export async function regenerateOwnerRecoveryCodes(totpCode: string) {
     recoveryCodesGeneratedAt: now,
   });
   return { state: next, recoveryCodes };
+  });
 }
 
 export async function disableOwnerTotp() {
+  return mutateOwnerSecurity(async () => {
   const state = await readOwnerSecurityState();
   return writeOwnerSecurityState({
     ...state,
@@ -197,11 +221,14 @@ export async function disableOwnerTotp() {
     lastRecoveryUsedAt: "",
     sessionGeneration: state.sessionGeneration + 1,
   });
+  });
 }
 
 export async function advanceOwnerSessionGeneration() {
-  const state = await readOwnerSecurityState();
-  return writeOwnerSecurityState({ ...state, sessionGeneration: state.sessionGeneration + 1 });
+  return mutateOwnerSecurity(async () => {
+    const state = await readOwnerSecurityState();
+    return writeOwnerSecurityState({ ...state, sessionGeneration: state.sessionGeneration + 1 });
+  });
 }
 
 export async function ownerSecurityStatus() {
