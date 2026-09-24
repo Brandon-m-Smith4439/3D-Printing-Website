@@ -335,7 +335,12 @@ jobs:
             if(!Array.isArray(apiCheck.result.value)||apiCheck.result.value.some(item=>item.status!==200)){
               throw new Error("Owner browser API preflight failed: "+JSON.stringify(apiCheck.result.value));
             }
-            await send("Page.navigate",{url:"http://localhost:3001/owner"});
+            await send("Page.navigate",{url:"http://localhost:3001/owner"}); await wait(1200);
+            const operationsLanding=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("OPERATIONS CENTER")`,returnByValue:true});
+            if(!operationsLanding.result.value){
+              const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,5000)`,returnByValue:true});
+              throw new Error("Owner dashboard did not default to Operations Center. Body: "+debug.result.value);
+            }
             let cardVisible=false;
             for(let i=0;i<30;i++){
               const card=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector(".production-request-header"))`,returnByValue:true});
