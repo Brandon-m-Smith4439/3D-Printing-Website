@@ -1590,7 +1590,7 @@ main { min-height: 65vh; }
 .request-summary-panel .form-note { text-align: center; font-size: .68rem; line-height: 1.45; }
 .request-summary-panel .form-status { font-size: .75rem; }
 
-.owner-request-stage-strip { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 7px; padding: 10px; border: 1px solid rgba(106,190,190,.11); border-radius: 12px; background: rgba(255,255,255,.015); }
+.owner-request-stage-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px,1fr)); gap: 7px; padding: 10px; border: 1px solid rgba(106,190,190,.11); border-radius: 12px; background: rgba(255,255,255,.015); }
 .owner-request-stage-strip > span { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 7px 8px; border-radius: 9px; color: #708e90; font-size: .7rem; font-weight: 800; text-align: center; }
 .owner-request-stage-strip b { display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 20px; border-radius: 50%; background: rgba(106,190,190,.09); color: #8fa4b7; font-size: .61rem; }
 .owner-request-stage-strip .is-done { background: rgba(113,215,174,.055); color: #a9e9ce; }
@@ -2355,7 +2355,9 @@ main { min-height: 65vh; }
 
 /* V0.75 — EasyPost labels, shipment controls, and customer tracking */
 .owner-shipment-panel,
-.customer-shipment-card {
+.customer-shipment-card,
+.owner-final-invoice-panel,
+.customer-final-invoice-card {
   margin-top: 18px;
   border: 1px solid rgba(33, 91, 146, .18);
   border-radius: 16px;
@@ -2421,6 +2423,49 @@ main { min-height: 65vh; }
 .shipment-status-badge.shipment-return_to_sender { background: #fff1df; color: #8a4a00; }
 .shipment-status-badge.shipment-refunded,
 .shipment-status-badge.shipment-refund_submitted { background: #f2edf9; color: #604580; }
+
+.final-invoice-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #eef3f8;
+  color: #3e566e;
+  font-size: .77rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+.final-invoice-status.status-open { background: #e8f5ff; color: #075e9c; }
+.final-invoice-status.status-paid { background: #e6f7ed; color: #176b3b; }
+.final-invoice-status.status-draft { background: #fff8e6; color: #805d00; }
+.final-invoice-status.status-uncollectible,
+.final-invoice-status.status-void { background: #f6eaea; color: #8a2e2e; }
+.final-invoice-paid-note {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(61, 150, 99, .22);
+  border-radius: 12px;
+  background: #edf9f2;
+  color: #27583b;
+}
+.final-invoice-paid-note strong { color: #176b3b; }
+.final-invoice-paid-note span { font-size: .78rem; line-height: 1.45; }
+.customer-final-invoice-card .owner-job-actions,
+.owner-final-invoice-panel .owner-job-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.customer-final-invoice-card .owner-job-actions small,
+.owner-final-invoice-panel .owner-job-actions small {
+  flex-basis: 100%;
+  color: #647b92;
+}
+
 .shipping-rate-review {
   display: grid;
   gap: 5px;
