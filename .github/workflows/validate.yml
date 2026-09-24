@@ -158,6 +158,131 @@ jobs:
           COMPLETE_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/invoice-complete-paid.json -w "%{http_code}"             -X PATCH -H "Origin: http://127.0.0.1:3001" -H "Content-Type: application/json"             --data '{"status":"completed"}'             http://127.0.0.1:3001/api/owner/queue/job-invoice-fixture)
           test "$COMPLETE_CODE" = "200" || { cat /tmp/invoice-complete-paid.json; exit 1; }
 
+      - name: Verify owner Operations Center snapshot
+        run: |
+          node <<'NODE'
+          const { DatabaseSync } = require("node:sqlite");
+          const db = new DatabaseSync("/tmp/meshharbor-v086-invoice.sqlite");
+          const now = new Date();
+          const old = new Date(now.getTime() - 96 * 60 * 60 * 1000).toISOString();
+          const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0,10);
+          const insert = db.prepare("INSERT OR REPLACE INTO app_records(collection,id,json,updated_at) VALUES (?,?,?,?)");
+
+          const baseRequest = {
+            phone:"",projectType:"other",modelStatus:"ready",fulfillmentMethod:"pickup",assemblyPreference:"unsure",
+            quantity:1,dimensions:"",materialPreference:"pla",colorPreference:"",budget:"",neededBy:"",neededBySubmitted:"",
+            referenceUrl:"",description:"Operations fixture",imageUrl:"",attachments:[],internalNote:"",
+            customerAccountId:"",riskLevel:"none",riskFlags:[],source:"customer",emailNotifications:false,queuedAt:"",queueJobId:""
+          };
+
+          const newRequest = {
+            ...baseRequest,id:"req-ops-new",requestCode:"MH3D-OPS-NEW",status:"new",name:"New Ops Customer",
+            email:"new-ops@example.test",createdAt:now.toISOString(),updatedAt:now.toISOString()
+          };
+          insert.run("requests",newRequest.id,JSON.stringify(newRequest),newRequest.updatedAt);
+
+          const sentRequest = {
+            ...baseRequest,id:"req-ops-sent",requestCode:"MH3D-OPS-SENT",status:"quote-sent",name:"Waiting Customer",
+            email:"waiting@example.test",createdAt:old,updatedAt:old
+          };
+          insert.run("requests",sentRequest.id,JSON.stringify(sentRequest),sentRequest.updatedAt);
+          const sentQuote = {
+            id:"quote-ops-sent",requestId:sentRequest.id,requestCode:sentRequest.requestCode,customerAccountId:"",
+            status:"sent",revision:1,basePriceCents:8000,assemblyMode:"not-required",assemblyFeeCents:0,rushFeeCents:0,
+            fulfillmentMode:"pickup",localDeliveryFeeCents:0,packageWeightOz:0,packageLengthIn:0,packageWidthIn:0,packageHeightIn:0,
+            shippingSelection:null,totalCents:8000,depositCents:4000,balanceCents:4000,currency:"usd",material:"PLA",
+            dimensions:"",estimatedReadyDate:"",notes:"",terms:"Operations fixture terms.",
+            createdAt:old,updatedAt:old,sentAt:old,approvedAt:"",approvedByCustomerId:"",approvalSnapshot:null,
+            stripeCheckoutSessionId:"",stripeCheckoutAmountCents:0,depositPaidAt:"",paymentProvider:"stripe",payments:[],refunds:[],history:[]
+          };
+          insert.run("quotes",sentQuote.id,JSON.stringify(sentQuote),sentQuote.updatedAt);
+
+          const paidRequest = {
+            ...baseRequest,id:"req-ops-paid",requestCode:"MH3D-OPS-PAID",status:"deposit-paid",name:"Paid Not Queued",
+            email:"paid@example.test",createdAt:old,updatedAt:now.toISOString()
+          };
+          insert.run("requests",paidRequest.id,JSON.stringify(paidRequest),paidRequest.updatedAt);
+          const paidQuote = {
+            ...sentQuote,id:"quote-ops-paid",requestId:paidRequest.id,requestCode:paidRequest.requestCode,status:"deposit-paid",
+            totalCents:12000,depositCents:6000,balanceCents:6000,basePriceCents:12000,sentAt:old,approvedAt:old,depositPaidAt:old,
+            updatedAt:now.toISOString(),
+            payments:[{id:"pay-ops",revision:1,amountCents:6000,checkoutSessionId:"cs_test_ops",paymentIntentId:"pi_test_ops",paidAt:old}]
+          };
+          insert.run("quotes",paidQuote.id,JSON.stringify(paidQuote),paidQuote.updatedAt);
+
+          const readyRequest = {
+            ...baseRequest,id:"req-ops-ready",requestCode:"MH3D-OPS-READY",status:"queued",name:"Ready Balance Customer",
+            email:"ready@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-ready"
+          };
+          insert.run("requests",readyRequest.id,JSON.stringify(readyRequest),readyRequest.updatedAt);
+          const readyQuote = {
+            ...paidQuote,id:"quote-ops-ready",requestId:readyRequest.id,requestCode:readyRequest.requestCode,totalCents:14000,
+            depositCents:7000,balanceCents:7000,basePriceCents:14000,
+            payments:[{id:"pay-ready",revision:1,amountCents:7000,checkoutSessionId:"cs_test_ready",paymentIntentId:"pi_test_ready",paidAt:old}]
+          };
+          insert.run("quotes",readyQuote.id,JSON.stringify(readyQuote),readyQuote.updatedAt);
+          const readyJob = {
+            id:"job-ops-ready",sourceRequestId:readyRequest.id,publicCode:"3D-OPSREADY",publicTitle:"Ready invoice fixture",
+            customerName:readyRequest.name,customerEmail:readyRequest.email,fulfillmentMethod:"pickup",quantity:1,status:"ready",
+            estimatedReadyDate:yesterday,imageUrl:"",publicNote:"",privateNote:"",sortOrder:1,createdAt:old,updatedAt:now.toISOString(),
+            completedAt:"",completionEmailSentAt:""
+          };
+          insert.run("queue",readyJob.id,JSON.stringify(readyJob),readyJob.updatedAt);
+          const openInvoice = {
+            id:"inv-ops-ready",requestId:readyRequest.id,requestCode:readyRequest.requestCode,quoteId:readyQuote.id,quoteRevision:1,
+            customerAccountId:"",stripeCustomerId:"cus_test_ops",stripeInvoiceId:"in_test_ops",stripeInvoiceNumber:"MH3D-OPS-1001",
+            status:"open",amountDueCents:7000,amountPaidCents:0,amountRemainingCents:7000,currency:"usd",
+            hostedInvoiceUrl:"https://example.test/invoice",invoicePdfUrl:"",dueDate:yesterday,createdAt:old,sentAt:old,paidAt:"",
+            paymentFailedAt:"",updatedAt:now.toISOString(),lastError:""
+          };
+          insert.run("final-invoices",openInvoice.id,JSON.stringify(openInvoice),openInvoice.updatedAt);
+
+          const shipRequest = {
+            ...baseRequest,id:"req-ops-ship",requestCode:"MH3D-OPS-SHIP",status:"queued",name:"Shipping Review Customer",
+            email:"ship@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-ship"
+          };
+          insert.run("requests",shipRequest.id,JSON.stringify(shipRequest),shipRequest.updatedAt);
+          const shipQuote = {
+            ...paidQuote,id:"quote-ops-ship",requestId:shipRequest.id,requestCode:shipRequest.requestCode,fulfillmentMode:"shipping",
+            shippingSelection:{shipmentId:"shp_test",rateId:"rate_test",carrier:"UPS",service:"Ground",rateCents:1200,deliveryDays:3,deliveryDate:""},
+            totalCents:11200,depositCents:5600,balanceCents:5600,basePriceCents:10000,
+            payments:[{id:"pay-ship",revision:1,amountCents:5600,checkoutSessionId:"cs_test_ship",paymentIntentId:"pi_test_ship",paidAt:old}]
+          };
+          insert.run("quotes",shipQuote.id,JSON.stringify(shipQuote),shipQuote.updatedAt);
+          const shipJob = {
+            ...readyJob,id:"job-ops-ship",sourceRequestId:shipRequest.id,publicCode:"3D-OPSSHIP",publicTitle:"Shipping review fixture",
+            customerName:shipRequest.name,customerEmail:shipRequest.email,fulfillmentMethod:"shipping",status:"ready",sortOrder:2
+          };
+          insert.run("queue",shipJob.id,JSON.stringify(shipJob),shipJob.updatedAt);
+          const shipment = {
+            id:"shipment-ops",requestId:shipRequest.id,quoteId:shipQuote.id,requestCode:shipRequest.requestCode,
+            easyPostShipmentId:"shp_test",easyPostRateId:"rate_test",trackerId:"",carrier:"UPS",service:"Ground",
+            customerRateCents:1200,postageCostCents:0,rateDifferenceCents:0,trackingCode:"",publicTrackingUrl:"",
+            labelUrl:"",labelPdfUrl:"",labelPngUrl:"",status:"review_required",statusDetail:"",estimatedDeliveryDate:"",
+            reviewReason:"Rate changed beyond guardrail",proposedShipmentId:"shp_test2",proposedRateId:"rate_test2",proposedRateCents:1800,
+            refundStatus:"",purchasedAt:"",deliveredAt:"",refundedAt:"",createdAt:now.toISOString(),updatedAt:now.toISOString(),
+            lastWebhookEventId:"",trackingEvents:[]
+          };
+          insert.run("shipments",shipment.id,JSON.stringify(shipment),shipment.updatedAt);
+          db.close();
+          NODE
+
+          OPS_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/operations.json -w "%{http_code}"             http://127.0.0.1:3001/api/owner/operations)
+          test "$OPS_CODE" = "200" || { echo "Expected Operations Center API 200, got $OPS_CODE"; cat /tmp/operations.json; exit 1; }
+
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/operations.json","utf8"));
+          const ops=data.snapshot;
+          if(!ops) throw new Error("Operations snapshot missing");
+          if(ops.counts.newRequests < 1) throw new Error("New request count missing");
+          if(!ops.attention.some(x=>x.category==="invoice")) throw new Error("Invoice attention missing");
+          if(!ops.attention.some(x=>x.category==="shipping")) throw new Error("Shipping attention missing");
+          if(ops.integrations.easyPost.tone!=="warning") throw new Error("Pending EasyPost must be a warning, not an outage");
+          if(!ops.search.some(x=>x.requestCode==="MH3D-OPS-READY" && x.invoiceNumber==="MH3D-OPS-1001")) throw new Error("Owner search index missing invoice fixture");
+          console.log("Operations Center snapshot validated:", JSON.stringify(ops.counts));
+          NODE
+
       - name: Capture final invoice owner UI
         run: |
           mkdir -p visual-smoke
