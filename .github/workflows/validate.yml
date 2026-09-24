@@ -82,6 +82,20 @@ jobs:
           if(typeof data.security?.recoveryCodesRemaining!=="number") throw new Error("recoveryCodesRemaining status missing");
           NODE
 
+          SETUP_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-setup.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             http://127.0.0.1:3000/api/owner/security/2fa/setup)
+          test "$SETUP_CODE" = "200" || {
+            echo "Expected 2FA setup endpoint to return 200, got $SETUP_CODE"
+            cat /tmp/v088-2fa-setup.json
+            exit 1
+          }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-2fa-setup.json","utf8"));
+          if(!/^[A-Z2-7]{32}$/.test(data.manualSecret||"")) throw new Error("Manual TOTP secret missing or invalid");
+          if(!(data.otpauthUri||"").startsWith("otpauth://totp/")) throw new Error("otpauth URI missing");
+          if(!(data.qrDataUrl||"").startsWith("data:image/")) throw new Error("QR data URL missing");
+          NODE
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
