@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const schema = z.object({ force: z.boolean().optional().default(false) }).strict();
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
   const { id } = await context.params;
   let body: unknown = {};
