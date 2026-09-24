@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+import { readOwnerSecurityState } from "@/lib/owner-security";
 
 export const OWNER_COOKIE = "lc3d_owner";
 export const OWNER_CHALLENGE_COOKIE = "lc3d_owner_challenge";
@@ -33,10 +34,16 @@ function challengeSignature(expires: string, generation: string, nonce: string) 
   return createHmac("sha256", sessionSecret()).update(`challenge:${expires}:${generation}:${nonce}`).digest("hex");
 }
 
-export function createOwnerSession() {
+function sessionV2Signature(expires: string, generation: string, nonce: string) {
+  return createHmac("sha256", sessionSecret()).update(`session:v2:${expires}:${generation}:${nonce}`).digest("hex");
+}
+
+export function createOwnerSession(sessionGeneration = 1) {
   if (!sessionSecret()) throw new Error("Owner session secret is not configured.");
   const expires = String(Math.floor(Date.now() / 1000) + SESSION_SECONDS);
-  return `${expires}.${signature(expires)}`;
+  const generation = String(Math.max(1, Math.floor(sessionGeneration || 1)));
+  const nonce = cryptoRandomToken();
+  return `v2.${expires}.${generation}.${nonce}.${sessionV2Signature(expires, generation, nonce)}`;
 }
 
 export function createOwnerChallenge(sessionGeneration: number) {
@@ -63,18 +70,32 @@ export function validOwnerChallenge(token: string | undefined, expectedGeneratio
   return timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
 }
 
-export function validOwnerSession(token?: string) {
+export function validOwnerSession(token: string | undefined, expectedGeneration = 1) {
   if (!token || !sessionSecret()) return false;
-  const [expires, supplied] = token.split(".");
-  if (!expires || !supplied || !/^\d+$/.test(expires)) return false;
+  const parts = token.split(".");
+
+  if (parts.length === 2) {
+    const [expires, supplied] = parts;
+    if (expectedGeneration !== 1 || !expires || !supplied || !/^\d+$/.test(expires)) return false;
+    if (Number(expires) <= Math.floor(Date.now() / 1000)) return false;
+    const expected = signature(expires);
+    if (expected.length !== supplied.length) return false;
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
+  }
+
+  const [version, expires, generation, nonce, supplied] = parts;
+  if (version !== "v2" || !expires || !generation || !nonce || !supplied) return false;
+  if (!/^\d+$/.test(expires) || !/^\d+$/.test(generation)) return false;
   if (Number(expires) <= Math.floor(Date.now() / 1000)) return false;
-  const expected = signature(expires);
+  if (Number(generation) !== Math.max(1, Math.floor(expectedGeneration || 1))) return false;
+  const expected = sessionV2Signature(expires, generation, nonce);
   if (expected.length !== supplied.length) return false;
   return timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
 }
 
-export function requestIsOwner(request: NextRequest) {
-  return validOwnerSession(request.cookies.get(OWNER_COOKIE)?.value);
+export async function requestIsOwner(request: NextRequest) {
+  const security = await readOwnerSecurityState();
+  return validOwnerSession(request.cookies.get(OWNER_COOKIE)?.value, security.sessionGeneration);
 }
 
 export function setOwnerCookie(response: NextResponse, token: string) {
