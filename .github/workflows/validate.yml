@@ -275,8 +275,11 @@ jobs:
             await send("Page.enable"); await send("Runtime.enable");
             await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1400,deviceScaleFactor:1,mobile:false});
             await send("Page.navigate",{url:"http://localhost:3002/login?admin=1"}); await wait(700);
-            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return r.status;})()`,awaitPromise:true,returnByValue:true});
-            if(login.result.value!==200)throw new Error("Owner security UI browser login failed");
+            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return {status:r.status,text:await r.text(),origin:location.origin};})()`,awaitPromise:true,returnByValue:true});
+            if(login.result.value?.status!==200){
+              let serverLog="";try{serverLog=fs.readFileSync("/tmp/v088-security-server.log","utf8").slice(-12000);}catch{}
+              throw new Error("Owner security UI browser login failed: "+JSON.stringify(login.result.value)+" Server log: "+serverLog);
+            }
             await send("Page.navigate",{url:"http://localhost:3002/owner"}); await wait(1000);
             const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Security & Backups"));b?.click();return Boolean(b);})()`,returnByValue:true});
             if(!clicked.result.value)throw new Error("Security & Backups tab missing");
