@@ -14,6 +14,7 @@ const COLLECTIONS = [
   "account-verification",
   "customer-uploads",
   "quotes",
+  "final-invoices",
   "audit-log",
 ] as const;
 
