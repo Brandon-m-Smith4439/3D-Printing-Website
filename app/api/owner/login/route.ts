@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     await writeAudit({actor:"owner",actorId:"owner",action:"owner-login",targetType:"owner",targetId:"owner",summary:"Owner signed in.",ipHash:requestIpHash(request)});
     const response = NextResponse.json({ message: "Signed in.", requiresSecondFactor: false });
-    setOwnerCookie(response, createOwnerSession());
+    setOwnerCookie(response, createOwnerSession(security.sessionGeneration));
     return response;
   } catch {
     return NextResponse.json({ message: "Owner access is not configured securely." }, { status: 503 });
