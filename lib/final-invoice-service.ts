@@ -102,8 +102,23 @@ export async function ensureFinalInvoiceForRequest(requestId: string) {
     throw new Error("Add a customer email before sending the final Stripe invoice.");
   }
 
-  const balanceCents = finalBalanceCents(quote.totalCents, quoteNetDepositPaidCents(quote));
+  const depositCreditCents = quoteNetDepositPaidCents(quote);
+  const balanceCents = finalBalanceCents(quote.totalCents, depositCreditCents);
   if (balanceCents <= 0) throw new Error("No remaining balance is due for this request.");
+
+  const invoiceLines = [
+    { key: "base-print", amountCents: quote.basePriceCents, description: `Custom 3D print — ${request.requestCode}` },
+    ...(quote.assemblyFeeCents > 0 ? [{ key: "assembly", amountCents: quote.assemblyFeeCents, description: "Assembly labor" }] : []),
+    ...(quote.rushFeeCents > 0 ? [{ key: "rush", amountCents: quote.rushFeeCents, description: "Rush scheduling fee" }] : []),
+    ...(quote.localDeliveryFeeCents > 0 ? [{ key: "local-delivery", amountCents: quote.localDeliveryFeeCents, description: "Local delivery" }] : []),
+    ...(quote.shippingSelection?.rateCents ? [{ key: "shipping", amountCents: quote.shippingSelection.rateCents, description: `${quote.shippingSelection.carrier} ${quote.shippingSelection.service} shipping` }] : []),
+    { key: "deposit-credit", amountCents: -depositCreditCents, description: "Deposit credit already paid" },
+  ].filter((line) => line.amountCents !== 0);
+
+  const itemizedBalanceCents = invoiceLines.reduce((sum, line) => sum + line.amountCents, 0);
+  if (itemizedBalanceCents !== balanceCents) {
+    throw new Error("The final invoice line items do not match the stored quote balance. Review the quote before invoicing.");
+  }
 
   let existing = await finalInvoiceForRequest(requestId);
   if (existing) {
@@ -210,18 +225,21 @@ export async function ensureFinalInvoiceForRequest(requestId: string) {
   }
 
   try {
-    await stripe.invoiceItems.create({
-      customer: stripeCustomerId,
-      invoice: stripeInvoice.id,
-      amount: balanceCents,
-      currency: "usd",
-      description: `Final balance — ${request.requestCode} — quote revision ${quote.revision}`,
-      metadata: {
-        request_id: request.id,
-        quote_id: quote.id,
-        purpose: "final_balance",
-      },
-    }, { idempotencyKey: `final-invoice-item-${quote.id}-r${quote.revision}` });
+    for (const line of invoiceLines) {
+      await stripe.invoiceItems.create({
+        customer: stripeCustomerId,
+        invoice: stripeInvoice.id,
+        amount: line.amountCents,
+        currency: "usd",
+        description: line.description,
+        metadata: {
+          request_id: request.id,
+          quote_id: quote.id,
+          quote_revision: String(quote.revision),
+          purpose: line.key === "deposit-credit" ? "deposit_credit" : "final_balance_component",
+        },
+      }, { idempotencyKey: `final-invoice-item-${quote.id}-r${quote.revision}-${line.key}` });
+    }
 
     const sent = await stripe.invoices.sendInvoice(stripeInvoice.id, {}, {
       idempotencyKey: `final-invoice-send-${quote.id}-r${quote.revision}`,
