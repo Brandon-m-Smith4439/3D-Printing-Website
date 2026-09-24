@@ -9,7 +9,7 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
 
   const { id } = await context.params;
