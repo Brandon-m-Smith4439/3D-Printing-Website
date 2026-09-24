@@ -197,12 +197,31 @@ jobs:
             const wait=ms=>new Promise(r=>setTimeout(r,ms));
             await send("Page.enable"); await send("Runtime.enable");
             await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1200,deviceScaleFactor:1,mobile:false});
-            await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"}); await wait(1000);
-            await send("Runtime.evaluate",{expression:`fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})})`,awaitPromise:true});
-            await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"}); await wait(1600);
-            await send("Runtime.evaluate",{expression:`document.querySelector(".production-request-header")?.click()`}); await wait(500);
-            const body=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("FINAL BALANCE") && document.body.innerText.includes("$50.00")`,returnByValue:true});
-            if(!body.result.value) throw new Error("Final balance panel was not visible in owner UI");
+            await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"}); await wait(1200);
+            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return {status:r.status,text:await r.text()};})()`,awaitPromise:true,returnByValue:true});
+            if(login.result.value?.status!==200) throw new Error("Owner browser login failed: "+JSON.stringify(login.result.value));
+            await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"});
+            let cardVisible=false;
+            for(let i=0;i<30;i++){
+              const card=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector(".production-request-header"))`,returnByValue:true});
+              if(card.result.value){cardVisible=true;break;}
+              await wait(500);
+            }
+            if(!cardVisible){
+              const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,6000)`,returnByValue:true});
+              throw new Error("Production request card was not visible. Body: "+debug.result.value);
+            }
+            await send("Runtime.evaluate",{expression:`document.querySelector(".production-request-header")?.click()`});
+            let invoiceVisible=false;
+            for(let i=0;i<20;i++){
+              const body=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("FINAL BALANCE") && document.body.innerText.includes("$50.00")`,returnByValue:true});
+              if(body.result.value){invoiceVisible=true;break;}
+              await wait(300);
+            }
+            if(!invoiceVisible){
+              const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,9000)`,returnByValue:true});
+              throw new Error("Final balance panel was not visible in owner UI. Body: "+debug.result.value);
+            }
             const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
             fs.writeFileSync("visual-smoke/owner-final-invoice-v086.png",Buffer.from(shot.data,"base64"));
             ws.close();
