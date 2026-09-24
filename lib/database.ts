@@ -16,6 +16,7 @@ const COLLECTIONS = [
   "quotes",
   "final-invoices",
   "audit-log",
+  "owner-security",
 ] as const;
 
 let initialized = false;
