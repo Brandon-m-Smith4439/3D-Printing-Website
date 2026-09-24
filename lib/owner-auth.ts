@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
 
 export const OWNER_COOKIE = "lc3d_owner";
@@ -48,7 +48,7 @@ export function createOwnerChallenge(sessionGeneration: number) {
 }
 
 function cryptoRandomToken() {
-  return createHmac("sha256", sessionSecret()).update(`${Date.now()}:${Math.random()}:${process.pid}`).digest("hex").slice(0, 24);
+  return randomBytes(18).toString("base64url");
 }
 
 export function validOwnerChallenge(token: string | undefined, expectedGeneration: number) {
