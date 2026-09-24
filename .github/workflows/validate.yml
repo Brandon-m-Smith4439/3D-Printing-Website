@@ -302,18 +302,29 @@ jobs:
           db.close();
           NODE
 
-          rm -rf /tmp/meshharbor-invoice-chrome
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars             --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-invoice-chrome about:blank >/tmp/invoice-chrome.log 2>&1 &
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:9224/json/version >/dev/null && break
-            sleep 0.5
+          INVOICE_CHROME_READY=0
+          for ATTEMPT in 1 2; do
+            rm -rf /tmp/meshharbor-invoice-chrome
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars               --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-invoice-chrome about:blank >/tmp/invoice-chrome.log 2>&1 &
+            INVOICE_CHROME_PID=$!
+            for i in {1..30}; do
+              if curl -fsS http://127.0.0.1:9224/json/version >/dev/null; then
+                INVOICE_CHROME_READY=1
+                break
+              fi
+              sleep 0.5
+            done
+            if [ "$INVOICE_CHROME_READY" = "1" ]; then break; fi
+            kill "$INVOICE_CHROME_PID" 2>/dev/null || true
+            wait "$INVOICE_CHROME_PID" 2>/dev/null || true
+            sleep 1
           done
-          curl -fsS http://127.0.0.1:9224/json/version >/dev/null || {
-            echo "Invoice Chrome did not expose the DevTools port."
+          if [ "$INVOICE_CHROME_READY" != "1" ]; then
+            echo "Invoice Chrome did not expose the DevTools port after two attempts."
             cat /tmp/invoice-chrome.log || true
             ps -ef | grep -E 'chrome|chromium' | grep -v grep || true
             exit 1
-          }
+          fi
           node <<'NODE'
           const fs=require("node:fs");
           (async()=>{
@@ -382,13 +393,28 @@ jobs:
       - name: Capture authenticated Operations Center responsive matrix
         run: |
           mkdir -p visual-smoke
-          rm -rf /tmp/meshharbor-ops-chrome
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars             --remote-debugging-port=9225 --user-data-dir=/tmp/meshharbor-ops-chrome about:blank >/tmp/ops-chrome.log 2>&1 &
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:9225/json/version >/dev/null && break
-            sleep 0.5
+          OPS_CHROME_READY=0
+          for ATTEMPT in 1 2; do
+            rm -rf /tmp/meshharbor-ops-chrome
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars               --remote-debugging-port=9225 --user-data-dir=/tmp/meshharbor-ops-chrome about:blank >/tmp/ops-chrome.log 2>&1 &
+            OPS_CHROME_PID=$!
+            for i in {1..30}; do
+              if curl -fsS http://127.0.0.1:9225/json/version >/dev/null; then
+                OPS_CHROME_READY=1
+                break
+              fi
+              sleep 0.5
+            done
+            if [ "$OPS_CHROME_READY" = "1" ]; then break; fi
+            kill "$OPS_CHROME_PID" 2>/dev/null || true
+            wait "$OPS_CHROME_PID" 2>/dev/null || true
+            sleep 1
           done
-          curl -fsS http://127.0.0.1:9225/json/version >/dev/null || { cat /tmp/ops-chrome.log; exit 1; }
+          if [ "$OPS_CHROME_READY" != "1" ]; then
+            echo "Operations Chrome did not expose the DevTools port after two attempts."
+            cat /tmp/ops-chrome.log || true
+            exit 1
+          fi
           node <<'NODE'
           const fs=require("node:fs");
           (async()=>{
