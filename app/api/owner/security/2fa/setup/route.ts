@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import QRCode from "qrcode";
-import { requestIsOwner } from "@/lib/owner-auth";
+import { configuredOwnerPassword, passwordMatches, requestIsOwner } from "@/lib/owner-auth";
 import { sameOrigin } from "@/lib/owner-api";
 import { beginOwnerTotpEnrollment, ownerSecurityStatus } from "@/lib/owner-security";
 import { totpAuthUri } from "@/lib/owner-totp";
@@ -14,6 +14,34 @@ export async function POST(request: NextRequest) {
   }
   if (!sameOrigin(request)) {
     return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
+  }
+
+  if (!(request.headers.get("content-type") || "").includes("application/json")) {
+    return NextResponse.json({ message: "Unsupported request format." }, { status: 415 });
+  }
+
+  let password = "";
+  try {
+    const raw = await request.text();
+    if (raw.length > 2_000) return NextResponse.json({ message: "Request is too large." }, { status: 413 });
+    const body = JSON.parse(raw) as { password?: unknown };
+    password = typeof body.password === "string" ? body.password : "";
+  } catch {
+    return NextResponse.json({ message: "Invalid request." }, { status: 400 });
+  }
+
+  const expectedPassword = configuredOwnerPassword();
+  if (!expectedPassword || password.length > 200 || !passwordMatches(password, expectedPassword)) {
+    await writeAudit({
+      actor: "owner",
+      actorId: "owner",
+      action: "owner-2fa-setup-password-failed",
+      targetType: "owner",
+      targetId: "owner",
+      summary: "Owner password re-authentication failed while starting two-factor setup.",
+      ipHash: requestIpHash(request),
+    }).catch(() => undefined);
+    return NextResponse.json({ message: "Owner password was not accepted." }, { status: 401 });
   }
 
   const status = await ownerSecurityStatus();
@@ -43,7 +71,7 @@ export async function POST(request: NextRequest) {
       otpauthUri,
       qrDataUrl,
       expiresInMinutes: 15,
-    });
+    }, { headers: { "Cache-Control": "no-store, private" } });
   } catch (error) {
     console.error("Owner 2FA setup failed", error);
     return NextResponse.json({ message: "Could not start two-factor setup." }, { status: 500 });
