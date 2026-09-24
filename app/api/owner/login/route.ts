@@ -6,6 +6,7 @@ import {
   setOwnerCookie,
 } from "@/lib/owner-auth";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
+import { sameOrigin } from "@/lib/owner-api";
 
 export const runtime = "nodejs";
 
@@ -26,16 +27,6 @@ function blocked(ip: string) {
   }
   existing.count += 1;
   return existing.count > MAX_ATTEMPTS;
-}
-
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
-  try {
-    return new URL(origin).origin === request.nextUrl.origin;
-  } catch {
-    return false;
-  }
 }
 
 export async function POST(request: NextRequest) {
