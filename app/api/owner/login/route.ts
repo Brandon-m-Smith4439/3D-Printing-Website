@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   configuredOwnerPassword,
+  createOwnerChallenge,
   createOwnerSession,
   passwordMatches,
+  setOwnerChallengeCookie,
   setOwnerCookie,
 } from "@/lib/owner-auth";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { sameOrigin } from "@/lib/owner-api";
+import { readOwnerSecurityState } from "@/lib/owner-security";
 
 export const runtime = "nodejs";
 
@@ -69,8 +72,24 @@ export async function POST(request: NextRequest) {
 
   attempts.delete(ip);
   try {
+    const security = await readOwnerSecurityState();
+    if (security.twoFactorEnabled) {
+      await writeAudit({
+        actor:"owner",
+        actorId:"owner",
+        action:"owner-password-verified",
+        targetType:"owner",
+        targetId:"owner",
+        summary:"Owner password verified; second factor required.",
+        ipHash:requestIpHash(request),
+      });
+      const response = NextResponse.json({ message: "Enter your authenticator or recovery code.", requiresSecondFactor: true });
+      setOwnerChallengeCookie(response, createOwnerChallenge(security.sessionGeneration));
+      return response;
+    }
+
     await writeAudit({actor:"owner",actorId:"owner",action:"owner-login",targetType:"owner",targetId:"owner",summary:"Owner signed in.",ipHash:requestIpHash(request)});
-    const response = NextResponse.json({ message: "Signed in." });
+    const response = NextResponse.json({ message: "Signed in.", requiresSecondFactor: false });
     setOwnerCookie(response, createOwnerSession());
     return response;
   } catch {
