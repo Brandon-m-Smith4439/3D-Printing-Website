@@ -183,6 +183,12 @@ jobs:
             curl -fsS http://127.0.0.1:9224/json/version >/dev/null && break
             sleep 0.5
           done
+          curl -fsS http://127.0.0.1:9224/json/version >/dev/null || {
+            echo "Invoice Chrome did not expose the DevTools port."
+            cat /tmp/invoice-chrome.log || true
+            ps -ef | grep -E 'chrome|chromium' | grep -v grep || true
+            exit 1
+          }
           node <<'NODE'
           const fs=require("node:fs");
           (async()=>{
