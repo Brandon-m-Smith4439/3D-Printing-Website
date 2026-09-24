@@ -126,6 +126,29 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (eventType === "checkout.session.async_payment_failed") {
+    const session = event.data?.object as StripeCheckoutSession | undefined;
+    const quoteId = session?.metadata?.quote_id;
+    if (typeof quoteId === "string") {
+      const quote = await quoteById(quoteId);
+      if (quote) {
+        const source = await getStoredRequest(quote.requestId);
+        if (source) {
+          await notifyCustomer(source, "Stripe could not complete your deposit payment. Your quote remains approved and you can try the secure payment again.", { email: false });
+          await writeAudit({
+            actor: "system",
+            actorId: "stripe",
+            action: "deposit-payment-failed",
+            targetType: "quote",
+            targetId: quote.id,
+            summary: `Stripe reported a failed asynchronous deposit payment for ${source.requestCode}.`,
+            ipHash: "",
+          });
+        }
+      }
+    }
+  }
+
   if (eventType === "refund.updated" || eventType === "refund.failed") {
     const refund = event.data?.object as StripeRefund | undefined;
     const refundId = refund?.id;
