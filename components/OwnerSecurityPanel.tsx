@@ -56,6 +56,7 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
   const [shipping, setShipping] = useState<ShippingStatus | null>(null);
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
   const [setup, setSetup] = useState<SetupPayload | null>(null);
+  const [setupPassword, setSetupPassword] = useState("");
   const [setupCode, setSetupCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [recoveryTotp, setRecoveryTotp] = useState("");
@@ -136,16 +137,19 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
     }
   }
 
-  async function startTwoFactor() {
+  async function startTwoFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setBusy("2fa-setup");
     try {
-      const result = await postJson<SetupPayload>("/api/owner/security/2fa/setup");
+      const result = await postJson<SetupPayload>("/api/owner/security/2fa/setup", { password: setupPassword });
       setSetup(result);
+      setSetupPassword("");
       setSetupCode("");
       setRecoveryCodes([]);
       onNotice({ kind: "success", text: "Authenticator setup started. Scan the QR code, then confirm a code from your app." });
       await load();
     } catch (error) {
+      setSetupPassword("");
       onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not start two-factor setup." });
     } finally {
       setBusy("");
@@ -276,10 +280,11 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
           </article>
         </div>
 
-        {!security.twoFactorEnabled && !setup && <div className="owner-security-action-card">
-          <div><strong>Set up an authenticator app</strong><span>Works with Microsoft Authenticator, Google Authenticator, 1Password, Authy, and other standard TOTP apps.</span></div>
-          <button className="button button-small" type="button" disabled={busy === "2fa-setup"} onClick={() => void startTwoFactor()}>{busy === "2fa-setup" ? "Starting…" : "Set Up 2FA"}</button>
-        </div>}
+        {!security.twoFactorEnabled && !setup && <form className="owner-security-action-card" onSubmit={startTwoFactor}>
+          <div><strong>Set up an authenticator app</strong><span>Confirm the owner password before Mesh Harbor reveals the one-time enrollment secret. Works with Microsoft Authenticator, Google Authenticator, 1Password, Authy, and other standard TOTP apps.</span></div>
+          <label><span>Confirm owner password</span><input type="password" value={setupPassword} onChange={(event) => setSetupPassword(event.target.value)} autoComplete="current-password" maxLength={200} required /></label>
+          <button className="button button-small" type="submit" disabled={busy === "2fa-setup"}>{busy === "2fa-setup" ? "Starting…" : "Set Up 2FA"}</button>
+        </form>}
 
         {setup && <div className="owner-2fa-enrollment">
           <div className="owner-2fa-qr"><img src={setup.qrDataUrl} alt="Authenticator app QR code" /></div>
