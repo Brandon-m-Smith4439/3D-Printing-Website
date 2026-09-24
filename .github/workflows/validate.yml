@@ -420,7 +420,10 @@ jobs:
               await wait(250);
               const metrics=await send("Runtime.evaluate",{expression:`(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth}))()`,returnByValue:true});
               const value=metrics.result.value;
-              if(value.scrollWidth>value.clientWidth+1||value.bodyWidth>value.clientWidth+1)failures.push({width,...value});
+              if(value.scrollWidth>value.clientWidth+1||value.bodyWidth>value.clientWidth+1){
+                const offenders=await send("Runtime.evaluate",{expression:`(()=>{const vw=document.documentElement.clientWidth;return [...document.querySelectorAll("body *")].map((el)=>{const r=el.getBoundingClientRect();return {tag:el.tagName,id:el.id||"",className:typeof el.className==="string"?el.className:"",left:Math.round(r.left),right:Math.round(r.right),width:Math.round(r.width),scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,text:(el.innerText||"").trim().replace(/\\s+/g," ").slice(0,140)};}).filter(x=>x.right>vw+1||x.left<-1||x.scrollWidth>x.clientWidth+1).sort((a,b)=>Math.max(b.right-vw,b.scrollWidth-b.clientWidth)-Math.max(a.right-vw,a.scrollWidth-a.clientWidth)).slice(0,15);})()`,returnByValue:true});
+                failures.push({width,...value,offenders:offenders.result.value});
+              }
               const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
               fs.writeFileSync(`visual-smoke/owner-operations-${width}.png`,Buffer.from(shot.data,"base64"));
             }
