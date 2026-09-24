@@ -166,6 +166,7 @@ jobs:
           const now = new Date();
           const old = new Date(now.getTime() - 96 * 60 * 60 * 1000).toISOString();
           const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0,10);
+          const today = now.toISOString().slice(0,10);
           const insert = db.prepare("INSERT OR REPLACE INTO app_records(collection,id,json,updated_at) VALUES (?,?,?,?)");
 
           const baseRequest = {
@@ -264,6 +265,65 @@ jobs:
             lastWebhookEventId:"",trackingEvents:[]
           };
           insert.run("shipments",shipment.id,JSON.stringify(shipment),shipment.updatedAt);
+
+          const dueTodayRequest = {
+            ...baseRequest,id:"req-ops-due-today",requestCode:"MH3D-OPS-DUETODAY",status:"queued",name:"Due Today Customer",
+            email:"due-today@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-due-today"
+          };
+          insert.run("requests",dueTodayRequest.id,JSON.stringify(dueTodayRequest),dueTodayRequest.updatedAt);
+          const dueTodayJob = {
+            ...readyJob,id:"job-ops-due-today",sourceRequestId:dueTodayRequest.id,publicCode:"3D-DUETODAY",
+            publicTitle:"Due today fixture",customerName:dueTodayRequest.name,customerEmail:dueTodayRequest.email,
+            estimatedReadyDate:today,sortOrder:3
+          };
+          insert.run("queue",dueTodayJob.id,JSON.stringify(dueTodayJob),dueTodayJob.updatedAt);
+          const dueTodayInvoice = {
+            ...openInvoice,id:"inv-ops-due-today",requestId:dueTodayRequest.id,requestCode:dueTodayRequest.requestCode,
+            stripeInvoiceId:"in_test_due_today",stripeInvoiceNumber:"MH3D-OPS-DUE-TODAY",dueDate:today
+          };
+          insert.run("final-invoices",dueTodayInvoice.id,JSON.stringify(dueTodayInvoice),dueTodayInvoice.updatedAt);
+
+          const declinedRequest = {
+            ...baseRequest,id:"req-ops-declined",requestCode:"MH3D-OPS-DECLINED",status:"declined",name:"Closed Customer",
+            email:"closed@example.test",createdAt:old,updatedAt:now.toISOString()
+          };
+          insert.run("requests",declinedRequest.id,JSON.stringify(declinedRequest),declinedRequest.updatedAt);
+          const declinedQuote = {
+            ...sentQuote,id:"quote-ops-declined",requestId:declinedRequest.id,requestCode:declinedRequest.requestCode,
+            status:"declined",updatedAt:now.toISOString()
+          };
+          insert.run("quotes",declinedQuote.id,JSON.stringify(declinedQuote),declinedQuote.updatedAt);
+
+          const historyRequest = {
+            ...baseRequest,id:"req-ops-history",requestCode:"MH3D-OPS-HISTORY",status:"queued",name:"History Customer",
+            email:"history@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-history-current"
+          };
+          insert.run("requests",historyRequest.id,JSON.stringify(historyRequest),historyRequest.updatedAt);
+          const currentJob = {
+            ...readyJob,id:"job-ops-history-current",sourceRequestId:historyRequest.id,publicCode:"3D-HISTORY-CURRENT",
+            publicTitle:"Current history job",customerName:historyRequest.name,customerEmail:historyRequest.email,
+            estimatedReadyDate:"",sortOrder:4,createdAt:new Date(now.getTime()-2*60*60*1000).toISOString(),
+            updatedAt:new Date(now.getTime()-2*60*60*1000).toISOString()
+          };
+          insert.run("queue",currentJob.id,JSON.stringify(currentJob),currentJob.updatedAt);
+          const staleJob = {
+            ...currentJob,id:"job-ops-history-stale",publicCode:"3D-HISTORY-STALE",publicTitle:"Stale prior job",
+            status:"completed",createdAt:old,updatedAt:now.toISOString(),completedAt:now.toISOString()
+          };
+          insert.run("queue",staleJob.id,JSON.stringify(staleJob),staleJob.updatedAt);
+          const historicalOpenInvoice = {
+            ...openInvoice,id:"inv-ops-history-old",requestId:historyRequest.id,requestCode:historyRequest.requestCode,
+            stripeInvoiceId:"in_history_old",stripeInvoiceNumber:"MH3D-HISTORY-OLD",createdAt:old,
+            updatedAt:now.toISOString(),dueDate:yesterday
+          };
+          insert.run("final-invoices",historicalOpenInvoice.id,JSON.stringify(historicalOpenInvoice),historicalOpenInvoice.updatedAt);
+          const currentPaidAt = new Date(now.getTime()-2*60*60*1000).toISOString();
+          const currentPaidInvoice = {
+            ...historicalOpenInvoice,id:"inv-ops-history-current",stripeInvoiceId:"in_history_current",
+            stripeInvoiceNumber:"MH3D-HISTORY-CURRENT",status:"paid",amountPaidCents:7000,amountRemainingCents:0,
+            dueDate:today,createdAt:currentPaidAt,updatedAt:currentPaidAt,paidAt:currentPaidAt
+          };
+          insert.run("final-invoices",currentPaidInvoice.id,JSON.stringify(currentPaidInvoice),currentPaidInvoice.updatedAt);
           db.close();
           NODE
 
@@ -280,6 +340,12 @@ jobs:
           if(!ops.attention.some(x=>x.category==="shipping")) throw new Error("Shipping attention missing");
           if(ops.integrations.easyPost.tone!=="warning") throw new Error("Pending EasyPost must be a warning, not an outage");
           if(!ops.search.some(x=>x.requestCode==="MH3D-OPS-READY" && x.invoiceNumber==="MH3D-OPS-1001")) throw new Error("Owner search index missing invoice fixture");
+          if(ops.attention.some(x=>x.requestId==="req-ops-due-today" && x.id.endsWith(":overdue"))) throw new Error("A balance due today must not be marked past due");
+          if(ops.attention.some(x=>x.requestId==="req-ops-declined")) throw new Error("Declined requests must not produce normal workflow attention");
+          const historySearch=ops.search.find(x=>x.requestCode==="MH3D-OPS-HISTORY");
+          if(historySearch?.invoiceNumber!=="MH3D-HISTORY-CURRENT") throw new Error("Search must use the newest invoice generation, not a stale invoice updated later");
+          if(historySearch?.queueCode!=="3D-HISTORY-CURRENT") throw new Error("Search must honor the request's current queueJobId instead of a stale prior job");
+          if(ops.counts.finalBalancesDue!==2) throw new Error("Final balance count must include only current open invoices; expected seeded ready + due-today balances");
           console.log("Operations Center snapshot validated:", JSON.stringify(ops.counts));
           NODE
 
