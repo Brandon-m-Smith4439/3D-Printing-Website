@@ -48,6 +48,15 @@ export async function POST(request: NextRequest) {
 
   const ip = clientIp(request);
   if (blocked(ip)) {
+    await writeAudit({
+      actor: "owner",
+      actorId: "owner",
+      action: "owner-login-rate-limited",
+      targetType: "owner",
+      targetId: "owner",
+      summary: "Owner sign-in was rate limited after repeated password attempts.",
+      ipHash: requestIpHash(request),
+    }).catch(() => undefined);
     return NextResponse.json({ message: "Too many login attempts. Try again later." }, { status: 429 });
   }
 
@@ -67,6 +76,15 @@ export async function POST(request: NextRequest) {
   }
 
   if (password.length > 200 || !passwordMatches(password, expected)) {
+    await writeAudit({
+      actor: "owner",
+      actorId: "owner",
+      action: "owner-login-failed",
+      targetType: "owner",
+      targetId: "owner",
+      summary: "Owner password verification failed.",
+      ipHash: requestIpHash(request),
+    }).catch(() => undefined);
     return NextResponse.json({ message: "Incorrect password." }, { status: 401 });
   }
 
