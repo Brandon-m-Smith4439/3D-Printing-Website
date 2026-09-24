@@ -144,6 +144,7 @@ export async function enableOwnerTotp(code: string) {
     recoveryCodeHashes: recoveryCodes.map(hashRecoveryCode),
     recoveryCodesGeneratedAt: now,
     enrolledAt: now,
+    sessionGeneration: state.sessionGeneration + 1,
   });
   return { state: next, recoveryCodes };
 }
