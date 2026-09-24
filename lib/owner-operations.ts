@@ -10,6 +10,25 @@ import type {
 } from "@/lib/owner-operations-types";
 
 const HOUR_MS = 60 * 60 * 1000;
+const BUSINESS_TIME_ZONE = (process.env.BUSINESS_TIME_ZONE || "America/New_York").trim() || "America/New_York";
+
+function businessDateKey(date: Date) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const year = parts.find((part) => part.type === "year")?.value;
+    const month = parts.find((part) => part.type === "month")?.value;
+    const day = parts.find((part) => part.type === "day")?.value;
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {
+    // Fall back to UTC if an invalid deployment timezone is supplied.
+  }
+  return date.toISOString().slice(0, 10);
+}
 
 function dateMs(value: string | undefined | null) {
   if (!value) return 0;
@@ -85,7 +104,7 @@ function buildIntegrationHealth(input: OwnerOperationsInput, nowMs: number): Own
 
 export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = new Date()): OwnerOperationsSnapshot {
   const nowMs = now.getTime();
-  const today = now.toISOString().slice(0, 10);
+  const today = businessDateKey(now);
   const attention: OwnerAttentionItem[] = [];
 
   const quoteByRequest = new Map<string, OwnerOperationsInput["quotes"][number]>();
@@ -95,17 +114,30 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
     if (!current || dateMs(quote.updatedAt) >= dateMs(current.updatedAt)) quoteByRequest.set(quote.requestId, quote);
   }
 
+  const jobById = new Map(input.queue.map((job) => [job.id, job] as const));
   const jobByRequest = new Map<string, OwnerOperationsInput["queue"][number]>();
-  for (const job of input.queue) {
-    if (!job.sourceRequestId) continue;
-    const current = jobByRequest.get(job.sourceRequestId);
-    if (!current || dateMs(job.updatedAt) >= dateMs(current.updatedAt)) jobByRequest.set(job.sourceRequestId, job);
+  for (const request of input.requests) {
+    const pointed = request.queueJobId ? jobById.get(request.queueJobId) : null;
+    if (pointed) {
+      jobByRequest.set(request.id, pointed);
+      continue;
+    }
+    const fallback = input.queue
+      .filter((job) => job.sourceRequestId === request.id)
+      .sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt))[0];
+    if (fallback) jobByRequest.set(request.id, fallback);
   }
 
   const invoiceByRequest = new Map<string, OwnerOperationsInput["invoices"][number]>();
   for (const invoice of input.invoices) {
     const current = invoiceByRequest.get(invoice.requestId);
-    if (!current || dateMs(invoice.updatedAt) >= dateMs(current.updatedAt)) invoiceByRequest.set(invoice.requestId, invoice);
+    if (
+      !current
+      || dateMs(invoice.createdAt) > dateMs(current.createdAt)
+      || (dateMs(invoice.createdAt) === dateMs(current.createdAt) && invoice.quoteRevision > current.quoteRevision)
+    ) {
+      invoiceByRequest.set(invoice.requestId, invoice);
+    }
   }
 
   const shipmentByRequest = new Map<string, OwnerOperationsInput["shipments"][number]>();
@@ -134,7 +166,7 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
       });
     }
 
-    if (request.status !== "completed" && quote && (quote.status === "countered" || quote.status === "declined")) {
+    if (workflowActive && quote && (quote.status === "countered" || quote.status === "declined")) {
       addAttention(attention, nowMs, {
         id: `quote:${request.id}:${quote.status}`,
         severity: "action",
@@ -240,7 +272,7 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
       });
     }
 
-    if (invoice?.status === "open" && invoice.amountRemainingCents > 0 && invoice.dueDate && dateMs(invoice.dueDate) < nowMs) {
+    if (workflowActive && invoice?.status === "open" && invoice.amountRemainingCents > 0 && invoice.dueDate && invoice.dueDate < today) {
       addAttention(attention, nowMs, {
         id: `invoice:${request.id}:overdue`,
         severity: "watch",
@@ -352,13 +384,18 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
   });
 
   const integrations = buildIntegrationHealth(input, nowMs);
+  const activeRequestIds = new Set(
+    input.requests.filter((item) => !["completed", "declined"].includes(item.status)).map((item) => item.id),
+  );
   const counts = {
     urgent: attention.filter((item) => item.severity === "urgent").length,
     action: attention.filter((item) => item.severity === "action").length,
     watch: attention.filter((item) => item.severity === "watch").length,
     newRequests: input.requests.filter((item) => item.status === "new").length,
     activeProduction: input.queue.filter((item) => item.status !== "completed").length,
-    finalBalancesDue: input.invoices.filter((item) => item.status === "open" && item.amountRemainingCents > 0).length,
+    finalBalancesDue: [...invoiceByRequest.entries()].filter(
+      ([requestId, invoice]) => activeRequestIds.has(requestId) && invoice.status === "open" && invoice.amountRemainingCents > 0,
+    ).length,
     completed: input.requests.filter((item) => item.status === "completed").length,
   };
 
