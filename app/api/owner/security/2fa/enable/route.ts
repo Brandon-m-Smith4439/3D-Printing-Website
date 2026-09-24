@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requestIsOwner } from "@/lib/owner-auth";
+import { createOwnerSession, requestIsOwner, setOwnerCookie } from "@/lib/owner-auth";
 import { sameOrigin } from "@/lib/owner-api";
 import { enableOwnerTotp, ownerSecurityStatus } from "@/lib/owner-security";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
@@ -40,11 +40,13 @@ export async function POST(request: NextRequest) {
       summary: "Authenticator-app two-factor authentication was enabled.",
       ipHash: requestIpHash(request),
     });
-    return NextResponse.json({
+    const response = NextResponse.json({
       security: await ownerSecurityStatus(),
       recoveryCodes: result.recoveryCodes,
       message: "Two-factor authentication enabled. Save the recovery codes now.",
     });
+    setOwnerCookie(response, createOwnerSession(result.state.sessionGeneration));
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not enable two-factor authentication.";
     const status = /code|expired|setup/i.test(message) ? 400 : 500;
