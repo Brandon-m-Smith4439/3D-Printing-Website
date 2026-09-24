@@ -1,6 +1,7 @@
 import "server-only";
 import { access, mkdir, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { createDatabaseSnapshot } from "@/lib/database";
 import { copyPrivateObjectStore } from "@/lib/private-object-store";
 
@@ -9,7 +10,17 @@ const BACKUP_ROOT = path.resolve((process.env.BACKUP_DIR || (RAILWAY_VOLUME ? pa
 const RETAIN = Math.max(3, Math.min(90, Number(process.env.BACKUP_RETAIN_COUNT || 14) || 14));
 let running: Promise<BackupInfo> | null = null;
 
-type BackupInfo = { name: string; createdAt: string; databaseBytes: number; includesPrivateFiles: boolean };
+export type BackupInfo = { name: string; createdAt: string; databaseBytes: number; includesPrivateFiles: boolean };
+export type BackupVerification = {
+  name: string;
+  healthy: boolean;
+  quickCheck: string;
+  databaseBytes: number;
+  requiredTables: string[];
+  privateFilesExpected: boolean;
+  privateFilesPresent: boolean;
+  verifiedAt: string;
+};
 
 function stamp(date = new Date()) { return date.toISOString().replace(/[:.]/g, "-"); }
 
@@ -50,4 +61,55 @@ export async function listBackups(): Promise<BackupInfo[]> {
     } catch { /* ignore partial */ }
   }
   return result;
+}
+
+
+function safeBackupName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 180 || trimmed.includes("..") || trimmed.includes("/") || trimmed.includes("\\") || path.basename(trimmed) !== trimmed) {
+    throw new Error("Invalid backup name.");
+  }
+  return trimmed;
+}
+
+export async function verifyBackup(name: string): Promise<BackupVerification> {
+  const safeName = safeBackupName(name);
+  const backups = await listBackups();
+  const info = backups.find((item) => item.name === safeName);
+  if (!info) throw new Error("Backup not found.");
+
+  const folder = path.join(BACKUP_ROOT, safeName);
+  const databaseFile = path.join(folder, "3d-printing-business.sqlite");
+  const databaseInfo = await stat(databaseFile);
+  if (!databaseInfo.isFile() || databaseInfo.size <= 0) throw new Error("Backup database file is missing or empty.");
+
+  const db = new DatabaseSync(databaseFile, { readOnly: true });
+  let quickCheck = "";
+  let tableNames: string[] = [];
+  try {
+    db.exec("PRAGMA query_only = ON;");
+    const checkRow = db.prepare("PRAGMA quick_check").get() as Record<string, string> | undefined;
+    quickCheck = String(checkRow?.quick_check || Object.values(checkRow || {})[0] || "");
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('app_records','app_meta') ORDER BY name").all() as Array<{ name?: string }>;
+    tableNames = tables.map((row) => row.name || "").filter(Boolean);
+  } finally {
+    db.close();
+  }
+
+  const privateFilesPresent = await access(path.join(folder, "private-storage")).then(() => true).catch(() => false);
+  const requiredTables = ["app_meta", "app_records"];
+  const tablesHealthy = requiredTables.every((table) => tableNames.includes(table));
+  const privateFilesHealthy = !info.includesPrivateFiles || privateFilesPresent;
+  const healthy = quickCheck.toLowerCase() === "ok" && tablesHealthy && privateFilesHealthy;
+
+  return {
+    name: safeName,
+    healthy,
+    quickCheck,
+    databaseBytes: databaseInfo.size,
+    requiredTables: tableNames,
+    privateFilesExpected: info.includesPrivateFiles,
+    privateFilesPresent,
+    verifiedAt: new Date().toISOString(),
+  };
 }
