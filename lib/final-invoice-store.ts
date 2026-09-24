@@ -14,6 +14,7 @@ function normalize(record: FinalInvoiceRecord): FinalInvoiceRecord {
     status: record.status || "draft",
     amountDueCents: Math.max(0, Number(record.amountDueCents || 0)),
     amountPaidCents: Math.max(0, Number(record.amountPaidCents || 0)),
+    amountRemainingCents: Math.max(0, Number(record.amountRemainingCents ?? record.amountDueCents ?? 0)),
     currency: "usd",
     hostedInvoiceUrl: record.hostedInvoiceUrl || "",
     invoicePdfUrl: record.invoicePdfUrl || "",
@@ -81,6 +82,7 @@ export async function updateFinalInvoiceFromStripe(input: {
   stripeInvoiceNumber?: string;
   amountDueCents?: number;
   amountPaidCents?: number;
+  amountRemainingCents?: number;
   hostedInvoiceUrl?: string;
   invoicePdfUrl?: string;
   dueDate?: string;
@@ -99,6 +101,7 @@ export async function updateFinalInvoiceFromStripe(input: {
       ...(input.stripeInvoiceNumber !== undefined ? { stripeInvoiceNumber: input.stripeInvoiceNumber } : {}),
       ...(input.amountDueCents !== undefined ? { amountDueCents: input.amountDueCents } : {}),
       ...(input.amountPaidCents !== undefined ? { amountPaidCents: input.amountPaidCents } : {}),
+      ...(input.amountRemainingCents !== undefined ? { amountRemainingCents: input.amountRemainingCents } : {}),
       ...(input.hostedInvoiceUrl !== undefined ? { hostedInvoiceUrl: input.hostedInvoiceUrl } : {}),
       ...(input.invoicePdfUrl !== undefined ? { invoicePdfUrl: input.invoicePdfUrl } : {}),
       ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
