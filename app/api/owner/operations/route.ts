@@ -14,7 +14,7 @@ import { buildOwnerOperationsSnapshot } from "@/lib/owner-operations";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!requestIsOwner(request)) {
+  if (!await requestIsOwner(request)) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
 
