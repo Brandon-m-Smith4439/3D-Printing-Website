@@ -14,6 +14,7 @@ function normalizeAccount(raw: CustomerAccount): CustomerAccount {
   return {
     ...raw,
     emailVerifiedAt: raw.emailVerifiedAt || "",
+    stripeCustomerId: raw.stripeCustomerId || "",
     sessionVersion: Number.isInteger(raw.sessionVersion) && raw.sessionVersion > 0 ? raw.sessionVersion : 1,
     preferences: {
       ...DEFAULT_PREFERENCES,
@@ -63,6 +64,7 @@ export async function createCustomerAccount(displayName: string, email: string, 
       emailVerifiedAt: "",
       sessionVersion: 1,
       preferences: { ...DEFAULT_PREFERENCES, ...preferences },
+      stripeCustomerId: "",
       createdAt: now,
       updatedAt: now,
     };
@@ -76,6 +78,17 @@ export async function findCustomerByEmail(email: string) {
   const normalized = normalizeCustomerEmail(email);
   const accounts = await readAccounts();
   return accounts.find((account) => account.email === normalized) || null;
+}
+
+export async function setStripeCustomerId(id: string, stripeCustomerId: string) {
+  return mutate(async () => {
+    const accounts = await readAccounts();
+    const index = accounts.findIndex((account) => account.id === id);
+    if (index < 0) return null;
+    accounts[index] = { ...accounts[index], stripeCustomerId, updatedAt: new Date().toISOString() };
+    await writeAccounts(accounts);
+    return accounts[index];
+  });
 }
 
 export async function findCustomerById(id: string) {
