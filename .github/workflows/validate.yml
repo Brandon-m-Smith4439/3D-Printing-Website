@@ -66,6 +66,22 @@ jobs:
           CODE=$(curl -sS -o /tmp/3mf.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "file=@/tmp/meshharbor-test.3mf;type=model/3mf"             http://127.0.0.1:3000/api/custom-request/upload)
           test "$CODE" = "503" || { cat /tmp/3mf.json; exit 1; }
           grep -q "File scanning is temporarily unavailable" /tmp/3mf.json
+      - name: Verify owner security status endpoint
+        run: |
+          curl -fsS -c /tmp/v088-owner.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-owner-login.json
+          SECURITY_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-security.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
+          test "$SECURITY_CODE" = "200" || {
+            echo "Expected owner security status endpoint to return 200, got $SECURITY_CODE"
+            cat /tmp/v088-security.json
+            exit 1
+          }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-security.json","utf8"));
+          if(typeof data.security?.twoFactorEnabled!=="boolean") throw new Error("twoFactorEnabled status missing");
+          if(typeof data.security?.recoveryCodesRemaining!=="number") throw new Error("recoveryCodesRemaining status missing");
+          NODE
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
