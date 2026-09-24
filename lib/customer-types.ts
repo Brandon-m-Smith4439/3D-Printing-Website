@@ -12,7 +12,8 @@ export type CustomerAccount = {
   emailVerifiedAt: string;
   sessionVersion: number;
   preferences: CustomerPreferences;
-  stripeCustomerId: string;
+  stripeCustomerTestId: string;
+  stripeCustomerLiveId: string;
   createdAt: string;
   updatedAt: string;
 };
