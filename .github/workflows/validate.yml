@@ -253,17 +253,18 @@ jobs:
           curl -fsS http://127.0.0.1:3002/api/health >/dev/null || { cat /tmp/v088-security-server.log; exit 1; }
 
           rm -rf /tmp/meshharbor-v088-security-chrome
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars             --remote-debugging-port=9226 --user-data-dir=/tmp/meshharbor-v088-security-chrome about:blank >/tmp/v088-security-chrome.log 2>&1 &
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:9226/json/version >/dev/null && break
+          google-chrome --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars             --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-v088-security-chrome about:blank >/tmp/v088-security-chrome.log 2>&1 &
+          echo $! > /tmp/v088-security-chrome.pid
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:9224/json/version >/dev/null && break
             sleep 0.5
           done
-          curl -fsS http://127.0.0.1:9226/json/version >/dev/null || { cat /tmp/v088-security-chrome.log; exit 1; }
+          curl -fsS http://127.0.0.1:9224/json/version >/dev/null || { cat /tmp/v088-security-chrome.log; ps -ef | grep -E 'chrome|chromium' | grep -v grep || true; exit 1; }
           mkdir -p visual-smoke
           node <<'NODE'
           const fs=require("node:fs"),crypto=require("node:crypto");
           (async()=>{
-            const pages=await (await fetch("http://127.0.0.1:9226/json/list")).json();
+            const pages=await (await fetch("http://127.0.0.1:9224/json/list")).json();
             const page=pages.find(p=>p.type==="page"); if(!page)throw new Error("No Chrome page target");
             const ws=new WebSocket(page.webSocketDebuggerUrl);
             await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
