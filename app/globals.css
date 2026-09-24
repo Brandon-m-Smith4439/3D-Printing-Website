@@ -3951,3 +3951,255 @@ button.operations-attention-item:focus-visible {
     border-radius: 16px;
   }
 }
+
+
+/* v0.88 — owner security and 2FA */
+.admin-second-factor-form {
+  display: grid;
+  gap: 14px;
+}
+.admin-second-factor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.owner-two-factor-panel {
+  grid-column: 1 / -1;
+}
+.owner-security-events-panel {
+  grid-column: 1 / -1;
+}
+.owner-security-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+.owner-security-status-grid article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(106, 190, 190, .12);
+  border-radius: 12px;
+  background: rgba(3, 18, 24, .42);
+}
+.owner-security-status-grid article > span {
+  color: #7c9b9d;
+  font-size: .66rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.owner-security-status-grid article > strong {
+  color: #eaf9f7;
+  font-size: .92rem;
+}
+.owner-security-status-grid article > small {
+  color: #7d9b9d;
+  line-height: 1.45;
+}
+.owner-security-status-grid article.is-ready {
+  border-color: rgba(94, 210, 157, .22);
+  background: rgba(94, 210, 157, .045);
+}
+.owner-security-status-grid article.is-ready strong { color: #a6f0cf; }
+.owner-security-status-grid article.is-warning {
+  border-color: rgba(255, 196, 91, .2);
+  background: rgba(255, 196, 91, .045);
+}
+.owner-security-status-grid article.is-warning strong { color: #ffe0a0; }
+
+.owner-security-action-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 15px;
+  border: 1px solid rgba(106, 190, 190, .13);
+  border-radius: 13px;
+  background: rgba(4, 19, 27, .5);
+}
+.owner-security-action-card > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+.owner-security-action-card > div:first-child > strong {
+  color: #e8f5f4;
+}
+.owner-security-action-card > div:first-child > span {
+  color: #7f9d9f;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.owner-security-action-card label {
+  display: grid;
+  gap: 6px;
+}
+.owner-security-action-card label > span {
+  color: #9bb7b8;
+  font-size: .74rem;
+  font-weight: 750;
+}
+.owner-security-action-card input {
+  width: 100%;
+  min-height: 44px;
+}
+.owner-security-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.owner-session-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.owner-danger-card {
+  border-color: rgba(255, 126, 137, .18);
+  background: rgba(255, 126, 137, .025);
+}
+
+.owner-2fa-enrollment {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(92, 231, 222, .18);
+  border-radius: 14px;
+  background: rgba(46, 214, 202, .035);
+}
+.owner-2fa-qr {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+}
+.owner-2fa-qr img {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+}
+.owner-2fa-enrollment-copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.owner-2fa-enrollment-copy > span,
+.owner-2fa-enrollment-copy > small {
+  color: #829fa1;
+  line-height: 1.5;
+}
+.owner-2fa-enrollment-copy > code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 9px 10px;
+  border: 1px solid rgba(114, 198, 199, .14);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, .18);
+  color: #c9efec;
+  font-size: .82rem;
+  letter-spacing: .06em;
+}
+.owner-security-inline-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) auto;
+  gap: 10px;
+  align-items: end;
+}
+.owner-security-inline-form label {
+  display: grid;
+  gap: 6px;
+}
+.owner-security-inline-form label > span {
+  color: #9ab6b7;
+  font-size: .74rem;
+  font-weight: 750;
+}
+
+.owner-recovery-reveal {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 17px;
+  border: 1px solid rgba(255, 196, 91, .22);
+  border-radius: 14px;
+  background: rgba(255, 196, 91, .04);
+}
+.owner-recovery-reveal > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+.owner-recovery-reveal > div:first-child strong { color: #ffe0a0; }
+.owner-recovery-reveal > div:first-child span {
+  color: #9b9a82;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+.owner-recovery-code-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.owner-recovery-code-grid code {
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 196, 91, .15);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, .18);
+  color: #f5e7b9;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.owner-security-management-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.backup-list article {
+  flex-wrap: wrap;
+}
+.backup-list article > button {
+  flex: 0 0 auto;
+}
+.backup-verified { color: #8de0ba !important; }
+.backup-failed { color: #ff9ca6 !important; }
+
+@media (max-width: 900px) {
+  .owner-security-status-grid,
+  .owner-security-management-grid {
+    grid-template-columns: 1fr;
+  }
+  .owner-2fa-enrollment {
+    grid-template-columns: 1fr;
+  }
+  .owner-2fa-qr {
+    max-width: 280px;
+  }
+  .owner-session-card {
+    grid-template-columns: 1fr;
+  }
+  .owner-session-card .button {
+    justify-self: start;
+  }
+}
+@media (max-width: 560px) {
+  .owner-security-inline-form {
+    grid-template-columns: 1fr;
+  }
+  .owner-security-inline-form .button {
+    justify-self: start;
+  }
+  .owner-recovery-code-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-second-factor-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
