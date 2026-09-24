@@ -9,7 +9,9 @@ import { updateQueueJobSchema } from "@/lib/queue-types";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { quoteForRequest } from "@/lib/quote-store";
 import { quoteDepositSatisfied } from "@/lib/quote-types";
-import { autoBuyLabelIfEligible } from "@/lib/shipping-service";
+import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
+import { finalInvoicePaid } from "@/lib/final-invoice-types";
+import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
 
 export const runtime = "nodejs";
 
@@ -51,7 +53,20 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 
   let emailSentAt: string | undefined;
   let emailWarning = "";
+  let invoiceWarning = "";
+  let invoiceMessage = "";
   const completing = parsed.data.status === "completed" && existing.status !== "completed";
+
+  if (completing && existing.sourceRequestId) {
+    const source = await getStoredRequest(existing.sourceRequestId);
+    const quote = source ? await quoteForRequest(source.id) : null;
+    if (quote) {
+      const finalInvoice = await finalInvoiceForRequest(source!.id);
+      if (!finalInvoicePaid(finalInvoice)) {
+        return NextResponse.json({ message: "The final balance invoice must be paid before this customer request can be marked Completed." }, { status: 409 });
+      }
+    }
+  }
 
   if (completing) {
     try {
@@ -67,10 +82,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   }
 
   const job = await updateQueueJob(id, parsed.data, emailSentAt);
-  let shippingWarning = "";
-  if (job?.sourceRequestId && parsed.data.status === "ready" && parsed.data.status !== existing.status && job.fulfillmentMethod === "shipping") {
-    const autoShipping = await autoBuyLabelIfEligible(job.sourceRequestId);
-    shippingWarning = autoShipping.warning;
+  if (job?.sourceRequestId && parsed.data.status === "ready" && parsed.data.status !== existing.status) {
+    try {
+      const invoice = await ensureFinalInvoiceForRequest(job.sourceRequestId);
+      invoiceMessage = invoice.status === "paid"
+        ? "Final balance is already paid."
+        : `Final balance invoice ${invoice.stripeInvoiceNumber || invoice.stripeInvoiceId} is ready.`;
+    } catch (error) {
+      invoiceWarning = error instanceof Error ? error.message : "The job is Ready, but the final balance invoice could not be created.";
+    }
   }
   if (job?.sourceRequestId && parsed.data.status && parsed.data.status !== existing.status) {
     const sourceBefore = await getStoredRequest(job.sourceRequestId);
@@ -83,14 +103,18 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         preparing: "Your print is being prepared and sliced for production.",
         printing: "Your print is now printing.",
         finishing: "Your print is in finishing and cleanup.",
-        ready: "Your print is ready for pickup or shipping.",
+        ready: invoiceWarning
+          ? "Your print is ready. We are preparing your final balance invoice and will update you shortly."
+          : invoiceMessage
+            ? "Your print is ready. Your final balance invoice is available in your profile and must be paid before pickup, delivery, or shipment."
+            : "Your print is ready for pickup, delivery, or shipping.",
         "on-hold": "Your print is currently on hold. We will update you when production resumes.",
       };
       await notifyCustomer(sourceBefore, labels[job.status] || `Your print status is now ${job.status}.`);
     }
   }
   await writeAudit({actor:"owner",actorId:"owner",action:"queue-job-updated",targetType:"queue",targetId:id,summary:`${existing.publicCode} updated${parsed.data.status ? ` to ${parsed.data.status}` : ""}.`,ipHash:requestIpHash(request)});
-  return NextResponse.json({ job, emailWarning, shippingWarning });
+  return NextResponse.json({ job, emailWarning, invoiceWarning, invoiceMessage });
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
