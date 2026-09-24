@@ -18,7 +18,7 @@ function isoFromUnix(value: number | null | undefined) {
   return value ? new Date(value * 1000).toISOString() : "";
 }
 
-function localStatus(status: Stripe.Invoice.Status | null): FinalInvoiceStatus {
+function localStatus(status: unknown): FinalInvoiceStatus {
   if (status === "open" || status === "paid" || status === "uncollectible" || status === "void") return status;
   return "draft";
 }
