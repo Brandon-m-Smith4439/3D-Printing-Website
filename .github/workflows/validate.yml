@@ -76,7 +76,7 @@ jobs:
           done
           node <<'NODE'
           const widths = [320,390,430,650,720,721,1024,1440,1920,2560,3440];
-          const paths = ["/", "/custom-request", "/login?admin=1"];
+          const paths = ["/", "/gallery", "/custom-request", "/queue", "/login", "/login?admin=1", "/privacy"];
           const pages = await (await fetch("http://127.0.0.1:9222/json/list")).json();
           if (!pages.length) throw new Error("Chrome debugging page was not available.");
           const ws = new WebSocket(pages[0].webSocketDebuggerUrl);
