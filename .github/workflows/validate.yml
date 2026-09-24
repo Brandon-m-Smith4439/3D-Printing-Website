@@ -147,6 +147,33 @@ jobs:
           CHALLENGE_ACCESS=$(curl -sS -b /tmp/v088-challenge.cookies -o /tmp/v088-challenge-access.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
           test "$CHALLENGE_ACCESS" = "401" || { echo "Challenge cookie unexpectedly authorized owner access"; cat /tmp/v088-challenge-access.json; exit 1; }
 
+          WRONG_2FA=$(curl -sS -b /tmp/v088-challenge.cookies -c /tmp/v088-challenge.cookies -o /tmp/v088-wrong-2fa.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"code":"000000"}'             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$WRONG_2FA" = "401" || { echo "Expected incorrect second factor to return 401, got $WRONG_2FA"; cat /tmp/v088-wrong-2fa.json; exit 1; }
+
+          node <<'NODE'
+          const fs=require("node:fs"),crypto=require("node:crypto");
+          const secret=fs.readFileSync("/tmp/v088-secret.txt","utf8").trim();
+          const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,buffer=0;const bytes=[];
+          for(const char of secret){buffer=(buffer<<5)|alphabet.indexOf(char);bits+=5;if(bits>=8){bytes.push((buffer>>>(bits-8))&255);bits-=8;}}
+          const counter=Math.floor(Date.now()/1000/30);const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+          const digest=crypto.createHmac("sha1",Buffer.from(bytes)).update(msg).digest();const offset=digest[digest.length-1]&15;
+          const value=((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))>>>0)%1000000;
+          fs.writeFileSync("/tmp/v088-current-totp.txt",String(value).padStart(6,"0"));
+          NODE
+          VALID_2FA=$(curl -sS -b /tmp/v088-challenge.cookies -c /tmp/v088-full-owner.cookies -o /tmp/v088-valid-2fa.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-current-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$VALID_2FA" = "200" || { echo "Valid authenticator code failed"; cat /tmp/v088-valid-2fa.json; exit 1; }
+          FULL_ACCESS=$(curl -sS -b /tmp/v088-full-owner.cookies -o /tmp/v088-full-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$FULL_ACCESS" = "200" || { echo "Verified second factor did not create an owner session"; cat /tmp/v088-full-access.json; exit 1; }
+
+          curl -fsS -c /tmp/v088-recovery-challenge.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-recovery-login.json
+          RECOVERY_CODE=$(cat /tmp/v088-recovery.txt)
+          RECOVERY_STATUS=$(curl -sS -b /tmp/v088-recovery-challenge.cookies -c /tmp/v088-recovery-owner.cookies -o /tmp/v088-recovery-use.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({code:process.argv[1]}))' "$RECOVERY_CODE")"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$RECOVERY_STATUS" = "200" || { echo "Recovery code did not authorize"; cat /tmp/v088-recovery-use.json; exit 1; }
+
+          curl -fsS -c /tmp/v088-replay-challenge.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-replay-login.json
+          REPLAY_STATUS=$(curl -sS -b /tmp/v088-replay-challenge.cookies -o /tmp/v088-recovery-replay.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({code:process.argv[1]}))' "$RECOVERY_CODE")"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$REPLAY_STATUS" = "401" || { echo "Used recovery code was accepted twice"; cat /tmp/v088-recovery-replay.json; exit 1; }
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
