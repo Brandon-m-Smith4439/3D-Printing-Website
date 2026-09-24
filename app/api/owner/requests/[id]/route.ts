@@ -14,7 +14,7 @@ const schema = z.object({ status: z.enum(["new", "reviewing", "declined"]) });
 const requestMessages: Record<string,string> = { new:"Your request is marked as new and is waiting for review.", reviewing:"Your custom print request is being reviewed.", declined:"Your request was declined/closed. Please contact us if you have questions or want to revise the project." };
 
 export async function PATCH(request:NextRequest,context:{params:Promise<{id:string}>}){
-  if(!requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});
+  if(!await requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;let body:unknown;try{body=await request.json();}catch{return NextResponse.json({message:"Invalid request body."},{status:400});}
   const parsed=schema.safeParse(body);if(!parsed.success)return NextResponse.json({message:"Choose a valid owner-managed request status."},{status:400});
@@ -30,7 +30,7 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
 }
 
 export async function DELETE(request:NextRequest,context:{params:Promise<{id:string}>}){
-  if(!requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});
+  if(!await requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;const source=await getStoredRequest(id);if(!source)return NextResponse.json({message:"Request not found."},{status:404});
   const quote=await quoteForRequest(source.id);
