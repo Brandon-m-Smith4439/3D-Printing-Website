@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 function defaultQueueTitle(projectType: string) { return ({ display:"Display / collectible print", functional:"Functional print", replacement:"Replacement part", prototype:"Prototype print", other:"Custom 3D print" } as Record<string,string>)[projectType] || "Custom 3D print"; }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
   const { id } = await context.params;
   let body: unknown; try { body = await request.json(); } catch { return NextResponse.json({ message: "Invalid request body." }, { status: 400 }); }
