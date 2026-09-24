@@ -3239,3 +3239,75 @@ main { min-height: 65vh; }
   .request-account-passwords { grid-template-columns: 1fr; }
   .in-person-request-form .owner-edit-grid { grid-template-columns: 1fr; }
 }
+
+
+/* v0.85 — large-screen and ultrawide layout scaling */
+@media (min-width: 1800px) {
+  .container {
+    width: min(1480px, calc(100% - 96px));
+  }
+
+  .owner-page > .container {
+    width: min(1680px, calc(100% - 96px));
+  }
+
+  .hero-grid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(520px, .92fr);
+    gap: 96px;
+  }
+
+  .gallery-grid {
+    gap: 24px;
+  }
+
+  .service-grid,
+  .process-grid {
+    gap: 20px;
+  }
+
+  .owner-panel {
+    padding: 32px;
+  }
+
+  .owner-request-list,
+  .production-request-list {
+    gap: 18px;
+  }
+}
+
+@media (min-width: 2560px) {
+  .container {
+    width: min(1560px, calc(100% - 144px));
+  }
+
+  .owner-page > .container {
+    width: min(1840px, calc(100% - 144px));
+  }
+
+  .section {
+    padding-block: 96px;
+  }
+
+  .hero-grid {
+    gap: 112px;
+  }
+}
+
+@media (max-width: 360px) {
+  .container {
+    width: min(100% - 20px, 1160px);
+  }
+
+  .section {
+    padding-block: 58px;
+  }
+
+  .owner-panel {
+    padding: 16px;
+  }
+
+  .button {
+    min-height: 46px;
+    padding-inline: 15px;
+  }
+}
