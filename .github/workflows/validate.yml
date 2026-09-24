@@ -158,6 +158,197 @@ jobs:
           COMPLETE_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/invoice-complete-paid.json -w "%{http_code}"             -X PATCH -H "Origin: http://127.0.0.1:3001" -H "Content-Type: application/json"             --data '{"status":"completed"}'             http://127.0.0.1:3001/api/owner/queue/job-invoice-fixture)
           test "$COMPLETE_CODE" = "200" || { cat /tmp/invoice-complete-paid.json; exit 1; }
 
+      - name: Verify owner Operations Center snapshot
+        run: |
+          node <<'NODE'
+          const { DatabaseSync } = require("node:sqlite");
+          const db = new DatabaseSync("/tmp/meshharbor-v086-invoice.sqlite");
+          const now = new Date();
+          const old = new Date(now.getTime() - 96 * 60 * 60 * 1000).toISOString();
+          const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0,10);
+          const today = now.toISOString().slice(0,10);
+          const insert = db.prepare("INSERT OR REPLACE INTO app_records(collection,id,json,updated_at) VALUES (?,?,?,?)");
+
+          const baseRequest = {
+            phone:"",projectType:"other",modelStatus:"ready",fulfillmentMethod:"pickup",assemblyPreference:"unsure",
+            quantity:1,dimensions:"",materialPreference:"pla",colorPreference:"",budget:"",neededBy:"",neededBySubmitted:"",
+            referenceUrl:"",description:"Operations fixture",imageUrl:"",attachments:[],internalNote:"",
+            customerAccountId:"",riskLevel:"none",riskFlags:[],source:"customer",emailNotifications:false,queuedAt:"",queueJobId:""
+          };
+
+          const newRequest = {
+            ...baseRequest,id:"req-ops-new",requestCode:"MH3D-OPS-NEW",status:"new",name:"New Ops Customer",
+            email:"new-ops@example.test",createdAt:now.toISOString(),updatedAt:now.toISOString()
+          };
+          insert.run("requests",newRequest.id,JSON.stringify(newRequest),newRequest.updatedAt);
+
+          const sentRequest = {
+            ...baseRequest,id:"req-ops-sent",requestCode:"MH3D-OPS-SENT",status:"quote-sent",name:"Waiting Customer",
+            email:"waiting@example.test",createdAt:old,updatedAt:old
+          };
+          insert.run("requests",sentRequest.id,JSON.stringify(sentRequest),sentRequest.updatedAt);
+          const sentQuote = {
+            id:"quote-ops-sent",requestId:sentRequest.id,requestCode:sentRequest.requestCode,customerAccountId:"",
+            status:"sent",revision:1,basePriceCents:8000,assemblyMode:"not-required",assemblyFeeCents:0,rushFeeCents:0,
+            fulfillmentMode:"pickup",localDeliveryFeeCents:0,packageWeightOz:0,packageLengthIn:0,packageWidthIn:0,packageHeightIn:0,
+            shippingSelection:null,totalCents:8000,depositCents:4000,balanceCents:4000,currency:"usd",material:"PLA",
+            dimensions:"",estimatedReadyDate:"",notes:"",terms:"Operations fixture terms.",
+            createdAt:old,updatedAt:old,sentAt:old,approvedAt:"",approvedByCustomerId:"",approvalSnapshot:null,
+            stripeCheckoutSessionId:"",stripeCheckoutAmountCents:0,depositPaidAt:"",paymentProvider:"stripe",payments:[],refunds:[],history:[]
+          };
+          insert.run("quotes",sentQuote.id,JSON.stringify(sentQuote),sentQuote.updatedAt);
+
+          const paidRequest = {
+            ...baseRequest,id:"req-ops-paid",requestCode:"MH3D-OPS-PAID",status:"deposit-paid",name:"Paid Not Queued",
+            email:"paid@example.test",createdAt:old,updatedAt:now.toISOString()
+          };
+          insert.run("requests",paidRequest.id,JSON.stringify(paidRequest),paidRequest.updatedAt);
+          const paidQuote = {
+            ...sentQuote,id:"quote-ops-paid",requestId:paidRequest.id,requestCode:paidRequest.requestCode,status:"deposit-paid",
+            totalCents:12000,depositCents:6000,balanceCents:6000,basePriceCents:12000,sentAt:old,approvedAt:old,depositPaidAt:old,
+            updatedAt:now.toISOString(),
+            payments:[{id:"pay-ops",revision:1,amountCents:6000,checkoutSessionId:"cs_test_ops",paymentIntentId:"pi_test_ops",paidAt:old}]
+          };
+          insert.run("quotes",paidQuote.id,JSON.stringify(paidQuote),paidQuote.updatedAt);
+
+          const readyRequest = {
+            ...baseRequest,id:"req-ops-ready",requestCode:"MH3D-OPS-READY",status:"queued",name:"Ready Balance Customer",
+            email:"ready@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-ready"
+          };
+          insert.run("requests",readyRequest.id,JSON.stringify(readyRequest),readyRequest.updatedAt);
+          const readyQuote = {
+            ...paidQuote,id:"quote-ops-ready",requestId:readyRequest.id,requestCode:readyRequest.requestCode,totalCents:14000,
+            depositCents:7000,balanceCents:7000,basePriceCents:14000,
+            payments:[{id:"pay-ready",revision:1,amountCents:7000,checkoutSessionId:"cs_test_ready",paymentIntentId:"pi_test_ready",paidAt:old}]
+          };
+          insert.run("quotes",readyQuote.id,JSON.stringify(readyQuote),readyQuote.updatedAt);
+          const readyJob = {
+            id:"job-ops-ready",sourceRequestId:readyRequest.id,publicCode:"3D-OPSREADY",publicTitle:"Ready invoice fixture",
+            customerName:readyRequest.name,customerEmail:readyRequest.email,fulfillmentMethod:"pickup",quantity:1,status:"ready",
+            estimatedReadyDate:yesterday,imageUrl:"",publicNote:"",privateNote:"",sortOrder:1,createdAt:old,updatedAt:now.toISOString(),
+            completedAt:"",completionEmailSentAt:""
+          };
+          insert.run("queue",readyJob.id,JSON.stringify(readyJob),readyJob.updatedAt);
+          const openInvoice = {
+            id:"inv-ops-ready",requestId:readyRequest.id,requestCode:readyRequest.requestCode,quoteId:readyQuote.id,quoteRevision:1,
+            customerAccountId:"",stripeCustomerId:"cus_test_ops",stripeInvoiceId:"in_test_ops",stripeInvoiceNumber:"MH3D-OPS-1001",
+            status:"open",amountDueCents:7000,amountPaidCents:0,amountRemainingCents:7000,currency:"usd",
+            hostedInvoiceUrl:"https://example.test/invoice",invoicePdfUrl:"",dueDate:yesterday,createdAt:old,sentAt:old,paidAt:"",
+            paymentFailedAt:"",updatedAt:now.toISOString(),lastError:""
+          };
+          insert.run("final-invoices",openInvoice.id,JSON.stringify(openInvoice),openInvoice.updatedAt);
+
+          const shipRequest = {
+            ...baseRequest,id:"req-ops-ship",requestCode:"MH3D-OPS-SHIP",status:"queued",name:"Shipping Review Customer",
+            email:"ship@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-ship"
+          };
+          insert.run("requests",shipRequest.id,JSON.stringify(shipRequest),shipRequest.updatedAt);
+          const shipQuote = {
+            ...paidQuote,id:"quote-ops-ship",requestId:shipRequest.id,requestCode:shipRequest.requestCode,fulfillmentMode:"shipping",
+            shippingSelection:{shipmentId:"shp_test",rateId:"rate_test",carrier:"UPS",service:"Ground",rateCents:1200,deliveryDays:3,deliveryDate:""},
+            totalCents:11200,depositCents:5600,balanceCents:5600,basePriceCents:10000,
+            payments:[{id:"pay-ship",revision:1,amountCents:5600,checkoutSessionId:"cs_test_ship",paymentIntentId:"pi_test_ship",paidAt:old}]
+          };
+          insert.run("quotes",shipQuote.id,JSON.stringify(shipQuote),shipQuote.updatedAt);
+          const shipJob = {
+            ...readyJob,id:"job-ops-ship",sourceRequestId:shipRequest.id,publicCode:"3D-OPSSHIP",publicTitle:"Shipping review fixture",
+            customerName:shipRequest.name,customerEmail:shipRequest.email,fulfillmentMethod:"shipping",status:"ready",sortOrder:2
+          };
+          insert.run("queue",shipJob.id,JSON.stringify(shipJob),shipJob.updatedAt);
+          const shipment = {
+            id:"shipment-ops",requestId:shipRequest.id,quoteId:shipQuote.id,requestCode:shipRequest.requestCode,
+            easyPostShipmentId:"shp_test",easyPostRateId:"rate_test",trackerId:"",carrier:"UPS",service:"Ground",
+            customerRateCents:1200,postageCostCents:0,rateDifferenceCents:0,trackingCode:"",publicTrackingUrl:"",
+            labelUrl:"",labelPdfUrl:"",labelPngUrl:"",status:"review_required",statusDetail:"",estimatedDeliveryDate:"",
+            reviewReason:"Rate changed beyond guardrail",proposedShipmentId:"shp_test2",proposedRateId:"rate_test2",proposedRateCents:1800,
+            refundStatus:"",purchasedAt:"",deliveredAt:"",refundedAt:"",createdAt:now.toISOString(),updatedAt:now.toISOString(),
+            lastWebhookEventId:"",trackingEvents:[]
+          };
+          insert.run("shipments",shipment.id,JSON.stringify(shipment),shipment.updatedAt);
+
+          const dueTodayRequest = {
+            ...baseRequest,id:"req-ops-due-today",requestCode:"MH3D-OPS-DUETODAY",status:"queued",name:"Due Today Customer",
+            email:"due-today@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-due-today"
+          };
+          insert.run("requests",dueTodayRequest.id,JSON.stringify(dueTodayRequest),dueTodayRequest.updatedAt);
+          const dueTodayJob = {
+            ...readyJob,id:"job-ops-due-today",sourceRequestId:dueTodayRequest.id,publicCode:"3D-DUETODAY",
+            publicTitle:"Due today fixture",customerName:dueTodayRequest.name,customerEmail:dueTodayRequest.email,
+            estimatedReadyDate:today,sortOrder:3
+          };
+          insert.run("queue",dueTodayJob.id,JSON.stringify(dueTodayJob),dueTodayJob.updatedAt);
+          const dueTodayInvoice = {
+            ...openInvoice,id:"inv-ops-due-today",requestId:dueTodayRequest.id,requestCode:dueTodayRequest.requestCode,
+            stripeInvoiceId:"in_test_due_today",stripeInvoiceNumber:"MH3D-OPS-DUE-TODAY",dueDate:today
+          };
+          insert.run("final-invoices",dueTodayInvoice.id,JSON.stringify(dueTodayInvoice),dueTodayInvoice.updatedAt);
+
+          const declinedRequest = {
+            ...baseRequest,id:"req-ops-declined",requestCode:"MH3D-OPS-DECLINED",status:"declined",name:"Closed Customer",
+            email:"closed@example.test",createdAt:old,updatedAt:now.toISOString()
+          };
+          insert.run("requests",declinedRequest.id,JSON.stringify(declinedRequest),declinedRequest.updatedAt);
+          const declinedQuote = {
+            ...sentQuote,id:"quote-ops-declined",requestId:declinedRequest.id,requestCode:declinedRequest.requestCode,
+            status:"declined",updatedAt:now.toISOString()
+          };
+          insert.run("quotes",declinedQuote.id,JSON.stringify(declinedQuote),declinedQuote.updatedAt);
+
+          const historyRequest = {
+            ...baseRequest,id:"req-ops-history",requestCode:"MH3D-OPS-HISTORY",status:"queued",name:"History Customer",
+            email:"history@example.test",createdAt:old,updatedAt:now.toISOString(),queuedAt:old,queueJobId:"job-ops-history-current"
+          };
+          insert.run("requests",historyRequest.id,JSON.stringify(historyRequest),historyRequest.updatedAt);
+          const currentJob = {
+            ...readyJob,id:"job-ops-history-current",sourceRequestId:historyRequest.id,publicCode:"3D-HISTORY-CURRENT",
+            publicTitle:"Current history job",customerName:historyRequest.name,customerEmail:historyRequest.email,
+            estimatedReadyDate:"",sortOrder:4,createdAt:new Date(now.getTime()-2*60*60*1000).toISOString(),
+            updatedAt:new Date(now.getTime()-2*60*60*1000).toISOString()
+          };
+          insert.run("queue",currentJob.id,JSON.stringify(currentJob),currentJob.updatedAt);
+          const staleJob = {
+            ...currentJob,id:"job-ops-history-stale",publicCode:"3D-HISTORY-STALE",publicTitle:"Stale prior job",
+            status:"completed",createdAt:old,updatedAt:now.toISOString(),completedAt:now.toISOString()
+          };
+          insert.run("queue",staleJob.id,JSON.stringify(staleJob),staleJob.updatedAt);
+          const historicalOpenInvoice = {
+            ...openInvoice,id:"inv-ops-history-old",requestId:historyRequest.id,requestCode:historyRequest.requestCode,
+            stripeInvoiceId:"in_history_old",stripeInvoiceNumber:"MH3D-HISTORY-OLD",createdAt:old,
+            updatedAt:now.toISOString(),dueDate:yesterday
+          };
+          insert.run("final-invoices",historicalOpenInvoice.id,JSON.stringify(historicalOpenInvoice),historicalOpenInvoice.updatedAt);
+          const currentPaidAt = new Date(now.getTime()-2*60*60*1000).toISOString();
+          const currentPaidInvoice = {
+            ...historicalOpenInvoice,id:"inv-ops-history-current",stripeInvoiceId:"in_history_current",
+            stripeInvoiceNumber:"MH3D-HISTORY-CURRENT",status:"paid",amountPaidCents:7000,amountRemainingCents:0,
+            dueDate:today,createdAt:currentPaidAt,updatedAt:currentPaidAt,paidAt:currentPaidAt
+          };
+          insert.run("final-invoices",currentPaidInvoice.id,JSON.stringify(currentPaidInvoice),currentPaidInvoice.updatedAt);
+          db.close();
+          NODE
+
+          OPS_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/operations.json -w "%{http_code}"             http://127.0.0.1:3001/api/owner/operations)
+          test "$OPS_CODE" = "200" || { echo "Expected Operations Center API 200, got $OPS_CODE"; cat /tmp/operations.json; exit 1; }
+
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/operations.json","utf8"));
+          const ops=data.snapshot;
+          if(!ops) throw new Error("Operations snapshot missing");
+          if(ops.counts.newRequests < 1) throw new Error("New request count missing");
+          if(!ops.attention.some(x=>x.category==="invoice")) throw new Error("Invoice attention missing");
+          if(!ops.attention.some(x=>x.category==="shipping")) throw new Error("Shipping attention missing");
+          if(ops.integrations.easyPost.tone!=="warning") throw new Error("Pending EasyPost must be a warning, not an outage");
+          if(!ops.search.some(x=>x.requestCode==="MH3D-OPS-READY" && x.invoiceNumber==="MH3D-OPS-1001")) throw new Error("Owner search index missing invoice fixture");
+          if(ops.attention.some(x=>x.requestId==="req-ops-due-today" && x.id.endsWith(":overdue"))) throw new Error("A balance due today must not be marked past due");
+          if(ops.attention.some(x=>x.requestId==="req-ops-declined")) throw new Error("Declined requests must not produce normal workflow attention");
+          const historySearch=ops.search.find(x=>x.requestCode==="MH3D-OPS-HISTORY");
+          if(historySearch?.invoiceNumber!=="MH3D-HISTORY-CURRENT") throw new Error("Search must use the newest invoice generation, not a stale invoice updated later");
+          if(historySearch?.queueCode!=="3D-HISTORY-CURRENT") throw new Error("Search must honor the request's current queueJobId instead of a stale prior job");
+          if(ops.counts.finalBalancesDue!==2) throw new Error("Final balance count must include only current open invoices; expected seeded ready + due-today balances");
+          console.log("Operations Center snapshot validated:", JSON.stringify(ops.counts));
+          NODE
+
       - name: Capture final invoice owner UI
         run: |
           mkdir -p visual-smoke
@@ -177,18 +368,29 @@ jobs:
           db.close();
           NODE
 
-          rm -rf /tmp/meshharbor-invoice-chrome
-          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars             --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-invoice-chrome about:blank >/tmp/invoice-chrome.log 2>&1 &
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:9224/json/version >/dev/null && break
-            sleep 0.5
+          INVOICE_CHROME_READY=0
+          for ATTEMPT in 1 2; do
+            rm -rf /tmp/meshharbor-invoice-chrome
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars               --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-invoice-chrome about:blank >/tmp/invoice-chrome.log 2>&1 &
+            INVOICE_CHROME_PID=$!
+            for i in {1..30}; do
+              if curl -fsS http://127.0.0.1:9224/json/version >/dev/null; then
+                INVOICE_CHROME_READY=1
+                break
+              fi
+              sleep 0.5
+            done
+            if [ "$INVOICE_CHROME_READY" = "1" ]; then break; fi
+            kill "$INVOICE_CHROME_PID" 2>/dev/null || true
+            wait "$INVOICE_CHROME_PID" 2>/dev/null || true
+            sleep 1
           done
-          curl -fsS http://127.0.0.1:9224/json/version >/dev/null || {
-            echo "Invoice Chrome did not expose the DevTools port."
+          if [ "$INVOICE_CHROME_READY" != "1" ]; then
+            echo "Invoice Chrome did not expose the DevTools port after two attempts."
             cat /tmp/invoice-chrome.log || true
             ps -ef | grep -E 'chrome|chromium' | grep -v grep || true
             exit 1
-          }
+          fi
           node <<'NODE'
           const fs=require("node:fs");
           (async()=>{
@@ -210,20 +412,34 @@ jobs:
             if(!Array.isArray(apiCheck.result.value)||apiCheck.result.value.some(item=>item.status!==200)){
               throw new Error("Owner browser API preflight failed: "+JSON.stringify(apiCheck.result.value));
             }
-            await send("Page.navigate",{url:"http://localhost:3001/owner"});
+            await send("Page.navigate",{url:"http://localhost:3001/owner"}); await wait(1200);
+            const operationsLanding=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("OPERATIONS CENTER")`,returnByValue:true});
+            if(!operationsLanding.result.value){
+              const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,5000)`,returnByValue:true});
+              throw new Error("Owner dashboard did not default to Operations Center. Body: "+debug.result.value);
+            }
+            const searched=await send("Runtime.evaluate",{expression:`(()=>{const input=document.querySelector('input[aria-label="Search all owner records"]');if(!input)return false;const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")?.set;setter?.call(input,"MH3D-INVOICE-TEST");input.dispatchEvent(new Event("input",{bubbles:true}));return true;})()`,returnByValue:true});
+            if(!searched.result.value) throw new Error("Operations Center search input was not found.");
+            let searchResultVisible=false;
+            for(let i=0;i<20;i++){
+              const found=await send("Runtime.evaluate",{expression:`[...document.querySelectorAll(".operations-search-results button")].some(button=>button.innerText.includes("MH3D-INVOICE-TEST"))`,returnByValue:true});
+              if(found.result.value){searchResultVisible=true;break;}
+              await wait(250);
+            }
+            if(!searchResultVisible) throw new Error("Operations Center search did not find the seeded invoice request.");
+            await send("Runtime.evaluate",{expression:`[...document.querySelectorAll(".operations-search-results button")].find(button=>button.innerText.includes("MH3D-INVOICE-TEST"))?.click()`});
             let cardVisible=false;
             for(let i=0;i<30;i++){
-              const card=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector(".production-request-header"))`,returnByValue:true});
+              const card=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector("#owner-request-req-invoice-fixture .production-request-header"))`,returnByValue:true});
               if(card.result.value){cardVisible=true;break;}
-              await wait(500);
+              await wait(300);
             }
             if(!cardVisible){
               const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,6000)`,returnByValue:true});
               const resources=await send("Runtime.evaluate",{expression:`performance.getEntriesByType("resource").map(r=>r.name).filter(n=>n.includes("/api/owner/")).slice(-30)`,returnByValue:true});
               let serverLog="";try{serverLog=fs.readFileSync("/tmp/meshharbor-invoice-server.log","utf8").slice(-12000);}catch{}
-              throw new Error("Production request card was not visible. API preflight: "+JSON.stringify(apiCheck.result.value)+" Resources: "+JSON.stringify(resources.result.value)+" Body: "+debug.result.value+" Server log: "+serverLog);
+              throw new Error("Focused production request card was not visible. API preflight: "+JSON.stringify(apiCheck.result.value)+" Resources: "+JSON.stringify(resources.result.value)+" Body: "+debug.result.value+" Server log: "+serverLog);
             }
-            await send("Runtime.evaluate",{expression:`document.querySelector(".production-request-header")?.click()`});
             let invoiceVisible=false;
             for(let i=0;i<20;i++){
               const body=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("FINAL BALANCE") && document.body.innerText.includes("$50.00")`,returnByValue:true});
@@ -237,6 +453,80 @@ jobs:
             const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
             fs.writeFileSync("visual-smoke/owner-final-invoice-v086.png",Buffer.from(shot.data,"base64"));
             ws.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+
+      - name: Capture authenticated Operations Center responsive matrix
+        run: |
+          mkdir -p visual-smoke
+          OPS_CHROME_READY=0
+          for ATTEMPT in 1 2; do
+            rm -rf /tmp/meshharbor-ops-chrome
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars               --remote-debugging-port=9225 --user-data-dir=/tmp/meshharbor-ops-chrome about:blank >/tmp/ops-chrome.log 2>&1 &
+            OPS_CHROME_PID=$!
+            for i in {1..30}; do
+              if curl -fsS http://127.0.0.1:9225/json/version >/dev/null; then
+                OPS_CHROME_READY=1
+                break
+              fi
+              sleep 0.5
+            done
+            if [ "$OPS_CHROME_READY" = "1" ]; then break; fi
+            kill "$OPS_CHROME_PID" 2>/dev/null || true
+            wait "$OPS_CHROME_PID" 2>/dev/null || true
+            sleep 1
+          done
+          if [ "$OPS_CHROME_READY" != "1" ]; then
+            echo "Operations Chrome did not expose the DevTools port after two attempts."
+            cat /tmp/ops-chrome.log || true
+            exit 1
+          fi
+          node <<'NODE'
+          const fs=require("node:fs");
+          (async()=>{
+            const widths=[320,390,430,650,720,721,1024,1440,1920,2560,3440];
+            const pages=await (await fetch("http://127.0.0.1:9225/json/list")).json();
+            const page=pages.find(p=>p.type==="page");
+            if(!page) throw new Error("No Chrome page target");
+            const ws=new WebSocket(page.webSocketDebuggerUrl);
+            await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+            let id=0;const pending=new Map();
+            ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}};
+            const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params}));});
+            const wait=ms=>new Promise(r=>setTimeout(r,ms));
+            await send("Page.enable"); await send("Runtime.enable");
+            await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1200,deviceScaleFactor:1,mobile:false});
+            await send("Page.navigate",{url:"http://localhost:3001/owner"}); await wait(700);
+            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return r.status;})()`,awaitPromise:true,returnByValue:true});
+            if(login.result.value!==200) throw new Error("Operations matrix owner login failed: "+login.result.value);
+            await send("Page.navigate",{url:"http://localhost:3001/owner"});
+            for(let i=0;i<30;i++){
+              const ready=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("OPERATIONS CENTER")`,returnByValue:true});
+              if(ready.result.value)break;
+              if(i===29)throw new Error("Operations Center did not render.");
+              await wait(300);
+            }
+            const failures=[];
+            for(const width of widths){
+              await send("Emulation.setDeviceMetricsOverride",{width,height:1200,deviceScaleFactor:1,mobile:width<=720});
+              await wait(250);
+              const metrics=await send("Runtime.evaluate",{expression:`(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth}))()`,returnByValue:true});
+              const value=metrics.result.value;
+              if(value.scrollWidth>value.clientWidth+1||value.bodyWidth>value.clientWidth+1){
+                const offenders=await send("Runtime.evaluate",{expression:`(()=>{const vw=document.documentElement.clientWidth;return [...document.querySelectorAll("body *")].map((el)=>{const r=el.getBoundingClientRect();return {tag:el.tagName,id:el.id||"",className:typeof el.className==="string"?el.className:"",left:Math.round(r.left),right:Math.round(r.right),width:Math.round(r.width),scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,text:(el.innerText||"").trim().replace(/\\s+/g," ").slice(0,140)};}).filter(x=>x.right>vw+1||x.left<-1||x.scrollWidth>x.clientWidth+1).sort((a,b)=>Math.max(b.right-vw,b.scrollWidth-b.clientWidth)-Math.max(a.right-vw,a.scrollWidth-a.clientWidth)).slice(0,15);})()`,returnByValue:true});
+                failures.push({width,type:"page-overflow",...value,offenders:offenders.result.value});
+              }
+              if(width<=430){
+                const tabCheck=await send("Runtime.evaluate",{expression:`(()=>{const vw=document.documentElement.clientWidth;const buttons=[...document.querySelectorAll(".owner-tabs button")];return {count:buttons.length,clipped:buttons.map((button)=>{const r=button.getBoundingClientRect();return {text:(button.innerText||"").trim(),left:Math.round(r.left),right:Math.round(r.right)};}).filter(item=>item.left<0||item.right>vw)};})()`,returnByValue:true});
+                if(tabCheck.result.value.count!==4||tabCheck.result.value.clipped.length){
+                  failures.push({width,type:"owner-tabs-clipped",tabs:tabCheck.result.value});
+                }
+              }
+              const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+              fs.writeFileSync(`visual-smoke/owner-operations-${width}.png`,Buffer.from(shot.data,"base64"));
+            }
+            ws.close();
+            if(failures.length)throw new Error("Owner Operations Center horizontal overflow: "+JSON.stringify(failures));
           })().catch(error=>{console.error(error);process.exit(1);});
           NODE
 
@@ -310,6 +600,6 @@ jobs:
       - name: Upload responsive visual matrix
         uses: actions/upload-artifact@v4
         with:
-          name: responsive-visual-matrix-v086
+          name: responsive-visual-matrix-v087
           path: visual-smoke/*.png
           retention-days: 7
