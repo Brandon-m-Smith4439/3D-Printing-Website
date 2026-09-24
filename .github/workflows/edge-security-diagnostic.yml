@@ -1,0 +1,98 @@
+name: Edge Security Diagnostic
+
+on:
+  push:
+    branches: [diagnostic/edge-security-state]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: TLS and response headers
+        run: |
+          set -euxo pipefail
+          curl -sS -D /tmp/headers.txt -o /tmp/page.html https://meshharbor3d.com/
+          cat /tmp/headers.txt
+          printf '\n--- TLS CERTIFICATE ---\n'
+          echo | openssl s_client -connect meshharbor3d.com:443 -servername meshharbor3d.com 2>/tmp/openssl.txt | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+          printf '\n--- TLS NEGOTIATION ---\n'
+          grep -E 'Protocol|Cipher|Verify return code' /tmp/openssl.txt || true
+          printf '\n--- RAW HTTP REFERENCES IN HTML ---\n'
+          grep -Eo 'http://[^"<> ]+' /tmp/page.html | sort -u || true
+          printf '\n--- SECURITY HEADERS ---\n'
+          grep -Ei '^(strict-transport-security|content-security-policy|x-content-type-options|x-frame-options|referrer-policy|permissions-policy|cross-origin-opener-policy|cross-origin-resource-policy):' /tmp/headers.txt || true
+
+      - name: Chromium visible security state
+        run: |
+          set -euxo pipefail
+          rm -rf /tmp/edge-security-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu             --remote-debugging-port=9222 --user-data-dir=/tmp/edge-security-chrome about:blank >/tmp/chrome.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:9222/json/version >/dev/null && break
+            sleep 0.5
+          done
+          node <<'NODE'
+          const pages = await (await fetch("http://127.0.0.1:9222/json/list")).json();
+          if (!pages.length) throw new Error("No Chrome debugging page");
+          const ws = new WebSocket(pages[0].webSocketDebuggerUrl);
+          await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+          let nextId = 0;
+          const pending = new Map();
+          const securityEvents = [];
+          const consoleEvents = [];
+          ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.id && pending.has(msg.id)) {
+              const p = pending.get(msg.id);
+              pending.delete(msg.id);
+              msg.error ? p.reject(new Error(msg.error.message)) : p.resolve(msg.result);
+              return;
+            }
+            if (msg.method === "Security.visibleSecurityStateChanged" || msg.method === "Security.securityStateChanged") {
+              securityEvents.push(msg);
+            }
+            if (msg.method === "Runtime.consoleAPICalled" || msg.method === "Log.entryAdded") {
+              consoleEvents.push(msg);
+            }
+          };
+          const send = (method, params = {}) => new Promise((resolve, reject) => {
+            const id = ++nextId;
+            pending.set(id, {resolve, reject});
+            ws.send(JSON.stringify({id, method, params}));
+          });
+          await send("Page.enable");
+          await send("Runtime.enable");
+          await send("Log.enable");
+          await send("Security.enable");
+          await send("Page.navigate", {url:"https://meshharbor3d.com/"});
+          await new Promise(r => setTimeout(r, 3500));
+          const state = await send("Runtime.evaluate", {
+            expression: `(() => ({
+              href: location.href,
+              protocol: location.protocol,
+              secureContext: isSecureContext,
+              readyState: document.readyState,
+              resources: performance.getEntriesByType('resource').map(e => e.name),
+              rawHttpElements: [...document.querySelectorAll('[src],[href],[action]')].map(el => ({
+                tag: el.tagName,
+                src: el.getAttribute('src'),
+                href: el.getAttribute('href'),
+                action: el.getAttribute('action')
+              })).filter(x => [x.src,x.href,x.action].some(v => typeof v === 'string' && v.startsWith('http://')))
+            }))()`,
+            returnByValue:true
+          });
+          const value = state.result.value;
+          console.log("PAGE_STATE", JSON.stringify(value, null, 2));
+          console.log("HTTP_RESOURCES", JSON.stringify(value.resources.filter(x => x.startsWith("http://")), null, 2));
+          console.log("RAW_HTTP_ELEMENTS", JSON.stringify(value.rawHttpElements, null, 2));
+          console.log("SECURITY_EVENTS", JSON.stringify(securityEvents, null, 2));
+          console.log("CONSOLE_EVENTS", JSON.stringify(consoleEvents.filter(x => /mixed|insecure|certificate|security/i.test(JSON.stringify(x))), null, 2));
+          ws.close();
+          if (!value.secureContext || value.protocol !== "https:") process.exit(2);
+          NODE
