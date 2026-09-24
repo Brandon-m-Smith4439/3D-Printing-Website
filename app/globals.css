@@ -3851,6 +3851,23 @@ button.operations-attention-item:focus-visible {
   .operations-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
+  .owner-dashboard,
+  .owner-toolbar,
+  .owner-tabs,
+  .owner-operations {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .owner-toolbar {
+    width: 100%;
+  }
+
+  .owner-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
   .operations-hero {
     align-items: stretch;
     flex-direction: column;
