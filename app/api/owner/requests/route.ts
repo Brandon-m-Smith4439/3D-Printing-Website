@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   void ensureDailyBackup().catch((error) => console.error("Daily backup failed", error));
   const [requests, quotes, shipments, finalInvoices] = await Promise.all([readRequests(), readQuotes(), readShipments(), readFinalInvoices()]);
   requests.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -40,7 +40,7 @@ const ownerRequestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
 
   let body: unknown;

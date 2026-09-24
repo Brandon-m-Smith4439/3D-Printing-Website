@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const schema = z.object({ direction: z.enum(["earlier", "later"]) });
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ message: "Invalid request body." }, { status: 400 }); }

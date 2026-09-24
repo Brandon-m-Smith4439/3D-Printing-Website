@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  if (!requestIsOwner(request)) {
+  if (!await requestIsOwner(request)) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
   const jobs = await readQueue();
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!requestIsOwner(request)) {
+  if (!await requestIsOwner(request)) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
   if (!sameOrigin(request)) {

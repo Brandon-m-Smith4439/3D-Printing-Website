@@ -16,7 +16,7 @@ import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
 export const runtime = "nodejs";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) {
+  if (!await requestIsOwner(request)) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
   if (!sameOrigin(request)) {
@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
 }
 
 export async function DELETE(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) {
+  if (!await requestIsOwner(request)) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
   if (!sameOrigin(request)) {

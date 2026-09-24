@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   configuredOwnerPassword,
+  createOwnerChallenge,
   createOwnerSession,
   passwordMatches,
+  setOwnerChallengeCookie,
   setOwnerCookie,
 } from "@/lib/owner-auth";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { sameOrigin } from "@/lib/owner-api";
+import { readOwnerSecurityState } from "@/lib/owner-security";
 
 export const runtime = "nodejs";
 
@@ -45,6 +48,15 @@ export async function POST(request: NextRequest) {
 
   const ip = clientIp(request);
   if (blocked(ip)) {
+    await writeAudit({
+      actor: "owner",
+      actorId: "owner",
+      action: "owner-login-rate-limited",
+      targetType: "owner",
+      targetId: "owner",
+      summary: "Owner sign-in was rate limited after repeated password attempts.",
+      ipHash: requestIpHash(request),
+    }).catch(() => undefined);
     return NextResponse.json({ message: "Too many login attempts. Try again later." }, { status: 429 });
   }
 
@@ -64,14 +76,39 @@ export async function POST(request: NextRequest) {
   }
 
   if (password.length > 200 || !passwordMatches(password, expected)) {
+    await writeAudit({
+      actor: "owner",
+      actorId: "owner",
+      action: "owner-login-failed",
+      targetType: "owner",
+      targetId: "owner",
+      summary: "Owner password verification failed.",
+      ipHash: requestIpHash(request),
+    }).catch(() => undefined);
     return NextResponse.json({ message: "Incorrect password." }, { status: 401 });
   }
 
   attempts.delete(ip);
   try {
+    const security = await readOwnerSecurityState();
+    if (security.twoFactorEnabled) {
+      await writeAudit({
+        actor:"owner",
+        actorId:"owner",
+        action:"owner-password-verified",
+        targetType:"owner",
+        targetId:"owner",
+        summary:"Owner password verified; second factor required.",
+        ipHash:requestIpHash(request),
+      });
+      const response = NextResponse.json({ message: "Enter your authenticator or recovery code.", requiresSecondFactor: true });
+      setOwnerChallengeCookie(response, createOwnerChallenge(security.sessionGeneration));
+      return response;
+    }
+
     await writeAudit({actor:"owner",actorId:"owner",action:"owner-login",targetType:"owner",targetId:"owner",summary:"Owner signed in.",ipHash:requestIpHash(request)});
-    const response = NextResponse.json({ message: "Signed in." });
-    setOwnerCookie(response, createOwnerSession());
+    const response = NextResponse.json({ message: "Signed in.", requiresSecondFactor: false });
+    setOwnerCookie(response, createOwnerSession(security.sessionGeneration));
     return response;
   } catch {
     return NextResponse.json({ message: "Owner access is not configured securely." }, { status: 503 });

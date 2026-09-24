@@ -15,7 +15,7 @@ const allowed: Record<string, { ext: string; check: (bytes: Uint8Array) => boole
 };
 
 export async function POST(request: NextRequest) {
-  if (!requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (!(await requestIsOwner(request))) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
   const contentLength = Number(request.headers.get("content-length") || "0");
   if (contentLength > MAX_BYTES + 100_000) return NextResponse.json({ message: "Image is too large. Maximum is 5 MB." }, { status: 413 });

@@ -16,7 +16,7 @@ function sameOrigin(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
-  if (!requestIsOwner(request)) {
+  if (!await requestIsOwner(request)) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
   if (!sameOrigin(request)) {

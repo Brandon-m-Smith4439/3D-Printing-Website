@@ -66,6 +66,322 @@ jobs:
           CODE=$(curl -sS -o /tmp/3mf.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "file=@/tmp/meshharbor-test.3mf;type=model/3mf"             http://127.0.0.1:3000/api/custom-request/upload)
           test "$CODE" = "503" || { cat /tmp/3mf.json; exit 1; }
           grep -q "File scanning is temporarily unavailable" /tmp/3mf.json
+      - name: Verify owner security status endpoint
+        run: |
+          curl -fsS -c /tmp/v088-owner.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-owner-login.json
+          curl -fsS -b /tmp/v088-owner.cookies http://127.0.0.1:3000/api/owner/audit >/tmp/v088-security-audit.json
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-security-audit.json","utf8"));
+          if(!(data.entries||[]).some(entry=>entry.action==="owner-login-failed")) {
+            throw new Error("Failed owner password attempts are not visible in the security audit history");
+          }
+          NODE
+
+          SECURITY_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-security.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
+          test "$SECURITY_CODE" = "200" || {
+            echo "Expected owner security status endpoint to return 200, got $SECURITY_CODE"
+            cat /tmp/v088-security.json
+            exit 1
+          }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-security.json","utf8"));
+          if(typeof data.security?.twoFactorEnabled!=="boolean") throw new Error("twoFactorEnabled status missing");
+          if(typeof data.security?.recoveryCodesRemaining!=="number") throw new Error("recoveryCodesRemaining status missing");
+          NODE
+
+          SETUP_NO_PASSWORD_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-setup-no-password.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{}'             http://127.0.0.1:3000/api/owner/security/2fa/setup)
+          test "$SETUP_NO_PASSWORD_CODE" = "401" || {
+            echo "2FA enrollment should require owner password re-authentication; got $SETUP_NO_PASSWORD_CODE"
+            cat /tmp/v088-2fa-setup-no-password.json
+            exit 1
+          }
+
+          SETUP_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-2fa-setup.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/security/2fa/setup)
+          test "$SETUP_CODE" = "200" || {
+            echo "Expected password-confirmed 2FA setup endpoint to return 200, got $SETUP_CODE"
+            cat /tmp/v088-2fa-setup.json
+            exit 1
+          }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const crypto=require("node:crypto");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-2fa-setup.json","utf8"));
+          if(!/^[A-Z2-7]{32}$/.test(data.manualSecret||"")) throw new Error("Manual TOTP secret missing or invalid");
+          if(!(data.otpauthUri||"").startsWith("otpauth://totp/")) throw new Error("otpauth URI missing");
+          if(!(data.qrDataUrl||"").startsWith("data:image/")) throw new Error("QR data URL missing");
+          const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+          const normalized=data.manualSecret.toUpperCase().replace(/[^A-Z2-7]/g,"");
+          let bits=0,buffer=0;const bytes=[];
+          for(const char of normalized){buffer=(buffer<<5)|alphabet.indexOf(char);bits+=5;if(bits>=8){bytes.push((buffer>>>(bits-8))&255);bits-=8;}}
+          const counter=Math.floor(Date.now()/1000/30);
+          const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+          const digest=crypto.createHmac("sha1",Buffer.from(bytes)).update(msg).digest();
+          const offset=digest[digest.length-1]&15;
+          const value=((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))>>>0)%1000000;
+          fs.writeFileSync("/tmp/v088-totp.txt",String(value).padStart(6,"0"));
+          fs.writeFileSync("/tmp/v088-secret.txt",data.manualSecret);
+          NODE
+          cp /tmp/v088-totp.txt /tmp/v088-totp-node.txt
+          python3 <<'PY'
+          import base64, hashlib, hmac, json, struct, time
+          with open("/tmp/v088-2fa-setup.json", "r", encoding="utf-8") as handle:
+              secret=json.load(handle)["manualSecret"]
+          key=base64.b32decode(secret)
+          counter=int(time.time())//30
+          digest=hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+          offset=digest[-1] & 0x0F
+          value=(struct.unpack(">I", digest[offset:offset+4])[0] & 0x7FFFFFFF) % 1000000
+          with open("/tmp/v088-totp-python.txt", "w", encoding="utf-8") as handle:
+              handle.write(f"{value:06d}")
+          PY
+          cmp /tmp/v088-totp-node.txt /tmp/v088-totp-python.txt || {
+            echo "TOTP implementation does not match the Python standard-library oracle."
+            echo "Node: $(cat /tmp/v088-totp-node.txt)"
+            echo "Python: $(cat /tmp/v088-totp-python.txt)"
+            exit 1
+          }
+          cp /tmp/v088-totp-python.txt /tmp/v088-totp.txt
+
+          ENABLE_CODE=$(curl -sS -b /tmp/v088-owner.cookies -c /tmp/v088-enabled-owner.cookies -o /tmp/v088-2fa-enable.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/enable)
+          test "$ENABLE_CODE" = "200" || {
+            echo "Expected 2FA enable endpoint to return 200, got $ENABLE_CODE"
+            cat /tmp/v088-2fa-enable.json
+            exit 1
+          }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const {DatabaseSync}=require("node:sqlite");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-2fa-enable.json","utf8"));
+          if(data.security?.twoFactorEnabled!==true) throw new Error("2FA was not enabled");
+          if(!Array.isArray(data.recoveryCodes)||data.recoveryCodes.length!==10) throw new Error("Expected 10 recovery codes");
+          if(!data.recoveryCodes.every(code=>/^MH3D-[A-Z2-7]{4}-[A-Z2-7]{4}-[A-Z2-7]{4}$/.test(code))) throw new Error("Recovery code format invalid");
+          fs.writeFileSync("/tmp/v088-recovery.txt",data.recoveryCodes[0]);
+          fs.writeFileSync("/tmp/v088-recovery-old2.txt",data.recoveryCodes[1]);
+          const secret=fs.readFileSync("/tmp/v088-secret.txt","utf8");
+          const db=new DatabaseSync("/tmp/meshharbor-v086.sqlite");
+          const row=db.prepare("SELECT json FROM app_records WHERE collection='owner-security' AND id='singleton'").get();
+          db.close();
+          if(!row?.json) throw new Error("Owner security record missing");
+          if(row.json.includes(secret)) throw new Error("Raw TOTP secret was stored in SQLite");
+          const stored=JSON.parse(row.json);
+          if(!stored.totpSecretCiphertext||stored.totpSecretCiphertext===secret) throw new Error("Encrypted TOTP secret missing");
+          if((stored.recoveryCodeHashes||[]).some(value=>data.recoveryCodes.includes(value))) throw new Error("Recovery codes were stored in plaintext");
+          NODE
+
+          PRE_ENABLE_SESSION_STATUS=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-pre-enable-session.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$PRE_ENABLE_SESSION_STATUS" = "401" || { echo "Enabling 2FA did not revoke the pre-2FA owner session"; cat /tmp/v088-pre-enable-session.json; exit 1; }
+          ENABLED_SESSION_STATUS=$(curl -sS -b /tmp/v088-enabled-owner.cookies -o /tmp/v088-enabled-session.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$ENABLED_SESSION_STATUS" = "200" || { echo "Current owner session was not refreshed after enabling 2FA"; cat /tmp/v088-enabled-session.json; exit 1; }
+
+          rm -f /tmp/v088-challenge.cookies /tmp/v088-2fa-password.headers
+          LOGIN_2FA_CODE=$(curl -sS -D /tmp/v088-2fa-password.headers -c /tmp/v088-challenge.cookies -o /tmp/v088-2fa-password.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login)
+          test "$LOGIN_2FA_CODE" = "200" || { cat /tmp/v088-2fa-password.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const body=JSON.parse(fs.readFileSync("/tmp/v088-2fa-password.json","utf8"));
+          if(body.requiresSecondFactor!==true) throw new Error("Password login did not require the configured second factor");
+          const cookies=fs.readFileSync("/tmp/v088-challenge.cookies","utf8");
+          if(!cookies.includes("lc3d_owner_challenge")) throw new Error("Second-factor challenge cookie missing");
+          if(/\tlc3d_owner\t/.test(cookies)) throw new Error("Full owner session was issued before second-factor verification");
+          NODE
+          CHALLENGE_ACCESS=$(curl -sS -b /tmp/v088-challenge.cookies -o /tmp/v088-challenge-access.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
+          test "$CHALLENGE_ACCESS" = "401" || { echo "Challenge cookie unexpectedly authorized owner access"; cat /tmp/v088-challenge-access.json; exit 1; }
+
+          WRONG_2FA=$(curl -sS -b /tmp/v088-challenge.cookies -c /tmp/v088-challenge.cookies -o /tmp/v088-wrong-2fa.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"code":"000000"}'             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$WRONG_2FA" = "401" || { echo "Expected incorrect second factor to return 401, got $WRONG_2FA"; cat /tmp/v088-wrong-2fa.json; exit 1; }
+
+          node <<'NODE'
+          const fs=require("node:fs"),crypto=require("node:crypto");
+          const secret=fs.readFileSync("/tmp/v088-secret.txt","utf8").trim();
+          const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,buffer=0;const bytes=[];
+          for(const char of secret){buffer=(buffer<<5)|alphabet.indexOf(char);bits+=5;if(bits>=8){bytes.push((buffer>>>(bits-8))&255);bits-=8;}}
+          const counter=Math.floor(Date.now()/1000/30);const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+          const digest=crypto.createHmac("sha1",Buffer.from(bytes)).update(msg).digest();const offset=digest[digest.length-1]&15;
+          const value=((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))>>>0)%1000000;
+          fs.writeFileSync("/tmp/v088-current-totp.txt",String(value).padStart(6,"0"));
+          NODE
+          VALID_2FA=$(curl -sS -b /tmp/v088-challenge.cookies -c /tmp/v088-full-owner.cookies -o /tmp/v088-valid-2fa.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-current-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$VALID_2FA" = "200" || { echo "Valid authenticator code failed"; cat /tmp/v088-valid-2fa.json; exit 1; }
+          FULL_ACCESS=$(curl -sS -b /tmp/v088-full-owner.cookies -o /tmp/v088-full-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$FULL_ACCESS" = "200" || { echo "Verified second factor did not create an owner session"; cat /tmp/v088-full-access.json; exit 1; }
+
+          curl -fsS -c /tmp/v088-recovery-challenge.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-recovery-login.json
+          RECOVERY_CODE=$(cat /tmp/v088-recovery.txt)
+          RECOVERY_STATUS=$(curl -sS -b /tmp/v088-recovery-challenge.cookies -c /tmp/v088-recovery-owner.cookies -o /tmp/v088-recovery-use.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({code:process.argv[1]}))' "$RECOVERY_CODE")"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$RECOVERY_STATUS" = "200" || { echo "Recovery code did not authorize"; cat /tmp/v088-recovery-use.json; exit 1; }
+
+          curl -fsS -c /tmp/v088-replay-challenge.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-replay-login.json
+          REPLAY_STATUS=$(curl -sS -b /tmp/v088-replay-challenge.cookies -o /tmp/v088-recovery-replay.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({code:process.argv[1]}))' "$RECOVERY_CODE")"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$REPLAY_STATUS" = "401" || { echo "Used recovery code was accepted twice"; cat /tmp/v088-recovery-replay.json; exit 1; }
+
+          cp /tmp/v088-full-owner.cookies /tmp/v088-old-owner.cookies
+          REVOKE_STATUS=$(curl -sS -b /tmp/v088-full-owner.cookies -c /tmp/v088-current-owner.cookies -o /tmp/v088-revoke.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             http://127.0.0.1:3000/api/owner/security/sessions/revoke)
+          test "$REVOKE_STATUS" = "200" || { echo "Session revoke endpoint failed"; cat /tmp/v088-revoke.json; exit 1; }
+          OLD_SESSION_STATUS=$(curl -sS -b /tmp/v088-old-owner.cookies -o /tmp/v088-old-session.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
+          test "$OLD_SESSION_STATUS" = "401" || { echo "Old owner session survived session generation revocation"; cat /tmp/v088-old-session.json; exit 1; }
+          CURRENT_SESSION_STATUS=$(curl -sS -b /tmp/v088-current-owner.cookies -o /tmp/v088-current-session.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
+          test "$CURRENT_SESSION_STATUS" = "200" || { echo "Current owner session was not refreshed after revocation"; cat /tmp/v088-current-session.json; exit 1; }
+
+          node <<'NODE'
+          const fs=require("node:fs"),crypto=require("node:crypto");
+          const secret=fs.readFileSync("/tmp/v088-secret.txt","utf8").trim();
+          const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,buffer=0;const bytes=[];
+          for(const char of secret){buffer=(buffer<<5)|alphabet.indexOf(char);bits+=5;if(bits>=8){bytes.push((buffer>>>(bits-8))&255);bits-=8;}}
+          const counter=Math.floor(Date.now()/1000/30);const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+          const digest=crypto.createHmac("sha1",Buffer.from(bytes)).update(msg).digest();const offset=digest[digest.length-1]&15;
+          const value=((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))>>>0)%1000000;
+          fs.writeFileSync("/tmp/v088-management-totp.txt",String(value).padStart(6,"0"));
+          NODE
+
+          REGEN_STATUS=$(curl -sS -b /tmp/v088-current-owner.cookies -o /tmp/v088-recovery-regen.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-management-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/recovery)
+          test "$REGEN_STATUS" = "200" || { echo "Recovery regeneration endpoint failed"; cat /tmp/v088-recovery-regen.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-recovery-regen.json","utf8"));
+          if(!Array.isArray(data.recoveryCodes)||data.recoveryCodes.length!==10) throw new Error("Recovery regeneration did not return 10 new one-time codes");
+          fs.writeFileSync("/tmp/v088-recovery-new.txt",data.recoveryCodes[0]);
+          NODE
+
+          curl -fsS -c /tmp/v088-oldcode-challenge.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-oldcode-login.json
+          OLD_RECOVERY=$(cat /tmp/v088-recovery-old2.txt)
+          OLD_RECOVERY_STATUS=$(curl -sS -b /tmp/v088-oldcode-challenge.cookies -o /tmp/v088-oldcode-use.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({code:process.argv[1]}))' "$OLD_RECOVERY")"             http://127.0.0.1:3000/api/owner/login/verify)
+          test "$OLD_RECOVERY_STATUS" = "401" || { echo "Regenerated recovery codes did not invalidate old codes"; cat /tmp/v088-oldcode-use.json; exit 1; }
+
+          cp /tmp/v088-current-owner.cookies /tmp/v088-before-disable.cookies
+          DISABLE_STATUS=$(curl -sS -b /tmp/v088-current-owner.cookies -c /tmp/v088-after-disable.cookies -o /tmp/v088-disable.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({password:"ci-owner-password-12345",code:require("fs").readFileSync("/tmp/v088-management-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/disable)
+          test "$DISABLE_STATUS" = "200" || { echo "2FA disable endpoint failed"; cat /tmp/v088-disable.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-disable.json","utf8"));
+          if(data.security?.twoFactorEnabled!==false) throw new Error("2FA disable response still reports enabled");
+          if(data.security?.recoveryCodesRemaining!==0) throw new Error("Recovery codes were not cleared when 2FA was disabled");
+          NODE
+          BEFORE_DISABLE_STATUS=$(curl -sS -b /tmp/v088-before-disable.cookies -o /tmp/v088-before-disable-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$BEFORE_DISABLE_STATUS" = "401" || { echo "Pre-disable owner session survived generation change"; cat /tmp/v088-before-disable-access.json; exit 1; }
+          AFTER_DISABLE_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-after-disable-access.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/security)
+          test "$AFTER_DISABLE_STATUS" = "200" || { echo "Current owner was not kept signed in after disabling 2FA"; cat /tmp/v088-after-disable-access.json; exit 1; }
+
+          BACKUP_CREATE_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-create.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             http://127.0.0.1:3000/api/owner/backups)
+          test "$BACKUP_CREATE_STATUS" = "201" || { echo "Could not create verification fixture backup"; cat /tmp/v088-backup-create.json; exit 1; }
+          BACKUP_NAME=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("/tmp/v088-backup-create.json","utf8")).backup.name)')
+          BACKUP_VERIFY_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-verify.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data "$(node -e 'process.stdout.write(JSON.stringify({name:process.argv[1]}))' "$BACKUP_NAME")"             http://127.0.0.1:3000/api/owner/backups/verify)
+          test "$BACKUP_VERIFY_STATUS" = "200" || { echo "Backup verification endpoint failed"; cat /tmp/v088-backup-verify.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-backup-verify.json","utf8"));
+          if(data.verification?.healthy!==true) throw new Error("Generated backup did not verify healthy");
+          if(data.verification?.quickCheck!=="ok") throw new Error("SQLite quick_check did not report ok");
+          if(!Array.isArray(data.verification?.requiredTables)||!data.verification.requiredTables.includes("app_records")) throw new Error("Backup verification did not confirm required tables");
+          NODE
+          BAD_BACKUP_STATUS=$(curl -sS -b /tmp/v088-after-disable.cookies -o /tmp/v088-backup-bad.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json" --data '{"name":"../escape"}'             http://127.0.0.1:3000/api/owner/backups/verify)
+          test "$BAD_BACKUP_STATUS" = "400" || { echo "Unsafe backup name was not rejected"; cat /tmp/v088-backup-bad.json; exit 1; }
+
+      - name: Verify owner security management UI
+        run: |
+          setsid env \
+          NEXT_PUBLIC_SITE_URL=http://localhost:3002 \
+          DATABASE_PATH=/tmp/meshharbor-v086.sqlite \
+          PRIVATE_STORAGE_DIR=/tmp/meshharbor-private \
+          CUSTOMER_SESSION_SECRET=ci-customer-session-secret-12345678901234567890 \
+          OWNER_SESSION_SECRET=ci-owner-session-secret-12345678901234567890123 \
+          OWNER_PASSWORD=ci-owner-password-12345 \
+          npm run dev -- -p 3002 > /tmp/v088-security-server.log 2>&1 &
+          echo $! > /tmp/v088-security-server.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:3002/api/health >/dev/null && break
+            sleep 0.5
+          done
+          curl -fsS http://127.0.0.1:3002/api/health >/dev/null || { cat /tmp/v088-security-server.log; exit 1; }
+
+          rm -rf /tmp/meshharbor-v088-security-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --hide-scrollbars             --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-v088-security-chrome about:blank >/tmp/v088-security-chrome.log 2>&1 &
+          echo $! > /tmp/v088-security-chrome.pid
+          for i in {1..60}; do
+            curl -fsS http://127.0.0.1:9224/json/version >/dev/null && break
+            sleep 0.5
+          done
+          curl -fsS http://127.0.0.1:9224/json/version >/dev/null || { cat /tmp/v088-security-chrome.log; ps -ef | grep -E 'chrome|chromium' | grep -v grep || true; exit 1; }
+          mkdir -p visual-smoke
+          node <<'NODE'
+          const fs=require("node:fs"),crypto=require("node:crypto");
+          (async()=>{
+            const pages=await (await fetch("http://127.0.0.1:9224/json/list")).json();
+            const page=pages.find(p=>p.type==="page"); if(!page)throw new Error("No Chrome page target");
+            const ws=new WebSocket(page.webSocketDebuggerUrl);
+            await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+            let id=0;const pending=new Map();
+            ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}};
+            const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params}));});
+            const wait=ms=>new Promise(r=>setTimeout(r,ms));
+            await send("Page.enable"); await send("Runtime.enable");
+            await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1400,deviceScaleFactor:1,mobile:false});
+            await send("Page.navigate",{url:"http://localhost:3002/login?admin=1"}); await wait(700);
+            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return {status:r.status,text:await r.text(),origin:location.origin};})()`,awaitPromise:true,returnByValue:true});
+            if(login.result.value?.status!==200){
+              let serverLog="";try{serverLog=fs.readFileSync("/tmp/v088-security-server.log","utf8").slice(-12000);}catch{}
+              throw new Error("Owner security UI browser login failed: "+JSON.stringify(login.result.value)+" Server log: "+serverLog);
+            }
+            await send("Page.navigate",{url:"http://localhost:3002/owner"}); await wait(1000);
+            const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Security & Backups"));b?.click();return Boolean(b);})()`,returnByValue:true});
+            if(!clicked.result.value)throw new Error("Security & Backups tab missing");
+            await wait(700);
+            const body=await send("Runtime.evaluate",{expression:`document.body.innerText`,returnByValue:true});
+            const text=body.result.value||"";
+            for(const required of ["Two-factor authentication","Sign out other owner sessions","Verify backup"]){
+              if(!text.includes(required))throw new Error("Owner security UI missing: "+required);
+            }
+            const securityWidths=[320,390,720,721,1440,3440];
+            const securityOverflow=[];
+            for(const width of securityWidths){
+              await send("Emulation.setDeviceMetricsOverride",{width,height:1400,deviceScaleFactor:1,mobile:width<=720});
+              await wait(200);
+              const metrics=await send("Runtime.evaluate",{expression:`(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth}))()`,returnByValue:true});
+              const value=metrics.result.value;
+              if(value.scrollWidth>value.clientWidth+1||value.bodyWidth>value.clientWidth+1)securityOverflow.push({width,...value});
+              const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+              fs.writeFileSync(`visual-smoke/owner-security-v088-${width}.png`,Buffer.from(shot.data,"base64"));
+            }
+            if(securityOverflow.length)throw new Error("Owner security panel horizontal overflow: "+JSON.stringify(securityOverflow));
+            await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1400,deviceScaleFactor:1,mobile:false});
+            await wait(200);
+
+            const setup=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/security/2fa/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return {status:r.status,body:await r.json()};})()`,awaitPromise:true,returnByValue:true});
+            if(setup.result.value?.status!==200)throw new Error("Browser 2FA setup failed: "+JSON.stringify(setup.result.value));
+            const secret=setup.result.value.body.manualSecret;
+            const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,buffer=0;const bytes=[];
+            for(const char of secret){buffer=(buffer<<5)|alphabet.indexOf(char);bits+=5;if(bits>=8){bytes.push((buffer>>>(bits-8))&255);bits-=8;}}
+            const counter=Math.floor(Date.now()/1000/30);const msg=Buffer.alloc(8);msg.writeBigUInt64BE(BigInt(counter));
+            const digest=crypto.createHmac("sha1",Buffer.from(bytes)).update(msg).digest();const offset=digest[digest.length-1]&15;
+            const code=String(((((digest[offset]&127)<<24)|((digest[offset+1]&255)<<16)|((digest[offset+2]&255)<<8)|(digest[offset+3]&255))>>>0)%1000000).padStart(6,"0");
+            const enabled=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/security/2fa/enable",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:"${code}"})});return {status:r.status,text:await r.text()};})()`,awaitPromise:true,returnByValue:true});
+            if(enabled.result.value?.status!==200)throw new Error("Browser 2FA enable failed: "+JSON.stringify(enabled.result.value));
+            await send("Runtime.evaluate",{expression:`fetch("/api/owner/logout",{method:"POST"})`,awaitPromise:true});
+            await send("Page.navigate",{url:"http://localhost:3002/login?admin=1"}); await wait(700);
+            const submitted=await send("Runtime.evaluate",{expression:`(()=>{const input=document.querySelector('input[name="password"]');const form=input?.closest("form");if(!input||!form)return false;const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")?.set;setter?.call(input,"ci-owner-password-12345");input.dispatchEvent(new Event("input",{bubbles:true}));form.requestSubmit();return true;})()`,returnByValue:true});
+            if(!submitted.result.value)throw new Error("Owner password form could not be submitted");
+            let secondFactor=false;
+            for(let i=0;i<30;i++){
+              const state=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("Authenticator code") && document.body.innerText.includes("Use a recovery code")`,returnByValue:true});
+              if(state.result.value){secondFactor=true;break;}
+              await wait(200);
+            }
+            if(!secondFactor)throw new Error("Owner login did not transition to the second-factor UI");
+            const secondFactorValue=await send("Runtime.evaluate",{expression:`document.querySelector('input[name="code"]')?.value || ""`,returnByValue:true});
+            if(secondFactorValue.result.value)throw new Error("Second-factor input retained a previous credential value.");
+            const loginShot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+            fs.writeFileSync("visual-smoke/owner-login-second-factor-v088.png",Buffer.from(loginShot.data,"base64"));
+            ws.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+          if [ -f /tmp/v088-security-server.pid ]; then kill -- "-$(cat /tmp/v088-security-server.pid)" 2>/dev/null || true; fi
+          if [ -f /tmp/v088-security-chrome.pid ]; then kill "$(cat /tmp/v088-security-chrome.pid)" 2>/dev/null || true; fi
+          for i in {1..20}; do
+            if ! curl -fsS http://127.0.0.1:3002/api/health >/dev/null 2>&1; then break; fi
+            sleep 0.25
+          done
+
       - name: Verify final-balance invoice workflow
         run: |
           rm -f /tmp/meshharbor-v086-invoice.sqlite*
@@ -600,6 +916,6 @@ jobs:
       - name: Upload responsive visual matrix
         uses: actions/upload-artifact@v4
         with:
-          name: responsive-visual-matrix-v087
+          name: responsive-visual-matrix-v088
           path: visual-smoke/*.png
           retention-days: 7
