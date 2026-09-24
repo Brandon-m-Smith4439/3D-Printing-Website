@@ -29,7 +29,7 @@ jobs:
       - name: Start production app
         env:
           NEXT_PUBLIC_SITE_URL: https://meshharbor3d.com
-          DATABASE_PATH: /tmp/meshharbor-v084.sqlite
+          DATABASE_PATH: /tmp/meshharbor-v086.sqlite
           PRIVATE_STORAGE_DIR: /tmp/meshharbor-private
           CUSTOMER_SESSION_SECRET: ci-customer-session-secret-12345678901234567890
           OWNER_SESSION_SECRET: ci-owner-session-secret-12345678901234567890123
@@ -66,6 +66,147 @@ jobs:
           CODE=$(curl -sS -o /tmp/3mf.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "file=@/tmp/meshharbor-test.3mf;type=model/3mf"             http://127.0.0.1:3000/api/custom-request/upload)
           test "$CODE" = "503" || { cat /tmp/3mf.json; exit 1; }
           grep -q "File scanning is temporarily unavailable" /tmp/3mf.json
+      - name: Verify final-balance invoice workflow
+        run: |
+          rm -f /tmp/meshharbor-v086-invoice.sqlite*
+          node <<'NODE'
+          const { DatabaseSync } = require("node:sqlite");
+          const db = new DatabaseSync("/tmp/meshharbor-v086-invoice.sqlite");
+          db.exec(`
+            CREATE TABLE IF NOT EXISTS app_records (
+              collection TEXT NOT NULL,
+              id TEXT NOT NULL,
+              json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (collection, id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_app_records_collection ON app_records(collection);
+            CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+          `);
+          const now = new Date().toISOString();
+          const request = {
+            id:"req-invoice-fixture",requestCode:"MH3D-INVOICE-TEST",status:"queued",name:"Invoice Test Customer",
+            email:"invoice-test@example.test",phone:"",projectType:"other",modelStatus:"ready",fulfillmentMethod:"pickup",
+            assemblyPreference:"unsure",quantity:1,dimensions:"",materialPreference:"pla",colorPreference:"",budget:"",
+            neededBy:"",neededBySubmitted:"",referenceUrl:"",description:"Final invoice workflow validation.",imageUrl:"",
+            attachments:[],internalNote:"",createdAt:now,updatedAt:now,queuedAt:now,queueJobId:"job-invoice-fixture",
+            customerAccountId:"",riskLevel:"none",riskFlags:[],source:"customer",emailNotifications:false
+          };
+          const quote = {
+            id:"quote-invoice-fixture",requestId:request.id,requestCode:request.requestCode,customerAccountId:"",
+            status:"deposit-paid",revision:1,basePriceCents:10000,assemblyMode:"not-required",assemblyFeeCents:0,rushFeeCents:0,
+            fulfillmentMode:"pickup",localDeliveryFeeCents:0,packageWeightOz:0,packageLengthIn:0,packageWidthIn:0,packageHeightIn:0,
+            shippingSelection:null,totalCents:10000,depositCents:5000,balanceCents:5000,currency:"usd",material:"PLA",
+            dimensions:"Test fixture",estimatedReadyDate:"",notes:"",terms:"Validation fixture terms long enough for the quote model.",
+            createdAt:now,updatedAt:now,sentAt:now,approvedAt:now,approvedByCustomerId:"",approvalSnapshot:null,
+            stripeCheckoutSessionId:"cs_test_fixture",stripeCheckoutAmountCents:0,depositPaidAt:now,paymentProvider:"stripe",
+            payments:[{id:"pay-fixture",revision:1,amountCents:5000,checkoutSessionId:"cs_test_fixture",paymentIntentId:"pi_test_fixture",paidAt:now}],
+            refunds:[],history:[]
+          };
+          const job = {
+            id:"job-invoice-fixture",sourceRequestId:request.id,publicCode:"3D-INVTEST",publicTitle:"Invoice workflow test",
+            customerName:request.name,customerEmail:request.email,fulfillmentMethod:"pickup",quantity:1,status:"finishing",
+            estimatedReadyDate:"",imageUrl:"",publicNote:"",privateNote:"",sortOrder:0,createdAt:now,updatedAt:now,
+            completedAt:"",completionEmailSentAt:""
+          };
+          const insert=db.prepare("INSERT INTO app_records(collection,id,json,updated_at) VALUES (?,?,?,?)");
+          insert.run("requests",request.id,JSON.stringify(request),now);
+          insert.run("quotes",quote.id,JSON.stringify(quote),now);
+          insert.run("queue",job.id,JSON.stringify(job),now);
+          db.close();
+          NODE
+
+          DATABASE_PATH=/tmp/meshharbor-v086-invoice.sqlite           PRIVATE_STORAGE_DIR=/tmp/meshharbor-v086-invoice-private           CUSTOMER_SESSION_SECRET=ci-invoice-customer-session-secret-1234567890           OWNER_SESSION_SECRET=ci-invoice-owner-session-secret-1234567890123           OWNER_PASSWORD=ci-owner-password-12345           NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3001           npm run dev -- -p 3001 > /tmp/meshharbor-invoice-server.log 2>&1 &
+          echo $! > /tmp/meshharbor-invoice-server.pid
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:3001/api/health >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3001/api/health >/dev/null || { cat /tmp/meshharbor-invoice-server.log; exit 1; }
+
+          curl -fsS -c /tmp/invoice-owner.cookies             -H "Origin: http://127.0.0.1:3001" -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3001/api/owner/login >/tmp/invoice-login.json
+
+          READY_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/invoice-ready.json -w "%{http_code}"             -X PATCH -H "Origin: http://127.0.0.1:3001" -H "Content-Type: application/json"             --data '{"status":"ready"}'             http://127.0.0.1:3001/api/owner/queue/job-invoice-fixture)
+          test "$READY_CODE" = "200" || { cat /tmp/invoice-ready.json; cat /tmp/meshharbor-invoice-server.log; exit 1; }
+
+          curl -fsS -b /tmp/invoice-owner.cookies http://127.0.0.1:3001/api/owner/requests >/tmp/invoice-owner-data.json
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/invoice-owner-data.json","utf8"));
+          const invoice=(data.finalInvoices||[]).find(x=>x.requestId==="req-invoice-fixture");
+          if(!invoice) throw new Error("Ready transition did not create final invoice");
+          if(invoice.status!=="open") throw new Error("Expected open development invoice, got "+invoice.status);
+          if(invoice.amountDueCents!==5000 || invoice.amountRemainingCents!==5000) throw new Error("Final invoice amount was not the exact remaining $50.00 balance");
+          console.log("Development final invoice created:", invoice);
+          NODE
+
+          COMPLETE_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/invoice-complete-blocked.json -w "%{http_code}"             -X PATCH -H "Origin: http://127.0.0.1:3001" -H "Content-Type: application/json"             --data '{"status":"completed"}'             http://127.0.0.1:3001/api/owner/queue/job-invoice-fixture)
+          test "$COMPLETE_CODE" = "409" || { cat /tmp/invoice-complete-blocked.json; exit 1; }
+          grep -q "final balance invoice must be paid" /tmp/invoice-complete-blocked.json
+
+          node <<'NODE'
+          const { DatabaseSync } = require("node:sqlite");
+          const db=new DatabaseSync("/tmp/meshharbor-v086-invoice.sqlite");
+          const row=db.prepare("SELECT id,json FROM app_records WHERE collection='final-invoices' LIMIT 1").get();
+          const invoice=JSON.parse(row.json);
+          invoice.status="paid"; invoice.amountPaidCents=invoice.amountDueCents; invoice.amountRemainingCents=0;
+          invoice.paidAt=new Date().toISOString(); invoice.updatedAt=invoice.paidAt;
+          db.prepare("UPDATE app_records SET json=?,updated_at=? WHERE collection='final-invoices' AND id=?").run(JSON.stringify(invoice),invoice.updatedAt,row.id);
+          db.close();
+          NODE
+
+          COMPLETE_CODE=$(curl -sS -b /tmp/invoice-owner.cookies -o /tmp/invoice-complete-paid.json -w "%{http_code}"             -X PATCH -H "Origin: http://127.0.0.1:3001" -H "Content-Type: application/json"             --data '{"status":"completed"}'             http://127.0.0.1:3001/api/owner/queue/job-invoice-fixture)
+          test "$COMPLETE_CODE" = "200" || { cat /tmp/invoice-complete-paid.json; exit 1; }
+
+      - name: Capture final invoice owner UI
+        run: |
+          mkdir -p visual-smoke
+          node <<'NODE'
+          const fs=require("node:fs");
+          const { DatabaseSync }=require("node:sqlite");
+          const db=new DatabaseSync("/tmp/meshharbor-v086-invoice.sqlite");
+          const jobRow=db.prepare("SELECT id,json FROM app_records WHERE collection='queue' AND id='job-invoice-fixture'").get();
+          const job=JSON.parse(jobRow.json); job.status="ready"; job.completedAt=""; job.updatedAt=new Date().toISOString();
+          db.prepare("UPDATE app_records SET json=?,updated_at=? WHERE collection='queue' AND id=?").run(JSON.stringify(job),job.updatedAt,jobRow.id);
+          const reqRow=db.prepare("SELECT id,json FROM app_records WHERE collection='requests' AND id='req-invoice-fixture'").get();
+          const req=JSON.parse(reqRow.json); req.status="queued"; req.updatedAt=job.updatedAt;
+          db.prepare("UPDATE app_records SET json=?,updated_at=? WHERE collection='requests' AND id=?").run(JSON.stringify(req),req.updatedAt,reqRow.id);
+          const invRow=db.prepare("SELECT id,json FROM app_records WHERE collection='final-invoices' LIMIT 1").get();
+          const inv=JSON.parse(invRow.json); inv.status="open"; inv.amountPaidCents=0; inv.amountRemainingCents=inv.amountDueCents; inv.paidAt=""; inv.updatedAt=job.updatedAt;
+          db.prepare("UPDATE app_records SET json=?,updated_at=? WHERE collection='final-invoices' AND id=?").run(JSON.stringify(inv),inv.updatedAt,invRow.id);
+          db.close();
+          NODE
+
+          rm -rf /tmp/meshharbor-invoice-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars             --remote-debugging-port=9224 --user-data-dir=/tmp/meshharbor-invoice-chrome about:blank >/tmp/invoice-chrome.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:9224/json/version >/dev/null && break
+            sleep 0.5
+          done
+          node <<'NODE'
+          const fs=require("node:fs");
+          const pages=await (await fetch("http://127.0.0.1:9224/json/list")).json();
+          const page=pages.find(p=>p.type==="page");
+          if(!page) throw new Error("No Chrome page target");
+          const ws=new WebSocket(page.webSocketDebuggerUrl);
+          await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+          let id=0;const pending=new Map();
+          ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}};
+          const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params}));});
+          const wait=ms=>new Promise(r=>setTimeout(r,ms));
+          await send("Page.enable"); await send("Runtime.enable");
+          await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1200,deviceScaleFactor:1,mobile:false});
+          await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"}); await wait(1000);
+          await send("Runtime.evaluate",{expression:`fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})})`,awaitPromise:true});
+          await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"}); await wait(1600);
+          await send("Runtime.evaluate",{expression:`document.querySelector(".production-request-header")?.click()`}); await wait(500);
+          const body=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("FINAL BALANCE") && document.body.innerText.includes("$50.00")`,returnByValue:true});
+          if(!body.result.value) throw new Error("Final balance panel was not visible in owner UI");
+          const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+          fs.writeFileSync("visual-smoke/owner-final-invoice-v086.png",Buffer.from(shot.data,"base64"));
+          ws.close();
+          NODE
+
       - name: Verify responsive pages do not overflow horizontally
         run: |
           rm -rf /tmp/meshharbor-chrome-profile
@@ -136,6 +277,6 @@ jobs:
       - name: Upload responsive visual matrix
         uses: actions/upload-artifact@v4
         with:
-          name: responsive-visual-matrix-v085
+          name: responsive-visual-matrix-v086
           path: visual-smoke/*.png
           retention-days: 7
