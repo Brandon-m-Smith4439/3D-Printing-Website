@@ -341,19 +341,28 @@ jobs:
               const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,5000)`,returnByValue:true});
               throw new Error("Owner dashboard did not default to Operations Center. Body: "+debug.result.value);
             }
+            const searched=await send("Runtime.evaluate",{expression:`(()=>{const input=document.querySelector('input[aria-label="Search all owner records"]');if(!input)return false;const setter=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value")?.set;setter?.call(input,"MH3D-INVOICE-TEST");input.dispatchEvent(new Event("input",{bubbles:true}));return true;})()`,returnByValue:true});
+            if(!searched.result.value) throw new Error("Operations Center search input was not found.");
+            let searchResultVisible=false;
+            for(let i=0;i<20;i++){
+              const found=await send("Runtime.evaluate",{expression:`[...document.querySelectorAll(".operations-search-results button")].some(button=>button.innerText.includes("MH3D-INVOICE-TEST"))`,returnByValue:true});
+              if(found.result.value){searchResultVisible=true;break;}
+              await wait(250);
+            }
+            if(!searchResultVisible) throw new Error("Operations Center search did not find the seeded invoice request.");
+            await send("Runtime.evaluate",{expression:`[...document.querySelectorAll(".operations-search-results button")].find(button=>button.innerText.includes("MH3D-INVOICE-TEST"))?.click()`});
             let cardVisible=false;
             for(let i=0;i<30;i++){
-              const card=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector(".production-request-header"))`,returnByValue:true});
+              const card=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector("#owner-request-req-invoice-fixture .production-request-header"))`,returnByValue:true});
               if(card.result.value){cardVisible=true;break;}
-              await wait(500);
+              await wait(300);
             }
             if(!cardVisible){
               const debug=await send("Runtime.evaluate",{expression:`document.body.innerText.slice(0,6000)`,returnByValue:true});
               const resources=await send("Runtime.evaluate",{expression:`performance.getEntriesByType("resource").map(r=>r.name).filter(n=>n.includes("/api/owner/")).slice(-30)`,returnByValue:true});
               let serverLog="";try{serverLog=fs.readFileSync("/tmp/meshharbor-invoice-server.log","utf8").slice(-12000);}catch{}
-              throw new Error("Production request card was not visible. API preflight: "+JSON.stringify(apiCheck.result.value)+" Resources: "+JSON.stringify(resources.result.value)+" Body: "+debug.result.value+" Server log: "+serverLog);
+              throw new Error("Focused production request card was not visible. API preflight: "+JSON.stringify(apiCheck.result.value)+" Resources: "+JSON.stringify(resources.result.value)+" Body: "+debug.result.value+" Server log: "+serverLog);
             }
-            await send("Runtime.evaluate",{expression:`document.querySelector(".production-request-header")?.click()`});
             let invoiceVisible=false;
             for(let i=0;i<20;i++){
               const body=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("FINAL BALANCE") && document.body.innerText.includes("$50.00")`,returnByValue:true});
