@@ -14,6 +14,7 @@ export type FinalInvoiceRecord = {
   status: FinalInvoiceStatus;
   amountDueCents: number;
   amountPaidCents: number;
+  amountRemainingCents: number;
   currency: "usd";
   hostedInvoiceUrl: string;
   invoicePdfUrl: string;
@@ -27,5 +28,5 @@ export type FinalInvoiceRecord = {
 };
 
 export function finalInvoicePaid(invoice: FinalInvoiceRecord | null | undefined) {
-  return Boolean(invoice && invoice.status === "paid" && invoice.amountDueCents > 0 && invoice.amountPaidCents >= invoice.amountDueCents);
+  return Boolean(invoice && invoice.status === "paid" && invoice.amountDueCents > 0 && invoice.amountRemainingCents === 0);
 }
