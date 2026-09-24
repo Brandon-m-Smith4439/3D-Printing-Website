@@ -338,7 +338,7 @@ jobs:
             await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1400,deviceScaleFactor:1,mobile:false});
             await wait(200);
 
-            const setup=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/security/2fa/setup",{method:"POST"});return {status:r.status,body:await r.json()};})()`,awaitPromise:true,returnByValue:true});
+            const setup=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/security/2fa/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return {status:r.status,body:await r.json()};})()`,awaitPromise:true,returnByValue:true});
             if(setup.result.value?.status!==200)throw new Error("Browser 2FA setup failed: "+JSON.stringify(setup.result.value));
             const secret=setup.result.value.body.manualSecret;
             const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,buffer=0;const bytes=[];
