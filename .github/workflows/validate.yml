@@ -107,6 +107,26 @@ jobs:
           fs.writeFileSync("/tmp/v088-totp.txt",String(value).padStart(6,"0"));
           fs.writeFileSync("/tmp/v088-secret.txt",data.manualSecret);
           NODE
+          cp /tmp/v088-totp.txt /tmp/v088-totp-node.txt
+          python3 <<'PY'
+          import base64, hashlib, hmac, json, struct, time
+          with open("/tmp/v088-2fa-setup.json", "r", encoding="utf-8") as handle:
+              secret=json.load(handle)["manualSecret"]
+          key=base64.b32decode(secret)
+          counter=int(time.time())//30
+          digest=hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+          offset=digest[-1] & 0x0F
+          value=(struct.unpack(">I", digest[offset:offset+4])[0] & 0x7FFFFFFF) % 1000000
+          with open("/tmp/v088-totp-python.txt", "w", encoding="utf-8") as handle:
+              handle.write(f"{value:06d}")
+          PY
+          cmp /tmp/v088-totp-node.txt /tmp/v088-totp-python.txt || {
+            echo "TOTP implementation does not match the Python standard-library oracle."
+            echo "Node: $(cat /tmp/v088-totp-node.txt)"
+            echo "Python: $(cat /tmp/v088-totp-python.txt)"
+            exit 1
+          }
+          cp /tmp/v088-totp-python.txt /tmp/v088-totp.txt
 
           ENABLE_CODE=$(curl -sS -b /tmp/v088-owner.cookies -c /tmp/v088-enabled-owner.cookies -o /tmp/v088-2fa-enable.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data "$(node -e 'process.stdout.write(JSON.stringify({code:require("fs").readFileSync("/tmp/v088-totp.txt","utf8")}))')"             http://127.0.0.1:3000/api/owner/security/2fa/enable)
           test "$ENABLE_CODE" = "200" || {
@@ -296,8 +316,20 @@ jobs:
             for(const required of ["Two-factor authentication","Sign out other owner sessions","Verify backup"]){
               if(!text.includes(required))throw new Error("Owner security UI missing: "+required);
             }
-            const securityShot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
-            fs.writeFileSync("visual-smoke/owner-security-v088-1440.png",Buffer.from(securityShot.data,"base64"));
+            const securityWidths=[320,390,720,721,1440,3440];
+            const securityOverflow=[];
+            for(const width of securityWidths){
+              await send("Emulation.setDeviceMetricsOverride",{width,height:1400,deviceScaleFactor:1,mobile:width<=720});
+              await wait(200);
+              const metrics=await send("Runtime.evaluate",{expression:`(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth}))()`,returnByValue:true});
+              const value=metrics.result.value;
+              if(value.scrollWidth>value.clientWidth+1||value.bodyWidth>value.clientWidth+1)securityOverflow.push({width,...value});
+              const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+              fs.writeFileSync(`visual-smoke/owner-security-v088-${width}.png`,Buffer.from(shot.data,"base64"));
+            }
+            if(securityOverflow.length)throw new Error("Owner security panel horizontal overflow: "+JSON.stringify(securityOverflow));
+            await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1400,deviceScaleFactor:1,mobile:false});
+            await wait(200);
 
             const setup=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/security/2fa/setup",{method:"POST"});return {status:r.status,body:await r.json()};})()`,awaitPromise:true,returnByValue:true});
             if(setup.result.value?.status!==200)throw new Error("Browser 2FA setup failed: "+JSON.stringify(setup.result.value));
