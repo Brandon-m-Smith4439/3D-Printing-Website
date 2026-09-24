@@ -10,6 +10,7 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
   const [busy, setBusy] = useState(false);
   const [adminStep, setAdminStep] = useState<"password" | "second-factor">("password");
   const [adminRecoveryMode, setAdminRecoveryMode] = useState(false);
+  const [adminSecondFactorCode, setAdminSecondFactorCode] = useState("");
 
   async function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -30,12 +31,11 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
 
   async function submitAdminSecondFactor(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const data = new FormData(event.currentTarget);
     try {
       const response = await fetch("/api/owner/login/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: data.get("code") }),
+        body: JSON.stringify({ code: adminSecondFactorCode }),
       });
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message || "Could not verify the second factor.");
@@ -69,6 +69,7 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
       if (result.requiresSecondFactor) {
         setAdminStep("second-factor");
         setAdminRecoveryMode(false);
+        setAdminSecondFactorCode("");
         setMessage("");
         return;
       }
@@ -95,20 +96,23 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
             <span>{adminRecoveryMode ? "Recovery code" : "Authenticator code"}</span>
             <input
               name="code"
+              value={adminSecondFactorCode}
+              onChange={(event) => setAdminSecondFactorCode(event.target.value)}
               inputMode={adminRecoveryMode ? "text" : "numeric"}
-              autoComplete="one-time-code"
+              autoComplete={adminRecoveryMode ? "off" : "one-time-code"}
               placeholder={adminRecoveryMode ? "MH3D-XXXX-XXXX-XXXX" : "000000"}
               maxLength={adminRecoveryMode ? 19 : 8}
+              spellCheck={false}
               required
               autoFocus
             />
           </label>
           <button className="button" type="submit" disabled={busy}>{busy ? "Verifying…" : "Verify & Open Dashboard"}</button>
           <div className="admin-second-factor-actions">
-            <button className="text-button" type="button" onClick={() => { setAdminRecoveryMode((value) => !value); setMessage(""); }}>
+            <button className="text-button" type="button" onClick={() => { setAdminRecoveryMode((value) => !value); setAdminSecondFactorCode(""); setMessage(""); }}>
               {adminRecoveryMode ? "Use authenticator code" : "Use a recovery code"}
             </button>
-            <button className="text-button" type="button" onClick={() => { setAdminStep("password"); setAdminRecoveryMode(false); setMessage(""); }}>
+            <button className="text-button" type="button" onClick={() => { setAdminStep("password"); setAdminRecoveryMode(false); setAdminSecondFactorCode(""); setMessage(""); }}>
               Start over
             </button>
           </div>
