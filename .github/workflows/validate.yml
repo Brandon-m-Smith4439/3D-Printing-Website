@@ -69,6 +69,15 @@ jobs:
       - name: Verify owner security status endpoint
         run: |
           curl -fsS -c /tmp/v088-owner.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-owner-login.json
+          curl -fsS -b /tmp/v088-owner.cookies http://127.0.0.1:3000/api/owner/audit >/tmp/v088-security-audit.json
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/v088-security-audit.json","utf8"));
+          if(!(data.entries||[]).some(entry=>entry.action==="owner-login-failed")) {
+            throw new Error("Failed owner password attempts are not visible in the security audit history");
+          }
+          NODE
+
           SECURITY_CODE=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/v088-security.json -w "%{http_code}"             http://127.0.0.1:3000/api/owner/security)
           test "$SECURITY_CODE" = "200" || {
             echo "Expected owner security status endpoint to return 200, got $SECURITY_CODE"
