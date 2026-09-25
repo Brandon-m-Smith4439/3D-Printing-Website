@@ -4,7 +4,8 @@ import type { ParsedBambuInvoice, ReviewedBambuInvoiceLine } from './bambu-invoi
 function cents(value:string|undefined){if(!value)return 0;const n=Number(value.replace(/[$,]/g,''));return Number.isFinite(n)?Math.round(n*100):0;}
 function normalize(value:string){return value.toLowerCase().replace(/[—–-]/g,' ').replace(/[^a-z0-9+]+/g,' ').trim().replace(/\s+/g,' ');}
 function isoDate(raw:string){
-  const text=raw.trim();+  const parsed=new Date(text);
+  const text=raw.trim();
+  const parsed=new Date(text);
   if(!Number.isFinite(parsed.getTime()))return '';
   const y=parsed.getUTCFullYear();const m=String(parsed.getUTCMonth()+1).padStart(2,'0');const d=String(parsed.getUTCDate()).padStart(2,'0');
   return `${y}-${m}-${d}`;
