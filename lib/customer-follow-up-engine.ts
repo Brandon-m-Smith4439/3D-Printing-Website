@@ -56,6 +56,7 @@ export async function runCustomerFollowUpSweep(deps:FollowUpEngineDependencies={
     const request=requestById.get(candidate.requestId); if(!request){continue;}
     let record=(await readFollowUps()).find(r=>r.id===candidate.id)||null;
     if(record?.status==="sent"||record?.status==="canceled") continue;
+    if(record?.status==="failed"&&!record.nextAttemptAt) continue;
     if(record?.nextAttemptAt&&Date.parse(record.nextAttemptAt)>now.getTime()) continue;
     record=record||await upsertFollowUp(recordFromCandidate(candidate,now.toISOString()));
     const attempt=Math.min(3,(record.attemptCount||0)+1);
