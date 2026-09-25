@@ -1,0 +1,33 @@
+name: Apply V0.90 Local Sync
+
+on:
+  push:
+    branches:
+      - feature/v090-pricing-profitability
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: add one-time v0.90 local sync workflow'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/v090-pricing-profitability
+          fetch-depth: 0
+      - name: Apply verified local patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check .v090-local.patch
+          git apply .v090-local.patch
+          rm .v090-local.patch
+          rm .github/workflows/apply-v090-local.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "V0.90 sync verified local implementation"
+          git push origin HEAD:feature/v090-pricing-profitability
