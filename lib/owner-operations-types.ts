@@ -14,7 +14,8 @@ export type OwnerAttentionCategory =
   | "invoice"
   | "shipping"
   | "backup"
-  | "integration";
+  | "integration"
+  | "follow-up";
 
 export type OwnerAttentionItem = {
   id: string;
@@ -64,11 +65,13 @@ export type OwnerOperationsSnapshot = {
     newRequests: number;
     activeProduction: number;
     finalBalancesDue: number;
+    followUpsDue: number;
     completed: number;
   };
   attention: OwnerAttentionItem[];
   search: OwnerSearchRecord[];
   integrations: OwnerIntegrationHealth;
+  followUps: OwnerFollowUpSummary;
 };
 
 export type OwnerBackupInfo = {
@@ -100,6 +103,16 @@ export type OwnerShippingSummary = {
   autoBuyLabels: boolean;
 };
 
+export type OwnerFollowUpSummary = {
+  deploymentEnabled: boolean;
+  ownerEnabled: boolean;
+  due: number;
+  deferred: number;
+  sentLast7Days: number;
+  failed: number;
+  failedRequests: Array<{ requestId: string; requestCode: string; createdAt: string; reason: string }>;
+};
+
 export type OwnerOperationsInput = {
   requests: StoredRequest[];
   quotes: StoredQuote[];
@@ -110,4 +123,5 @@ export type OwnerOperationsInput = {
   backups: OwnerBackupInfo[];
   stripe: OwnerStripeSummary;
   shipping: OwnerShippingSummary;
+  followUps: OwnerFollowUpSummary;
 };

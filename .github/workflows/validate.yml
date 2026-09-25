@@ -24,6 +24,12 @@ jobs:
         run: npm ci
       - name: Verify EasyPost mode policy
         run: node --experimental-strip-types tests/easypost-mode.test.mjs
+      - name: Verify customer follow-up policy
+        run: |
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-policy.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-store.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-email.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-engine.test.mjs
       - name: Lint
         run: npm run lint
       - name: Build
@@ -40,6 +46,8 @@ jobs:
           EASYPOST_WEBHOOK_SECRET: ci-easypost-webhook-secret-1234567890
           EASYPOST_LIVE_ENABLED: "false"
           EASYPOST_AUTO_BUY_LABELS: "false"
+          CUSTOMER_FOLLOWUPS_ENABLED: "false"
+          CUSTOMER_FOLLOWUPS_INTERVAL_MINUTES: "60"
         run: |
           npm start > /tmp/meshharbor-server.log 2>&1 &
           echo $! > /tmp/meshharbor-server.pid
@@ -75,6 +83,24 @@ jobs:
       - name: Verify owner security status endpoint
         run: |
           curl -fsS -c /tmp/v088-owner.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-owner-login.json
+
+          UNAUTH_FOLLOWUPS=$(curl -sS -o /tmp/followups-unauth.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/follow-ups)
+          test "$UNAUTH_FOLLOWUPS" = "401" || { cat /tmp/followups-unauth.json; exit 1; }
+
+          EVIL_FOLLOWUP_SETTINGS=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/followups-evil.json -w "%{http_code}" -X PATCH -H "Origin: https://example.invalid" -H "Content-Type: application/json" --data '{"enabled":true}' http://127.0.0.1:3000/api/owner/follow-ups/settings)
+          test "$EVIL_FOLLOWUP_SETTINGS" = "403" || { cat /tmp/followups-evil.json; exit 1; }
+
+          FOLLOWUP_STATUS=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/followups-status.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/follow-ups)
+          test "$FOLLOWUP_STATUS" = "200" || { cat /tmp/followups-status.json; exit 1; }
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/followups-status.json","utf8"));
+          if(data.deploymentEnabled!==false) throw new Error("Customer follow-up deployment gate must default off in CI");
+          if(data.settings?.enabled!==false) throw new Error("Customer follow-up owner switch must default off");
+          NODE
+
+          FOLLOWUP_PREVIEW=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/followups-preview.json -w "%{http_code}" -X POST -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" http://127.0.0.1:3000/api/owner/follow-ups/preview)
+          test "$FOLLOWUP_PREVIEW" = "200" || { cat /tmp/followups-preview.json; exit 1; }
 
           UNAUTH_EASYPOST_TEST=$(curl -sS -o /tmp/easypost-test-unauth.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com"             http://127.0.0.1:3000/api/owner/shipping/test)
           test "$UNAUTH_EASYPOST_TEST" = "401" || { cat /tmp/easypost-test-unauth.json; exit 1; }
