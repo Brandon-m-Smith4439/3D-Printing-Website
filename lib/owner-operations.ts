@@ -1,5 +1,6 @@
 import "server-only";
 import { quoteDepositOutstandingCents, quoteDepositSatisfied } from "@/lib/quote-types";
+import { easyPostReadinessPresentation } from "@/lib/easypost-mode";
 import type {
   OwnerAttentionItem,
   OwnerAttentionSeverity,
@@ -69,13 +70,7 @@ function buildIntegrationHealth(input: OwnerOperationsInput, nowMs: number): Own
           ? { tone: "warning" as const, label: "Stripe test mode", detail: "Sandbox payments and invoicing are configured; live mode is intentionally off." }
           : { tone: "warning" as const, label: "Stripe test setup incomplete", detail: "A test key is configured, but webhook signing still needs attention." };
 
-  const easyPost = !input.shipping.configured
-    ? { tone: "warning" as const, label: "EasyPost waiting for setup", detail: "API access is still pending; no shipping outage is reported." }
-    : input.shipping.mode === "production" && (!input.shipping.fromAddressConfigured || !input.shipping.webhookSecretConfigured)
-      ? { tone: "error" as const, label: "EasyPost production needs attention", detail: "Production shipping requires a ship-from address and signed webhook." }
-      : input.shipping.fromAddressConfigured
-        ? { tone: "good" as const, label: input.shipping.mode === "test" ? "EasyPost test mode" : "EasyPost configured", detail: input.shipping.mode === "test" ? "Rates and labels can be tested safely." : "Carrier shipping is configured." }
-        : { tone: "warning" as const, label: "EasyPost address needed", detail: "Add the ship-from address before requesting carrier rates." };
+  const easyPost = easyPostReadinessPresentation(input.shipping.readiness);
 
   const latestBackup = latestBy(input.backups, (item) => item.createdAt);
   const backupAge = latestBackup ? ageHours(latestBackup.createdAt, nowMs) : Number.POSITIVE_INFINITY;
