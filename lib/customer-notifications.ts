@@ -1,9 +1,9 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import type { CustomerNotification } from "@/lib/customer-types";
-import type { StoredRequest } from "@/lib/request-types";
-import { findCustomerById } from "@/lib/customer-store";
-import { readCollection, writeCollection } from "@/lib/database";
+import type { CustomerNotification } from "./customer-types.ts";
+import type { StoredRequest } from "./request-types.ts";
+import { findCustomerById } from "./customer-store.ts";
+import { readCollection, writeCollection } from "./database.ts";
 
 let mutationChain = Promise.resolve();
 
@@ -21,7 +21,7 @@ function mutate<T>(operation: () => Promise<T>): Promise<T> {
   return next;
 }
 
-async function maybeEmail(request: StoredRequest, message: string) {
+async function maybeEmail(request: StoredRequest, message: string, subject?: string) {
   if (!request.customerAccountId) return;
   const account = await findCustomerById(request.customerAccountId);
   const wantsEmail = request.emailNotifications ?? account?.preferences.emailStatusUpdates ?? false;
@@ -38,21 +38,24 @@ async function maybeEmail(request: StoredRequest, message: string) {
     body: JSON.stringify({
       from,
       to: [account.email],
-      subject: `${request.requestCode} status update`,
+      subject: subject || `${request.requestCode} status update`,
       text: `Your 3D print request has an update:\n\n${message}\n\nRequest: ${request.requestCode}`,
     }),
   });
   if (!response.ok) console.error("Customer status notification email failed", response.status, await response.text().catch(() => ""));
 }
 
-export async function notifyCustomer(request: StoredRequest, message: string, options: { email?: boolean } = {}) {
+type NotificationOptions = { email?: boolean; notificationId?: string; subject?: string };
+
+export async function notifyCustomer(request: StoredRequest, message: string, options: NotificationOptions = {}) {
   if (!request.customerAccountId) return;
   await mutate(async () => {
     const items = await readAll();
-    items.push({ id: randomUUID(), customerId: request.customerAccountId || "", requestId: request.id, requestCode: request.requestCode, message, createdAt: new Date().toISOString(), readAt: "" });
+    if (options.notificationId && items.some((item) => item.id === options.notificationId)) return;
+    items.push({ id: options.notificationId || randomUUID(), customerId: request.customerAccountId || "", requestId: request.id, requestCode: request.requestCode, message, createdAt: new Date().toISOString(), readAt: "" });
     await writeAll(items);
   });
-  if (options.email !== false) await maybeEmail(request, message).catch((error) => console.error("Customer notification email error", error));
+  if (options.email !== false) await maybeEmail(request, message, options.subject).catch((error) => console.error("Customer notification email error", error));
 }
 
 export async function notificationsForCustomer(customerId: string) {
