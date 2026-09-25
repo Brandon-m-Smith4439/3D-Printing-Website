@@ -57,6 +57,16 @@ export async function runCustomerFollowUpSweep(deps:FollowUpEngineDependencies={
     let record=(await readFollowUps()).find(r=>r.id===candidate.id)||null;
     if(record?.status==="sent"||record?.status==="canceled") continue;
     if(record?.status==="failed"&&!record.nextAttemptAt) continue;
+    if(record?.status==="sending"&&record.lastAttemptAt){
+      const lastAttemptMs=Date.parse(record.lastAttemptAt);
+      const idempotencyWindowMs=24*60*60*1000;
+      if(!Number.isFinite(lastAttemptMs)||now.getTime()-lastAttemptMs>=idempotencyWindowMs){
+        await updateFollowUp(record.id,{status:"failed",reason:"Ambiguous in-flight reminder exceeded the provider idempotency window; owner review is required before any resend.",nextAttemptAt:""});
+        result.failed++;
+        handled.add(candidate.requestId);
+        continue;
+      }
+    }
     if(record?.nextAttemptAt&&Date.parse(record.nextAttemptAt)>now.getTime()) continue;
     record=record||await upsertFollowUp(recordFromCandidate(candidate,now.toISOString()));
     const attempt=Math.min(3,(record.attemptCount||0)+1);
