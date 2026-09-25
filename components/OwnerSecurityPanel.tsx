@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { AuditEntry } from "@/lib/audit-log";
+import { easyPostDiagnosticNoticeKind } from "@/lib/easypost-mode";
 
 type BackupInfo = { name: string; createdAt: string; databaseBytes: number; includesPrivateFiles: boolean };
 type BackupVerification = {
@@ -134,7 +135,7 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
       if (!response.ok || !result.diagnostic) {
         throw new Error(result.diagnostic?.message || result.message || "Could not test EasyPost.");
       }
-      onNotice({ kind: "success", text: result.diagnostic.message });
+      onNotice({ kind: easyPostDiagnosticNoticeKind(result.diagnostic), text: result.diagnostic.message });
       await load();
     } catch (error) {
       onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not test EasyPost." });
