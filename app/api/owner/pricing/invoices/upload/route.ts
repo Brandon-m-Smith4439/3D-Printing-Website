@@ -44,7 +44,7 @@ export async function POST(request:NextRequest){
     const now=new Date().toISOString();
     const record=await createBambuInvoiceImport({id:randomUUID(),originalFileName:safeName(file.name),privateObjectKey:objectKey,sha256,orderNumber:parsed.orderNumber,orderDate:parsed.orderDate,subtotalCents:parsed.subtotalCents,discountCents:parsed.discountCents,shippingCents:parsed.shippingCents,taxCents:parsed.taxCents,totalCents:parsed.totalCents,parseStatus:parsed.parseStatus,parserVersion:'1',rawLineCount:parsed.lines.length,matchedFilamentLineCount:parsed.lines.filter(line=>line.isFilament&&line.catalogItemId).length,unmatchedLineCount:parsed.lines.filter(line=>line.isFilament&&!line.catalogItemId).length,warnings:parsed.warnings,lines:parsed.lines,createdAt:now,updatedAt:now,postedAt:''});
     await writeAudit({actor:'owner',actorId:'owner',action:'bambu-invoice-uploaded',targetType:'pricing-invoice',targetId:record.id,summary:`Bambu invoice ${record.orderNumber||record.originalFileName} uploaded for review.`,ipHash:requestIpHash(request)});
-    const {privateObjectKey:_private,...safe}=record;
+    const safe={...record};delete (safe as Partial<typeof record>).privateObjectKey;
     return NextResponse.json({invoice:safe},{status:201,headers:{'Cache-Control':'no-store'}});
   }catch(error){
     await deletePrivateObject(objectKey);
