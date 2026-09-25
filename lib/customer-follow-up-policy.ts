@@ -97,11 +97,11 @@ function makeCandidate(input: {
     anchorRevision: input.anchorRevision,
     dueAt: input.dueAt,
   } as const;
-  const id = followUpRecordId({ ...base, id: "", eligible: false, blockedReason: "", subject: "", text: "", idempotencyKey: "" });
+  const id = followUpRecordId({ requestId: base.requestId, type: base.type, anchorId: base.anchorId, anchorRevision: base.anchorRevision, stage: base.stage });
   const content = messageFor(input.type, input.request.requestCode, input.amountCents || 0);
   const existing = input.records.find((item) => item.id === id);
   const stageOneId = input.stage === 2
-    ? followUpRecordId({ ...base, stage: 1, id: "", eligible: false, blockedReason: "", subject: "", text: "", idempotencyKey: "" })
+    ? followUpRecordId({ requestId: base.requestId, type: base.type, anchorId: base.anchorId, anchorRevision: base.anchorRevision, stage: 1 })
     : "";
   const stageOneSent = input.stage === 1 || input.records.some((item) => item.id === stageOneId && item.status === "sent");
   let blockedReason = "";
