@@ -1,7 +1,7 @@
 import "server-only";
 import { randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-import type { CustomerAccount, CustomerPreferences } from "@/lib/customer-types";
-import { readCollection, writeCollection } from "@/lib/database";
+import type { CustomerAccount, CustomerPreferences } from "./customer-types.ts";
+import { readCollection, writeCollection } from "./database.ts";
 
 let mutationChain = Promise.resolve();
 
