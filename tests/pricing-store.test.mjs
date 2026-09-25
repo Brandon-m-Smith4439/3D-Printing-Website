@@ -31,6 +31,13 @@ for(const family of ['PLA Basic','PLA Matte','PLA Pure','PLA Translucent','PLA S
 }
 const basic=catalog.find(x=>x.id==='pla-basic-refill');
 assert.ok(basic);
+assert.equal(basic.msrpCents,1599,'PLA Basic refill reference price should match Bambu US 2026-09-16 announcement');
+const petgBasic=catalog.find(x=>x.id==='petg-basic-refill');
+assert.ok(petgBasic,'PETG Basic refill should be present in the current Bambu catalog');
+assert.equal(petgBasic.msrpCents,1399,'PETG Basic refill reference price should match Bambu US 2026-09-16 announcement');
+const pure=catalog.find(x=>x.id==='pla-pure-refill');
+assert.ok(pure);
+assert.equal(pure.msrpCents,1699,'PLA Pure reference price should match Bambu US 2026-09-16 announcement');
 const edited=await store.upsertBambuCatalogItem({...basic,manualFallbackCostPerGramMicros:123456,notes:'owner override'});
 assert.equal(edited.manualFallbackCostPerGramMicros,123456);
 await store.ensureBambuCatalogSeeded();
