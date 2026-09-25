@@ -24,6 +24,18 @@ assert.equal(items.length,1);
 assert.match(items[0].title,/below target/i);
 assert.equal(items[0].severity,'watch');
 
+const incomplete = {
+  ...belowTarget,
+  materialLines:[{id:'m-unpriced',catalogItemId:'missing',grams:100,displayName:'Unknown Bambu material',costSource:'unpriced',costPerGramMicros:0,extendedCostCents:0}],
+  contributionProfitCents:9000,
+  contributionMarginBasisPoints:9000,
+  priceMeetsTarget:true,
+  costingSourceSummary:'unpriced',
+};
+items = buildProfitabilityAttention({ requests:[baseRequest], quotes:[quote], snapshots:[incomplete], now });
+assert.equal(items.length,1);
+assert.match(items[0].title,/incomplete costing/i);
+
 const completed = { ...baseRequest, status:'completed', updatedAt:'2026-09-25T13:00:00.000Z' };
 items = buildProfitabilityAttention({ requests:[completed], quotes:[quote], snapshots:[belowTarget], now });
 assert.equal(items.length,1);
