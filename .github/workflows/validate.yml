@@ -1005,7 +1005,7 @@ jobs:
             const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Pricing"));b?.click();return Boolean(b);})()`,returnByValue:true});
             if(!clicked.result.value) throw new Error("Pricing & Profitability owner tab missing");
             for(let i=0;i<25;i++){
-              const ready=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("PRICING") || document.body.innerText.includes("Profitability")`,returnByValue:true});
+              const ready=await send("Runtime.evaluate",{expression:`document.body.innerText.includes("Know what every print really earns.") && document.body.innerText.includes("Active quoted revenue")`,returnByValue:true});
               if(ready.result.value) break;
               if(i===24) throw new Error("Pricing workspace did not render");
               await wait(250);
@@ -1017,6 +1017,10 @@ jobs:
               const metrics=await send("Runtime.evaluate",{expression:`(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth}))()`,returnByValue:true});
               const x=metrics.result.value;
               if(x.scrollWidth>x.clientWidth+1||x.bodyWidth>x.clientWidth+1) failures.push({width,...x});
+              if(width<=720){
+                const tabs=await send("Runtime.evaluate",{expression:`(()=>{const vw=document.documentElement.clientWidth;const buttons=[...document.querySelectorAll(".owner-tabs button")];return buttons.map(button=>{const r=button.getBoundingClientRect();return {text:(button.innerText||"").trim(),left:Math.round(r.left),right:Math.round(r.right)};}).filter(item=>item.left<0||item.right>vw);})()`,returnByValue:true});
+                if(tabs.result.value.length) failures.push({width,type:"owner-tabs-clipped",tabs:tabs.result.value});
+              }
               const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
               fs.writeFileSync(`visual-smoke/owner-pricing-${width}.png`,Buffer.from(shot.data,"base64"));
             }
