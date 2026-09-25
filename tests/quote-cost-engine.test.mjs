@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
-import { quoteCostInputFromSnapshot, resolveQuoteCostSnapshot } from '../lib/quote-cost-engine.ts';
+import { quoteCostInputFromSnapshot, quoteCostingIsComplete, resolveQuoteCostSnapshot } from '../lib/quote-cost-engine.ts';
 
 const settings={targetContributionMarginBasisPoints:4000,defaultMachineHourlyCostCents:300,defaultDesignHourlyCostCents:1000,defaultLaborHourlyCostCents:2000,defaultPostProcessingHourlyCostCents:1600,defaultPackagingCostCents:100,defaultPaymentFeePercentBasisPoints:290,defaultPaymentFeeFixedCents:30,includeInvoiceTaxInMaterialCost:true,includeInvoiceShippingInMaterialCost:true,actualMaterialCostMethod:'weighted-average',updatedAt:''};
 const catalog=[
@@ -26,6 +26,10 @@ assert.equal(estimate.contributionMarginBasisPoints,5180);
 assert.ok(estimate.suggestedPriceCents>0);
 assert.equal(estimate.id,'quote-1:r1:estimate');
 assert.deepEqual(quoteCostInputFromSnapshot(estimate),costing);
+assert.equal(quoteCostingIsComplete(estimate),true);
+const incomplete=resolveQuoteCostSnapshot({quote:quote(),costing:{...costing,materialLines:[{id:'missing',catalogItemId:'missing-material',grams:50}]},settings,catalog,lots,shipment:null,now:'2026-09-25T12:30:00.000Z',status:'estimate'});
+assert.equal(incomplete.materialLines[0].costSource,'unpriced');
+assert.equal(quoteCostingIsComplete(incomplete),false);
 
 const purchased={id:'ship-1',requestId:'req-1',quoteId:'quote-1',requestCode:'REQ-ONE',easyPostShipmentId:'shp-1',easyPostRateId:'rate-1',trackerId:'',carrier:'UPS',service:'Ground',customerRateCents:800,postageCostCents:650,rateDifferenceCents:-150,trackingCode:'',publicTrackingUrl:'',labelUrl:'',labelPdfUrl:'',labelPngUrl:'',status:'label_created',statusDetail:'',estimatedDeliveryDate:'',reviewReason:'',proposedShipmentId:'',proposedRateId:'',proposedRateCents:0,refundStatus:'',purchasedAt:'2026-09-25T10:00:00.000Z',deliveredAt:'',refundedAt:'',createdAt:'',updatedAt:'',lastWebhookEventId:'',trackingEvents:[]};
 const actual=resolveQuoteCostSnapshot({quote:quote(),costing,settings,catalog,lots,shipment:purchased,now:'2026-09-25T12:00:00.000Z',status:'actual'});
