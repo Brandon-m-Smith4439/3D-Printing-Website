@@ -15,7 +15,7 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
  if(parsed.data.paused!==undefined)patch.paused=parsed.data.paused;
  if(parsed.data.waitingOnCustomer!==undefined){ patch.waitingOnCustomer=parsed.data.waitingOnCustomer; if(parsed.data.waitingOnCustomer&&!before.waitingOnCustomer)patch.waitingSince=new Date().toISOString(); if(!parsed.data.waitingOnCustomer){patch.waitingSince="";patch.waitingNote="";} }
  if(parsed.data.waitingNote!==undefined&&patch.waitingOnCustomer!==false)patch.waitingNote=parsed.data.waitingNote;
- const control=await updateFollowUpControl(id,patch); const recent=(await followUpsForRequest(id)).slice(0,10).map(({resendEmailId:_resend,...safe})=>safe);
+ const control=await updateFollowUpControl(id,patch); const recent=(await followUpsForRequest(id)).slice(0,10).map((record)=>({ ...record, resendEmailId: undefined }));
  const actions:string[]=[]; if(before.paused!==control.paused)actions.push(control.paused?"follow-up-request-paused":"follow-up-request-resumed"); if(before.waitingOnCustomer!==control.waitingOnCustomer)actions.push(control.waitingOnCustomer?"follow-up-waiting-set":"follow-up-waiting-cleared");
  for(const action of actions)await writeAudit({actor:"owner",actorId:"owner",action,targetType:"request",targetId:id,summary:`${source.requestCode}: ${action.replaceAll("-"," ")}.`,ipHash:requestIpHash(request)});
  return NextResponse.json({control,recent,message:"Customer follow-up settings updated."});
