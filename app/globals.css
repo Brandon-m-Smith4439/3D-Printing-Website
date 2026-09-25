@@ -3865,8 +3865,18 @@ button.operations-attention-item:focus-visible {
   }
 
   .owner-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     width: 100%;
-    overflow-x: auto;
+    overflow: visible;
+  }
+  .owner-tabs button {
+    min-width: 0;
+    min-height: 44px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.2;
+    padding-inline: 8px;
   }
 
   .operations-hero {
