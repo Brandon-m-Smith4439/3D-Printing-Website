@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import {
   classifyEasyPostCredential,
   easyPostBusinessCallsAllowed,
+  easyPostReadinessPresentation,
   resolveEasyPostOperationalMode,
+  summarizeEasyPostWebhooks,
 } from "../lib/easypost-mode.ts";
 
 assert.equal(classifyEasyPostCredential(""), "unconfigured");
@@ -19,10 +21,6 @@ assert.equal(easyPostBusinessCallsAllowed("unconfigured"), false);
 assert.equal(easyPostBusinessCallsAllowed("production-locked"), false);
 assert.equal(easyPostBusinessCallsAllowed("test"), true);
 assert.equal(easyPostBusinessCallsAllowed("production"), true);
-
-console.log("EasyPost mode policy checks passed.");
-
-import { summarizeEasyPostWebhooks } from "../lib/easypost-mode.ts";
 
 assert.deepEqual(
   summarizeEasyPostWebhooks("https://meshharbor3d.com/api/shipping/easypost/webhook", [
@@ -43,8 +41,6 @@ assert.deepEqual(
   { webhookFound: false, webhookDisabled: false },
 );
 
-import { easyPostReadinessPresentation } from "../lib/easypost-mode.ts";
-
 assert.deepEqual(easyPostReadinessPresentation("test-ready"), {
   tone: "good",
   label: "EasyPost test ready",
@@ -55,3 +51,5 @@ assert.deepEqual(easyPostReadinessPresentation("production-locked"), {
   label: "EasyPost live key locked",
   detail: "A production key is installed, but real rates and labels are blocked until live shipping is deliberately enabled.",
 });
+
+console.log("EasyPost mode policy checks passed.");
