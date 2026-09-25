@@ -1,0 +1,60 @@
+import type { BambuPackageType } from './pricing-types.ts';
+
+export type BambuInvoiceParseStatus='uploaded'|'parsed'|'review-required'|'posted'|'rejected';
+export type ReviewedBambuInvoiceLine={
+  id:string;
+  productNameRaw:string;
+  skuRaw:string;
+  colorName:string;
+  quantity:number;
+  unitListPriceCents:number;
+  directLineDiscountCents:number;
+  lineSubtotalCents:number;
+  catalogItemId:string;
+  isFilament:boolean;
+  packageType:BambuPackageType;
+  netWeightGramsPerUnit:number;
+};
+export type AllocatedBambuInvoiceLine=ReviewedBambuInvoiceLine&{
+  allocatedOrderDiscountCents:number;
+  allocatedShippingCents:number;
+  allocatedTaxCents:number;
+  landedLineCostCents:number;
+  landedUnitCostCents:number;
+  landedCostPerGramMicros:number;
+};
+export type ParsedBambuInvoice={
+  orderNumber:string;
+  orderDate:string;
+  subtotalCents:number;
+  discountCents:number;
+  shippingCents:number;
+  taxCents:number;
+  totalCents:number;
+  lines:ReviewedBambuInvoiceLine[];
+  warnings:string[];
+  parseStatus:'parsed'|'review-required';
+};
+export type BambuInvoiceImport={
+  id:string;
+  originalFileName:string;
+  privateObjectKey:string;
+  sha256:string;
+  orderNumber:string;
+  orderDate:string;
+  subtotalCents:number;
+  discountCents:number;
+  shippingCents:number;
+  taxCents:number;
+  totalCents:number;
+  parseStatus:BambuInvoiceParseStatus;
+  parserVersion:string;
+  rawLineCount:number;
+  matchedFilamentLineCount:number;
+  unmatchedLineCount:number;
+  warnings:string[];
+  lines:ReviewedBambuInvoiceLine[];
+  createdAt:string;
+  updatedAt:string;
+  postedAt:string;
+};

@@ -1,6 +1,6 @@
 {
   "name": "mesh-harbor-3d",
-  "version": "0.89.0",
+  "version": "0.90.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,8 @@
     "react-dom": "^19.2.0",
     "qrcode": "^1.5.4",
     "stripe": "22.6.0",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "pdfjs-dist": "6.3.289"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

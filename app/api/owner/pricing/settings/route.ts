@@ -1,0 +1,7 @@
+import { NextRequest,NextResponse } from 'next/server';
+import { requestIsOwner } from '@/lib/owner-auth';
+import { sameOrigin } from '@/lib/owner-api';
+import { readPricingSettings,updatePricingSettings } from '@/lib/pricing-store';
+import { requestIpHash,writeAudit } from '@/lib/audit-log';
+export async function GET(request:NextRequest){if(!await requestIsOwner(request))return NextResponse.json({message:'Sign in required.'},{status:401});return NextResponse.json({settings:await readPricingSettings()},{headers:{'Cache-Control':'no-store'}});}
+export async function PATCH(request:NextRequest){if(!await requestIsOwner(request))return NextResponse.json({message:'Sign in required.'},{status:401});if(!sameOrigin(request))return NextResponse.json({message:'Request origin was not accepted.'},{status:403});const body=await request.json().catch(()=>null);if(!body||typeof body!=='object'||Array.isArray(body))return NextResponse.json({message:'Invalid pricing settings.'},{status:400});try{const settings=await updatePricingSettings(body);await writeAudit({actor:'owner',actorId:'owner',action:'pricing-settings-updated',targetType:'pricing',targetId:'settings',summary:'Pricing and contribution-margin assumptions updated.',ipHash:requestIpHash(request)});return NextResponse.json({settings,message:'Pricing settings saved.'});}catch(error){return NextResponse.json({message:error instanceof Error?error.message:'Pricing settings could not be saved.'},{status:400});}}
