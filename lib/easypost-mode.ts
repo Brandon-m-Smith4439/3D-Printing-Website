@@ -33,3 +33,28 @@ export function summarizeEasyPostWebhooks(
     webhookDisabled: Boolean(match?.disabled_at),
   };
 }
+
+export type EasyPostReadiness =
+  | "unconfigured"
+  | "test-incomplete"
+  | "test-ready"
+  | "production-locked"
+  | "production-incomplete"
+  | "production-ready";
+
+export function easyPostReadinessPresentation(readiness: EasyPostReadiness) {
+  switch (readiness) {
+    case "test-ready":
+      return { tone: "good" as const, label: "EasyPost test ready", detail: "Rates, test labels, refunds, and tracking can be validated safely; live shipping remains off." };
+    case "production-locked":
+      return { tone: "warning" as const, label: "EasyPost live key locked", detail: "A production key is installed, but real rates and labels are blocked until live shipping is deliberately enabled." };
+    case "production-incomplete":
+      return { tone: "error" as const, label: "EasyPost live setup incomplete", detail: "Live shipping is enabled, but the ship-from address or signed webhook setup still needs attention." };
+    case "production-ready":
+      return { tone: "good" as const, label: "EasyPost production ready", detail: "Live shipping is enabled with the required ship-from address and signed webhook configuration." };
+    case "test-incomplete":
+      return { tone: "warning" as const, label: "EasyPost test setup incomplete", detail: "A test key is installed, but the ship-from address or signed webhook setup still needs attention." };
+    default:
+      return { tone: "warning" as const, label: "EasyPost not configured", detail: "Add the EasyPost API key before testing carrier shipping." };
+  }
+}
