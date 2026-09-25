@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify EasyPost mode policy
+        run: node --experimental-strip-types tests/easypost-mode.test.ts
       - name: Lint
         run: npm run lint
       - name: Build
@@ -34,6 +36,10 @@ jobs:
           CUSTOMER_SESSION_SECRET: ci-customer-session-secret-12345678901234567890
           OWNER_SESSION_SECRET: ci-owner-session-secret-12345678901234567890123
           OWNER_PASSWORD: ci-owner-password-12345
+          EASYPOST_API_KEY: EZTK_ci_validation_key
+          EASYPOST_WEBHOOK_SECRET: ci-easypost-webhook-secret-1234567890
+          EASYPOST_LIVE_ENABLED: "false"
+          EASYPOST_AUTO_BUY_LABELS: "false"
         run: |
           npm start > /tmp/meshharbor-server.log 2>&1 &
           echo $! > /tmp/meshharbor-server.pid
@@ -69,6 +75,23 @@ jobs:
       - name: Verify owner security status endpoint
         run: |
           curl -fsS -c /tmp/v088-owner.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-owner-login.json
+
+          UNAUTH_EASYPOST_TEST=$(curl -sS -o /tmp/easypost-test-unauth.json -w "%{http_code}"             -X POST -H "Origin: https://meshharbor3d.com"             http://127.0.0.1:3000/api/owner/shipping/test)
+          test "$UNAUTH_EASYPOST_TEST" = "401" || { cat /tmp/easypost-test-unauth.json; exit 1; }
+
+          EVIL_EASYPOST_TEST=$(curl -sS -b /tmp/v088-owner.cookies -o /tmp/easypost-test-evil.json -w "%{http_code}"             -X POST -H "Origin: https://example.invalid"             http://127.0.0.1:3000/api/owner/shipping/test)
+          test "$EVIL_EASYPOST_TEST" = "403" || { cat /tmp/easypost-test-evil.json; exit 1; }
+
+          curl -fsS -b /tmp/v088-owner.cookies http://127.0.0.1:3000/api/owner/shipping/status >/tmp/easypost-status.json
+          node <<'NODE'
+          const fs=require("node:fs");
+          const data=JSON.parse(fs.readFileSync("/tmp/easypost-status.json","utf8"));
+          if(data.shipping?.mode!=="test") throw new Error("Expected EasyPost test mode");
+          if(data.shipping?.credentialMode!=="test") throw new Error("Expected EasyPost test credential mode");
+          if(data.shipping?.liveEnabled!==false) throw new Error("EasyPost live mode should be disabled in CI");
+          if(data.shipping?.businessCallsAllowed!==true) throw new Error("Test-mode business calls must remain allowed");
+          if(data.shipping?.autoBuyLabels!==false) throw new Error("Automatic label buying must remain off");
+          NODE
           curl -fsS -b /tmp/v088-owner.cookies http://127.0.0.1:3000/api/owner/audit >/tmp/v088-security-audit.json
           node <<'NODE'
           const fs=require("node:fs");
