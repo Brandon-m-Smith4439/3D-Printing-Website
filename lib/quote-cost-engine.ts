@@ -7,6 +7,8 @@ import { resolveMaterialCost } from './material-cost-resolver.ts';
 export function quoteEstimateId(quoteId:string,revision:number){return `${quoteId}:r${revision}:estimate`;}
 export function quoteActualId(quoteId:string,revision:number){return `${quoteId}:r${revision}:actual`;}
 
+export function quoteCostingIsComplete(snapshot:QuoteCostSnapshot){return !snapshot.materialLines.some(line=>line.grams>0&&line.costSource==='unpriced');}
+
 function hoursCost(hours:number,hourlyCents:number){
   if(!Number.isFinite(hours)||hours<=0||!Number.isFinite(hourlyCents)||hourlyCents<=0)return 0;
   return Math.round(hours*hourlyCents);
