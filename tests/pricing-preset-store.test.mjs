@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { rm } from 'node:fs/promises';
+const db=`/tmp/meshharbor-pricing-presets-${process.pid}.sqlite`;
+process.env.DATABASE_PATH=db;
+await rm(db,{force:true});
+const store=await import('../lib/pricing-preset-store.ts');
+const input={id:'',name:'Display Piece',description:'Common display print',projectType:'display',quoteDefaults:{material:'PLA',dimensions:'6x6',assemblyMode:'assembled',assemblyFeeCents:1000,rushFeeCents:0,fulfillmentMode:'pickup',localDeliveryFeeCents:0,basePriceCents:8000},costing:{materialLines:[{id:'m1',catalogItemId:'pla-basic-refill',grams:200}],machineHours:4,designHours:1,laborHours:.5,postProcessingHours:.25,packagingCostCents:100,localDeliveryInternalCostCents:0,miscellaneousCostCents:50},createdAt:'',updatedAt:''};
+const created=await store.createPricingPreset(input);
+assert.ok(created.id);
+assert.equal(created.name,'Display Piece');
+assert.equal((await store.readPricingPresets()).length,1);
+const updated=await store.updatePricingPreset(created.id,{...input,name:'Display Piece Updated'});
+assert.equal(updated.name,'Display Piece Updated');
+await store.deletePricingPreset(created.id);
+assert.equal((await store.readPricingPresets()).length,0);
+await rm(db,{force:true});
+console.log('Pricing preset store checks passed.');

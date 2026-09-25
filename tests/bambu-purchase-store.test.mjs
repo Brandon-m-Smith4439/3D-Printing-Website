@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { rm } from 'node:fs/promises';
+const db=`/tmp/meshharbor-purchase-store-${process.pid}.sqlite`;
+process.env.DATABASE_PATH=db;
+await rm(db,{force:true});
+const store=await import('../lib/bambu-purchase-store.ts');
+const lot={id:'lot-1',invoiceImportId:'imp-1',vendor:'Bambu Lab',orderNumber:'B-1',orderDate:'2026-09-20',catalogItemId:'pla-basic-refill',productNameRaw:'PLA Basic Refill',skuRaw:'',colorName:'Black',colorCode:'',packageType:'refill',netWeightGramsPerUnit:1000,quantity:4,unitListPriceCents:1999,directLineDiscountCents:0,allocatedOrderDiscountCents:2000,allocatedShippingCents:0,allocatedTaxCents:0,landedLineCostCents:5996,landedUnitCostCents:1499,landedCostPerGramMicros:1499000,currency:'usd',createdAt:'2026-09-20T00:00:00.000Z'};
+await store.writePostedPurchaseLots('imp-1',[lot]);
+assert.equal((await store.readFilamentPurchaseLots()).length,1);
+await assert.rejects(()=>store.writePostedPurchaseLots('imp-1',[{...lot,id:'lot-2'}]),/already exist/i);
+await assert.rejects(()=>store.writePostedPurchaseLots('imp-2',[{...lot,id:'lot-3'}]),/does not match/i);
+await rm(db,{force:true});
+console.log('Bambu purchase store checks passed.');

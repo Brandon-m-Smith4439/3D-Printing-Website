@@ -12,6 +12,8 @@ import { easyPostConfigurationSummary } from "@/lib/easypost";
 import { buildOwnerOperationsSnapshot } from "@/lib/owner-operations";
 import { getFollowUpSettings, readFollowUps } from "@/lib/customer-follow-up-store";
 import { previewCustomerFollowUps } from "@/lib/customer-follow-up-engine";
+import { readCostSnapshots } from "@/lib/quote-cost-store";
+import { buildOwnerProfitabilityOperations } from "@/lib/owner-profitability-operations";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +22,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
 
-  const [requests, quotes, queue, invoices, shipments, audit, backups, shipping, followUpSettings, followUpRecords, followUpPreview] = await Promise.all([
+  const [requests, quotes, queue, invoices, shipments, audit, backups, shipping, followUpSettings, followUpRecords, followUpPreview, costSnapshots] = await Promise.all([
     readRequests(),
     readQuotes(),
     readQueue(),
@@ -32,7 +34,11 @@ export async function GET(request: NextRequest) {
     getFollowUpSettings(),
     readFollowUps(),
     previewCustomerFollowUps(),
+    readCostSnapshots(),
   ]);
+
+  const now = new Date();
+  const profitability = buildOwnerProfitabilityOperations({ requests, quotes, snapshots: costSnapshots, now });
 
   const snapshot = buildOwnerOperationsSnapshot({
     requests,
@@ -53,7 +59,9 @@ export async function GET(request: NextRequest) {
       failed: followUpRecords.filter((item) => item.status === "failed").length,
       failedRequests: followUpRecords.filter((item) => item.status === "failed" && !item.nextAttemptAt).slice(-10).map((item) => ({ requestId: item.requestId, requestCode: item.requestCode, createdAt: item.updatedAt, reason: item.reason })),
     },
-  });
+    profitability: profitability.report,
+    profitabilityAttention: profitability.attention,
+  }, now);
 
   return NextResponse.json({ snapshot }, { headers: { "Cache-Control": "no-store" } });
 }

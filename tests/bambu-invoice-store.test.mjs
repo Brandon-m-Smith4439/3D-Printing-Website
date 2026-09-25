@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { rm } from 'node:fs/promises';
+const db=`/tmp/meshharbor-bambu-invoice-${process.pid}.sqlite`;
+process.env.DATABASE_PATH=db;
+await rm(db,{force:true});
+const store=await import('../lib/bambu-invoice-store.ts');
+const base={id:'imp-1',originalFileName:'invoice.pdf',privateObjectKey:'pricing-invoices/a.pdf',sha256:'abc123',orderNumber:'ORDER-1',orderDate:'2026-09-20',subtotalCents:10000,discountCents:1000,shippingCents:0,taxCents:700,totalCents:9700,parseStatus:'parsed',parserVersion:'1',rawLineCount:2,matchedFilamentLineCount:2,unmatchedLineCount:0,warnings:[],lines:[],createdAt:'2026-09-25T12:00:00.000Z',updatedAt:'2026-09-25T12:00:00.000Z',postedAt:''};
+await store.createBambuInvoiceImport(base);
+assert.equal((await store.readBambuInvoiceImports()).length,1);
+assert.equal(await store.bambuInvoiceDuplicateReason('abc123','OTHER'),'file-hash');
+assert.equal(await store.bambuInvoiceDuplicateReason('different','ORDER-1'),'order-number');
+await assert.rejects(()=>store.createBambuInvoiceImport({...base,id:'imp-2'}),/duplicate/i);
+const updated=await store.updateBambuInvoiceImport('imp-1',{parseStatus:'review-required',warnings:['review']});
+assert.equal(updated.parseStatus,'review-required');
+assert.equal((await store.findBambuInvoiceImport('imp-1')).warnings[0],'review');
+await rm(db,{force:true});
+console.log('Bambu invoice store checks passed.');

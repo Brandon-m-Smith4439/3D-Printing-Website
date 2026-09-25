@@ -9,6 +9,12 @@ import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { expireStripeCheckoutSession } from "@/lib/stripe-checkout";
 import { readQueue } from "@/lib/queue-store";
 import { queueScheduleBoundary, quoteWouldSkipQueue } from "@/lib/queue-schedule";
+import { validateQuoteCostInput } from "@/lib/quote-cost-input";
+import { ensureBambuCatalogSeeded, readBambuCatalog, readPricingSettings } from "@/lib/pricing-store";
+import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
+import { readShipments } from "@/lib/shipment-store";
+import { resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
+import { saveCostSnapshot } from "@/lib/quote-cost-store";
 
 export async function POST(request:NextRequest,context:{params:Promise<{id:string}>}){
   if(!await requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});
@@ -29,6 +35,11 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
 
   const parsed=ownerQuoteSchema.safeParse(body);
   if(!parsed.success)return NextResponse.json({message:"Please check the quote fields.",fieldErrors:parsed.error.flatten().fieldErrors},{status:400});
+  const root=body&&typeof body==="object"&&!Array.isArray(body)?body as Record<string,unknown>:{};
+  let costing=null;
+  if(Object.prototype.hasOwnProperty.call(root,"costing")){
+    try{costing=validateQuoteCostInput(root.costing);}catch(error){return NextResponse.json({message:error instanceof Error?error.message:"Check the internal costing fields."},{status:400});}
+  }
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
   if(parsed.data.action==="send"&&!source.customerAccountId)return NextResponse.json({message:"This request is not linked to a verified customer profile yet. You can save a draft, but profile approval requires a linked customer account."},{status:409});
 
@@ -77,6 +88,14 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     send:parsed.data.action==="send",
   });
 
+  let costSnapshot=null;
+  if(costing){
+    await ensureBambuCatalogSeeded();
+    const [settings,catalog,lots,shipments]=await Promise.all([readPricingSettings(),readBambuCatalog(),readFilamentPurchaseLots(),readShipments()]);
+    const shipment=shipments.find(item=>item.requestId===source.id&&item.quoteId===quote.id)||null;
+    costSnapshot=await saveCostSnapshot(resolveQuoteCostSnapshot({quote,costing,settings,catalog,lots,shipment,now:new Date().toISOString(),status:"estimate"}));
+  }
+
   if(parsed.data.action==="send"){
     const updated=await updateStoredRequest(source.id,{status:"quoted"});
     if(updated){
@@ -115,6 +134,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
 
   return NextResponse.json({
     quote,
+    costing:costSnapshot,
     queueDateFloor:scheduleBoundary.latestDate,
     message:parsed.data.action==="send"
       ? quote.revision>1?"Revised quote sent to the customer for fresh approval.":"Quote sent to the customer profile."

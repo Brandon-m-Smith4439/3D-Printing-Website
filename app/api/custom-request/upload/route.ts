@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import { spawn } from "node:child_process";
 import { cleanupOrphanCustomerUploads, createCustomerUpload } from "@/lib/customer-upload-store";
 import { deletePrivateObject, privateObjectPath, putPrivateObject } from "@/lib/private-object-store";
 import { sameOrigin } from "@/lib/owner-api";
+import { malwareScanPrivateFile } from "@/lib/file-malware-scan";
 
 export const runtime = "nodejs";
 const MAX_FILE = 10 * 1024 * 1024;
@@ -21,22 +21,6 @@ function is3mf(b:Buffer){return b.length>=4&&b[0]===0x50&&b[1]===0x4b&&b[2]===0x
 function isStl(b:Buffer){if(b.length<15)return false;const head=b.subarray(0,80).toString("utf8").trimStart().toLowerCase();if(head.startsWith("solid")&&b.subarray(0,Math.min(b.length,2000)).toString("utf8").toLowerCase().includes("facet"))return true;if(b.length<84)return false;const count=b.readUInt32LE(80);return 84+count*50===b.length;}
 function classify(name:string,b:Buffer){const ext=extension(name);if(ext===".png"&&isPng(b))return{kind:"image" as const,mime:"image/png"};if([".jpg",".jpeg"].includes(ext)&&isJpeg(b))return{kind:"image" as const,mime:"image/jpeg"};if(ext===".webp"&&isWebp(b))return{kind:"image" as const,mime:"image/webp"};if(ext===".stl"&&isStl(b))return{kind:"model" as const,mime:"model/stl"};if(ext===".3mf"&&is3mf(b))return{kind:"model" as const,mime:"model/3mf"};return null;}
 
-async function clamScan(filePath:string){
-  const scanner=(process.env.CUSTOMER_UPLOAD_SCANNER||"").trim().toLowerCase();
-  if(scanner!=="clamav"){
-    if(process.env.NODE_ENV==="production") throw new Error("File scanning is temporarily unavailable.");
-    return "development-unscanned" as const;
-  }
-  const executable=(process.env.CLAMSCAN_PATH||"clamscan").trim();
-  return new Promise<"clean">((resolve,reject)=>{
-    const child=spawn(executable,["--no-summary",filePath],{stdio:["ignore","pipe","pipe"],shell:false});
-    let stderr="";const timer=setTimeout(()=>{child.kill();reject(new Error("Malware scan timed out."));},30_000);
-    child.stderr.on("data",d=>{stderr+=String(d).slice(0,2000);});
-    child.on("error",()=>{clearTimeout(timer);reject(new Error("Malware scanner could not start."));});
-    child.on("close",code=>{clearTimeout(timer);if(code===0)resolve("clean");else if(code===1)reject(new Error("The uploaded file was rejected by malware scanning."));else reject(new Error(stderr||"Malware scanner failed."));});
-  });
-}
-
 export async function POST(request:NextRequest){
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const ip=clientIp(request);if(limited(ip))return NextResponse.json({message:"Too many upload attempts. Try again later."},{status:429});
@@ -47,7 +31,7 @@ export async function POST(request:NextRequest){
   const buffer=Buffer.from(await file.arrayBuffer());const classification=classify(file.name,buffer);if(!classification)return NextResponse.json({message:"Allowed files are PNG, JPG, WebP, STL, and 3MF with a valid file signature."},{status:415});
   const storedName=`${randomBytes(18).toString("hex")}${extension(file.name)}`;const objectKey=`customer-uploads/${storedName}`;await putPrivateObject(objectKey,buffer);const filePath=privateObjectPath(objectKey);
   try{
-    const scanStatus=await clamScan(filePath);await cleanupOrphanCustomerUploads();
+    const scanStatus=await malwareScanPrivateFile(filePath);await cleanupOrphanCustomerUploads();
     const created=await createCustomerUpload({originalName:safeName(file.name),storedName,mimeType:classification.mime,kind:classification.kind,size:file.size,scanStatus});
     return NextResponse.json({attachment:{id:created.record.id,name:created.record.originalName,kind:created.record.kind,size:created.record.size,scanStatus:created.record.scanStatus},claimToken:created.token},{status:201});
   }catch(error){await deletePrivateObject(objectKey);return NextResponse.json({message:error instanceof Error?error.message:"Upload was rejected."},{status:process.env.NODE_ENV==="production"?503:400});}

@@ -385,6 +385,19 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
     });
   }
 
+  for (const item of input.profitabilityAttention) {
+    addAttention(attention, nowMs, {
+      id: item.id,
+      severity: item.severity,
+      category: item.category,
+      title: item.title,
+      detail: item.detail,
+      requestId: item.requestId,
+      requestCode: item.requestCode,
+      createdAt: item.createdAt,
+    });
+  }
+
   attention.sort((a, b) => {
     const severity = severityRank(a.severity) - severityRank(b.severity);
     if (severity) return severity;
@@ -415,5 +428,6 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
     search,
     integrations,
     followUps: input.followUps,
+    profitability: input.profitability,
   };
 }

@@ -9,6 +9,14 @@ import type {
 
 type Notice = { kind: "success" | "error" | "warning"; text: string } | null;
 
+function money(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+}
+
+function percent(basisPoints: number) {
+  return `${(basisPoints / 100).toFixed(1)}%`;
+}
+
 function ageLabel(hours: number) {
   if (hours < 1) return "Just now";
   if (hours < 24) return `${hours}h ago`;
@@ -31,9 +39,11 @@ function searchMeta(item: OwnerSearchRecord) {
 
 export function OwnerOperationsCenter({
   onOpenRequest,
+  onOpenPricing,
   onNotice,
 }: {
   onOpenRequest: (requestId: string) => void;
+  onOpenPricing: () => void;
   onNotice: (notice: Notice) => void;
 }) {
   const [snapshot, setSnapshot] = useState<OwnerOperationsSnapshot | null>(null);
@@ -197,6 +207,18 @@ export function OwnerOperationsCenter({
             <small>{item.detail}</small>
           </article>)}
         </div>
+        <article className="operations-profitability-card">
+          <div className="operations-profitability-heading">
+            <div><span>PRICING & PROFITABILITY</span><strong>Contribution performance</strong></div>
+            <button className="button button-secondary button-small" type="button" onClick={onOpenPricing}>Open Pricing →</button>
+          </div>
+          <div className="operations-profitability-grid">
+            <div><span>Expected profit</span><strong>{money(snapshot.profitability.active.contributionProfitCents)}</strong><small>{percent(snapshot.profitability.active.contributionMarginBasisPoints)} margin</small></div>
+            <div><span>Completed profit</span><strong>{money(snapshot.profitability.completed.contributionProfitCents)}</strong><small>Last 30 days</small></div>
+            <div><span>Below target</span><strong>{snapshot.profitability.active.belowTargetCount}</strong><small>Active quotes</small></div>
+            <div><span>Not costed</span><strong>{snapshot.profitability.active.uncostedCount + snapshot.profitability.completed.uncostedCount}</strong><small>Active + completed</small></div>
+          </div>
+        </article>
         <article className="operations-followup-card">
           <div className="operations-followup-heading"><div><span>CUSTOMER FOLLOW-UPS</span><strong>{snapshot.followUps.ownerEnabled ? "Automation enabled" : "Automation paused"}</strong></div><em className={snapshot.followUps.deploymentEnabled ? "is-on" : "is-off"}>{snapshot.followUps.deploymentEnabled ? "Deployment gate on" : "Deployment gate off"}</em></div>
           <p>{snapshot.followUps.due} due now • {snapshot.followUps.sentLast7Days} sent in 7 days • {snapshot.followUps.failed} failed</p>

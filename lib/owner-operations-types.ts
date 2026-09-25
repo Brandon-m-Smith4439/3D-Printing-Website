@@ -4,6 +4,8 @@ import type { QueueJob } from "@/lib/queue-types";
 import type { StoredQuote } from "@/lib/quote-types";
 import type { StoredRequest } from "@/lib/request-types";
 import type { ShipmentRecord } from "@/lib/shipment-types";
+import type { ProfitabilityReport } from "@/lib/profitability-report";
+import type { ProfitabilityAttentionItem } from "@/lib/owner-profitability-attention";
 
 export type OwnerAttentionSeverity = "urgent" | "action" | "watch";
 export type OwnerAttentionCategory =
@@ -15,7 +17,8 @@ export type OwnerAttentionCategory =
   | "shipping"
   | "backup"
   | "integration"
-  | "follow-up";
+  | "follow-up"
+  | "profitability";
 
 export type OwnerAttentionItem = {
   id: string;
@@ -72,6 +75,7 @@ export type OwnerOperationsSnapshot = {
   search: OwnerSearchRecord[];
   integrations: OwnerIntegrationHealth;
   followUps: OwnerFollowUpSummary;
+  profitability: ProfitabilityReport;
 };
 
 export type OwnerBackupInfo = {
@@ -124,4 +128,6 @@ export type OwnerOperationsInput = {
   stripe: OwnerStripeSummary;
   shipping: OwnerShippingSummary;
   followUps: OwnerFollowUpSummary;
+  profitability: ProfitabilityReport;
+  profitabilityAttention: ProfitabilityAttentionItem[];
 };

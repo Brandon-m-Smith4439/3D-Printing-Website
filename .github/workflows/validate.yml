@@ -15,16 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Export v0.90 source
-        uses: actions/upload-artifact@v4
-        with:
-          name: v090-source-tree
-          path: |
-            .
-            !node_modules
-            !.next
-          include-hidden-files: true
-          retention-days: 1
       - name: Use Node 22
         uses: actions/setup-node@v4
         with:
@@ -40,6 +30,27 @@ jobs:
           node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-store.test.mjs
           node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-email.test.mjs
           node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-engine.test.mjs
+      - name: Verify pricing and profitability
+        run: |
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/pricing-math.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/pricing-store.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/bambu-purchase-store.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/material-cost-resolver.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/bambu-invoice-allocation.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/bambu-invoice-parser.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/bambu-invoice-store.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/bambu-invoice-posting.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/pdf-text.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/file-malware-scan.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/quote-cost-input.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/quote-cost-engine.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/quote-reuse.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/pricing-preset-store.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/cost-closeout.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/profitability-report.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/owner-profitability-attention.test.mjs
+          node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/owner-profitability-operations.test.mjs
+          node --experimental-strip-types tests/pricing-security.test.mjs
       - name: Lint
         run: npm run lint
       - name: Build
@@ -90,6 +101,62 @@ jobs:
           CODE=$(curl -sS -o /tmp/3mf.json -w "%{http_code}"             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" -F "file=@/tmp/meshharbor-test.3mf;type=model/3mf"             http://127.0.0.1:3000/api/custom-request/upload)
           test "$CODE" = "503" || { cat /tmp/3mf.json; exit 1; }
           grep -q "File scanning is temporarily unavailable" /tmp/3mf.json
+      - name: Verify pricing security boundaries
+        run: |
+          UNAUTH_PRICING=$(curl -sS -o /tmp/pricing-unauth.json -w "%{http_code}" http://127.0.0.1:3000/api/owner/pricing/overview)
+          test "$UNAUTH_PRICING" = "401" || { cat /tmp/pricing-unauth.json; exit 1; }
+
+          curl -fsS -c /tmp/pricing-owner.cookies \
+            -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" \
+            -H "Content-Type: application/json" \
+            --data '{"password":"ci-owner-password-12345"}' \
+            http://127.0.0.1:3000/api/owner/login >/tmp/pricing-owner-login.json
+
+          EVIL_SETTINGS=$(curl -sS -b /tmp/pricing-owner.cookies -o /tmp/pricing-settings-evil.json -w "%{http_code}" \
+            -X PATCH -H "Origin: https://example.invalid" -H "Content-Type: application/json" \
+            --data '{"targetContributionMarginBasisPoints":4000}' \
+            http://127.0.0.1:3000/api/owner/pricing/settings)
+          test "$EVIL_SETTINGS" = "403" || { cat /tmp/pricing-settings-evil.json; exit 1; }
+
+          EVIL_UPLOAD=$(curl -sS -b /tmp/pricing-owner.cookies -o /tmp/pricing-upload-evil.json -w "%{http_code}" \
+            -X POST -H "Origin: https://example.invalid" \
+            http://127.0.0.1:3000/api/owner/pricing/invoices/upload)
+          test "$EVIL_UPLOAD" = "403" || { cat /tmp/pricing-upload-evil.json; exit 1; }
+
+          curl -fsS -c /tmp/pricing-customer.cookies \
+            -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" \
+            -H "Content-Type: application/json" \
+            --data '{"displayName":"Pricing Customer","email":"pricing-ci@example.test","password":"pricing-test-password-123","emailStatusUpdates":false}' \
+            http://127.0.0.1:3000/api/account/register >/tmp/pricing-register.json
+
+          node <<'NODE'
+          const fs=require('node:fs');
+          const {DatabaseSync}=require('node:sqlite');
+          const registration=JSON.parse(fs.readFileSync('/tmp/pricing-register.json','utf8'));
+          const customerId=registration.customer?.id;
+          if(!customerId) throw new Error('Pricing customer registration did not return an id');
+          const db=new DatabaseSync('/tmp/meshharbor-v086.sqlite');
+          const now=new Date().toISOString();
+          const request={id:'req-pricing-leak',requestCode:'REQ-PRICE',status:'quoted',name:'Pricing Customer',email:'pricing-ci@example.test',phone:'',projectType:'other',modelStatus:'ready',fulfillmentMethod:'pickup',assemblyPreference:'unsure',quantity:1,dimensions:'',materialPreference:'pla',colorPreference:'',budget:'',neededBy:'',neededBySubmitted:'',referenceUrl:'',description:'Leak validation',imageUrl:'',attachments:[],internalNote:'',createdAt:now,updatedAt:now,queuedAt:'',queueJobId:'',customerAccountId:customerId,riskLevel:'none',riskFlags:[],source:'customer',emailNotifications:false};
+          const quote={id:'quote-pricing-leak',requestId:request.id,requestCode:request.requestCode,customerAccountId:customerId,status:'sent',revision:1,basePriceCents:10000,assemblyMode:'not-required',assemblyFeeCents:0,rushFeeCents:0,fulfillmentMode:'pickup',localDeliveryFeeCents:0,packageWeightOz:0,packageLengthIn:0,packageWidthIn:0,packageHeightIn:0,shippingSelection:null,totalCents:10000,depositCents:5000,balanceCents:5000,currency:'usd',material:'Bambu PLA Basic',dimensions:'',estimatedReadyDate:'',notes:'',terms:'Pricing security validation terms.',createdAt:now,updatedAt:now,sentAt:now,approvedAt:'',approvedByCustomerId:'',approvalSnapshot:null,stripeCheckoutSessionId:'',stripeCheckoutAmountCents:0,depositPaidAt:'',paymentProvider:'stripe',payments:[],refunds:[],history:[]};
+          const cost={id:'quote-pricing-leak:r1:estimate',requestId:request.id,requestCode:request.requestCode,quoteId:quote.id,quoteRevision:1,status:'estimate',materialLines:[{id:'m1',catalogItemId:'pla-basic-refill',grams:100,displayName:'PLA Basic',costSource:'actual-average',costPerGramMicros:1499000,extendedCostCents:150}],machineHours:1,machineHourlyCostCents:100,designHours:0,designHourlyCostCents:0,laborHours:0,laborHourlyCostCents:0,postProcessingHours:0,postProcessingHourlyCostCents:0,packagingCostCents:50,localDeliveryInternalCostCents:0,miscellaneousCostCents:0,paymentFeeCents:320,shippingInternalCostCents:0,nonPaymentDirectCostCents:300,directCostCents:620,quotedRevenueCents:10000,contributionProfitCents:9380,contributionMarginBasisPoints:9380,targetMarginBasisPoints:4000,suggestedPriceCents:1000,priceMeetsTarget:true,costingSourceSummary:'actual purchase average',createdAt:now,updatedAt:now,finalizedAt:''};
+          const insert=db.prepare('INSERT OR REPLACE INTO app_records(collection,id,json,updated_at) VALUES (?,?,?,?)');
+          insert.run('requests',request.id,JSON.stringify(request),now);
+          insert.run('quotes',quote.id,JSON.stringify(quote),now);
+          insert.run('quote-cost-snapshots',cost.id,JSON.stringify(cost),now);
+          db.close();
+          NODE
+
+          curl -fsS -b /tmp/pricing-customer.cookies http://127.0.0.1:3000/api/account/requests >/tmp/pricing-customer-data.json
+          node <<'NODE'
+          const fs=require('node:fs');
+          const raw=fs.readFileSync('/tmp/pricing-customer-data.json','utf8');
+          const data=JSON.parse(raw);
+          if(!(data.requests||[]).some(item=>item.id==='req-pricing-leak')) throw new Error('Pricing customer fixture request missing');
+          for(const term of ['directCostCents','contributionProfitCents','contributionMarginBasisPoints','landedCostPerGramMicros','invoiceImportId','costPerGramMicros','costingSourceSummary']){
+            if(raw.includes(term)) throw new Error('Customer API leaked internal pricing field: '+term);
+          }
+          NODE
       - name: Verify owner security status endpoint
         run: |
           curl -fsS -c /tmp/v088-owner.cookies             -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https"             -H "Content-Type: application/json"             --data '{"password":"ci-owner-password-12345"}'             http://127.0.0.1:3000/api/owner/login >/tmp/v088-owner-login.json

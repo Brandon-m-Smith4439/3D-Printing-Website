@@ -19,6 +19,12 @@ const COLLECTIONS = [
   "owner-security",
   "customer-follow-ups",
   "customer-follow-up-controls",
+  "pricing-settings",
+  "bambu-filament-catalog",
+  "bambu-invoice-imports",
+  "filament-purchase-lots",
+  "quote-cost-snapshots",
+  "pricing-presets",
 ] as const;
 
 let initialized = false;
