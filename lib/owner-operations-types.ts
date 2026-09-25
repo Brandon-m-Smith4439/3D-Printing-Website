@@ -90,7 +90,11 @@ export type OwnerStripeSummary = {
 
 export type OwnerShippingSummary = {
   configured: boolean;
-  mode: "test" | "production" | "unconfigured";
+  credentialMode: "unconfigured" | "test" | "production";
+  mode: "unconfigured" | "test" | "production-locked" | "production";
+  liveEnabled: boolean;
+  businessCallsAllowed: boolean;
+  readiness: "unconfigured" | "test-incomplete" | "test-ready" | "production-locked" | "production-incomplete" | "production-ready";
   fromAddressConfigured: boolean;
   webhookSecretConfigured: boolean;
   autoBuyLabels: boolean;
