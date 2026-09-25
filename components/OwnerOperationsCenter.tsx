@@ -39,6 +39,8 @@ export function OwnerOperationsCenter({
   const [snapshot, setSnapshot] = useState<OwnerOperationsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [followUpBusy, setFollowUpBusy] = useState("");
+  const [followUpPreview, setFollowUpPreview] = useState<{due:Array<{id:string;requestCode:string;type:string;blockedReason:string}>;upcoming:Array<{id:string;requestCode:string;type:string;blockedReason:string}>;blocked:Array<{id:string;requestCode:string;type:string;blockedReason:string}>}|null>(null);
 
   async function load() {
     setLoading(true);
@@ -52,6 +54,29 @@ export function OwnerOperationsCenter({
     } finally {
       setLoading(false);
     }
+  }
+
+  async function previewFollowUps() {
+    setFollowUpBusy("preview");
+    try {
+      const response = await fetch("/api/owner/follow-ups/preview", { method: "POST" });
+      const result = await response.json() as { preview?: typeof followUpPreview; message?: string };
+      if (!response.ok || !result.preview) throw new Error(result.message || "Could not preview customer follow-ups.");
+      setFollowUpPreview(result.preview);
+    } catch (error) { onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not preview customer follow-ups." }); }
+    finally { setFollowUpBusy(""); }
+  }
+
+  async function setFollowUpEnabled(enabled: boolean) {
+    setFollowUpBusy("settings");
+    try {
+      const response = await fetch("/api/owner/follow-ups/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Could not update customer follow-up automation.");
+      onNotice({ kind: "success", text: result.message || "Customer follow-up automation updated." });
+      await load();
+    } catch (error) { onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not update customer follow-up automation." }); }
+    finally { setFollowUpBusy(""); }
   }
 
   useEffect(() => { void load(); }, []);
@@ -78,6 +103,7 @@ export function OwnerOperationsCenter({
     { key: "new", label: "New requests", value: snapshot.counts.newRequests, detail: "Waiting for review", tone: snapshot.counts.newRequests ? "action" : "good" },
     { key: "production", label: "Active production", value: snapshot.counts.activeProduction, detail: "Jobs not completed", tone: "neutral" },
     { key: "balances", label: "Final balances", value: snapshot.counts.finalBalancesDue, detail: "Open Stripe invoices", tone: snapshot.counts.finalBalancesDue ? "watch" : "good" },
+    { key: "followups", label: "Follow-ups due", value: snapshot.counts.followUpsDue, detail: "Customer reminders ready", tone: snapshot.counts.followUpsDue ? "action" : "good" },
     { key: "completed", label: "Completed", value: snapshot.counts.completed, detail: "Finished requests", tone: "neutral" },
   ];
 
@@ -171,6 +197,14 @@ export function OwnerOperationsCenter({
             <small>{item.detail}</small>
           </article>)}
         </div>
+        <article className="operations-followup-card">
+          <div className="operations-followup-heading"><div><span>CUSTOMER FOLLOW-UPS</span><strong>{snapshot.followUps.ownerEnabled ? "Automation enabled" : "Automation paused"}</strong></div><em className={snapshot.followUps.deploymentEnabled ? "is-on" : "is-off"}>{snapshot.followUps.deploymentEnabled ? "Deployment gate on" : "Deployment gate off"}</em></div>
+          <p>{snapshot.followUps.due} due now • {snapshot.followUps.sentLast7Days} sent in 7 days • {snapshot.followUps.failed} failed</p>
+          <div className="operations-followup-actions"><button className="button button-secondary button-small" type="button" disabled={Boolean(followUpBusy)} onClick={() => void previewFollowUps()}>{followUpBusy === "preview" ? "Previewing…" : "Preview Follow-ups"}</button><button className="button button-secondary button-small" type="button" disabled={Boolean(followUpBusy) || !snapshot.followUps.deploymentEnabled} onClick={() => void setFollowUpEnabled(!snapshot.followUps.ownerEnabled)}>{followUpBusy === "settings" ? "Saving…" : snapshot.followUps.ownerEnabled ? "Pause Automation" : "Resume Automation"}</button></div>
+          {followUpPreview && <div className="operations-followup-preview">
+            {(["due","upcoming","blocked"] as const).map((group) => <div key={group}><b>{group === "due" ? "Due now" : group === "upcoming" ? "Upcoming" : "Blocked"}</b>{followUpPreview[group].length ? followUpPreview[group].slice(0,8).map((item) => <span key={item.id}><strong>{item.requestCode}</strong> {item.type.replaceAll("-"," ")}{item.blockedReason ? ` — ${item.blockedReason}` : ""}</span>) : <span>None</span>}</div>)}
+          </div>}
+        </article>
       </section>
     </div>
   </div>;
