@@ -15,6 +15,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Export feature source
+        uses: actions/upload-artifact@v4
+        with:
+          name: v089-source-tree
+          path: |
+            .
+            !node_modules
+            !.next
+          include-hidden-files: true
+          retention-days: 1
       - name: Use Node 22
         uses: actions/setup-node@v4
         with:
