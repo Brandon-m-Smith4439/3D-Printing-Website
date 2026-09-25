@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   classifyEasyPostCredential,
   easyPostBusinessCallsAllowed,
+  easyPostDiagnosticNoticeKind,
   easyPostReadinessPresentation,
   resolveEasyPostOperationalMode,
   summarizeEasyPostWebhooks,
@@ -51,5 +52,10 @@ assert.deepEqual(easyPostReadinessPresentation("production-locked"), {
   label: "EasyPost live key locked",
   detail: "A production key is installed, but real rates and labels are blocked until live shipping is deliberately enabled.",
 });
+
+assert.equal(easyPostDiagnosticNoticeKind({ connected: false, webhookFound: false, webhookDisabled: false }), "error");
+assert.equal(easyPostDiagnosticNoticeKind({ connected: true, webhookFound: false, webhookDisabled: false }), "warning");
+assert.equal(easyPostDiagnosticNoticeKind({ connected: true, webhookFound: true, webhookDisabled: true }), "warning");
+assert.equal(easyPostDiagnosticNoticeKind({ connected: true, webhookFound: true, webhookDisabled: false }), "success");
 
 console.log("EasyPost mode policy checks passed.");
