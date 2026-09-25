@@ -5,7 +5,7 @@ import { previewCustomerFollowUps } from "@/lib/customer-follow-up-engine";
 
 export const dynamic="force-dynamic";
 const enabled=()=>/^(1|true|yes|on)$/i.test((process.env.CUSTOMER_FOLLOWUPS_ENABLED||"").trim());
-function safeRecord(record:Awaited<ReturnType<typeof readFollowUps>>[number]){ const {resendEmailId:_resend,...safe}=record; return safe; }
+function safeRecord(record:Awaited<ReturnType<typeof readFollowUps>>[number]){ return { ...record, resendEmailId: undefined }; }
 export async function GET(request:NextRequest){
   if(!await requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});
   const [settings,records,preview]=await Promise.all([getFollowUpSettings(),readFollowUps(),previewCustomerFollowUps()]);
