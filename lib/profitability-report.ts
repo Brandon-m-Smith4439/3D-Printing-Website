@@ -1,4 +1,5 @@
 import type { QuoteCostSnapshot } from './pricing-types.ts';
+import { quoteCostingIsComplete } from './quote-cost-engine.ts';
 
 export type ProfitabilityRange='7d'|'30d'|'90d'|'all';
 export type ProfitabilityReport={
@@ -23,13 +24,13 @@ export function buildProfitabilityReport(input:{requests:RequestLike[];quotes:Qu
       completedCount++;
       if(!quote){cu++;continue;}
       const snap=bestSnapshot(request.id,quote,input.snapshots,true);
-      if(!snap){cu++;continue;}
+      if(!snap||!quoteCostingIsComplete(snap)){cu++;continue;}
       cr+=snap.quotedRevenueCents;cc+=snap.directCostCents;cp+=snap.contributionProfitCents;costedCompleted++;
       continue;
     }
     if(request.status==='declined'||!quote)continue;
     const snap=bestSnapshot(request.id,quote,input.snapshots,false);
-    if(!snap){au++;continue;}
+    if(!snap||!quoteCostingIsComplete(snap)){au++;continue;}
     ar+=snap.quotedRevenueCents;ac+=snap.directCostCents;ap+=snap.contributionProfitCents;
     if(snap.targetMarginBasisPoints>0&&snap.contributionMarginBasisPoints<snap.targetMarginBasisPoints)below++;
   }
