@@ -372,6 +372,19 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
     });
   }
 
+  for (const failed of input.followUps.failedRequests) {
+    addAttention(attention, nowMs, {
+      id: `follow-up:${failed.requestId}:${failed.createdAt}`,
+      severity: "watch",
+      category: "follow-up",
+      title: "Customer follow-up needs review",
+      detail: failed.reason || "An automated customer reminder exhausted its retry path.",
+      requestId: failed.requestId,
+      requestCode: failed.requestCode,
+      createdAt: failed.createdAt,
+    });
+  }
+
   attention.sort((a, b) => {
     const severity = severityRank(a.severity) - severityRank(b.severity);
     if (severity) return severity;
@@ -391,6 +404,7 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
     finalBalancesDue: [...invoiceByRequest.entries()].filter(
       ([requestId, invoice]) => activeRequestIds.has(requestId) && invoice.status === "open" && invoice.amountRemainingCents > 0,
     ).length,
+    followUpsDue: input.followUps.due,
     completed: input.requests.filter((item) => item.status === "completed").length,
   };
 
@@ -400,5 +414,6 @@ export function buildOwnerOperationsSnapshot(input: OwnerOperationsInput, now = 
     attention,
     search,
     integrations,
+    followUps: input.followUps,
   };
 }
