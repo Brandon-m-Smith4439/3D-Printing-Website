@@ -26,12 +26,26 @@ type StripeStatus = {
 };
 type ShippingStatus = {
   configured: boolean;
-  mode: "test" | "production" | "unconfigured";
+  credentialMode: "unconfigured" | "test" | "production";
+  mode: "unconfigured" | "test" | "production-locked" | "production";
+  liveEnabled: boolean;
+  businessCallsAllowed: boolean;
+  readiness: "unconfigured" | "test-incomplete" | "test-ready" | "production-locked" | "production-incomplete" | "production-ready";
   fromAddressConfigured: boolean;
   webhookSecretConfigured: boolean;
   autoBuyLabels: boolean;
   webhookUrl: string;
   originLabel: string;
+};
+type EasyPostDiagnostic = {
+  connected: boolean;
+  credentialMode: "test" | "production" | "unconfigured";
+  operationalMode: "unconfigured" | "test" | "production-locked" | "production";
+  webhookFound: boolean;
+  webhookDisabled: boolean;
+  expectedWebhookUrl: string;
+  checkedAt: string;
+  message: string;
 };
 type SecurityStatus = {
   twoFactorEnabled: boolean;
@@ -54,6 +68,7 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [stripe, setStripe] = useState<StripeStatus | null>(null);
   const [shipping, setShipping] = useState<ShippingStatus | null>(null);
+  const [shippingDiagnostic, setShippingDiagnostic] = useState<EasyPostDiagnostic | null>(null);
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
   const [setup, setSetup] = useState<SetupPayload | null>(null);
   const [setupPassword, setSetupPassword] = useState("");
@@ -108,6 +123,24 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
     const result = await response.json() as T & { message?: string };
     if (!response.ok) throw new Error(result.message || "Request could not be completed.");
     return result;
+  }
+
+  async function testShippingConnection() {
+    setBusy("shipping-test");
+    try {
+      const response = await fetch("/api/owner/shipping/test", { method: "POST" });
+      const result = await response.json() as { diagnostic?: EasyPostDiagnostic; message?: string };
+      if (result.diagnostic) setShippingDiagnostic(result.diagnostic);
+      if (!response.ok || !result.diagnostic) {
+        throw new Error(result.diagnostic?.message || result.message || "Could not test EasyPost.");
+      }
+      onNotice({ kind: "success", text: result.diagnostic.message });
+      await load();
+    } catch (error) {
+      onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not test EasyPost." });
+    } finally {
+      setBusy("");
+    }
   }
 
   async function backup() {
@@ -359,13 +392,28 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
       <p className="owner-panel-intro">EasyPost supplies USPS, UPS, and FedEx rates, label purchasing, and carrier tracking. Customer addresses stay private and shipping credentials stay in server environment variables.</p>
       {!shipping ? <div className="queue-empty compact"><strong>Checking EasyPost configuration…</strong></div> : <>
         <div className="stripe-status-grid">
-          <article className={shipping.configured ? "is-ready" : "is-missing"}><span>EasyPost API</span><strong>{shipping.configured ? "Configured" : "Missing"}</strong><small>{shipping.mode === "test" ? "Test mode" : shipping.mode === "production" ? "Production mode" : "Add EASYPOST_API_KEY"}</small></article>
+          <article className={shipping.readiness === "test-ready" || shipping.readiness === "production-ready" ? "is-ready" : shipping.readiness === "unconfigured" ? "is-missing" : "is-warning"}>
+            <span>EasyPost API</span>
+            <strong>{shipping.credentialMode === "test" ? "Test key" : shipping.mode === "production-locked" ? "Live key locked" : shipping.credentialMode === "production" ? "Live key" : "Missing"}</strong>
+            <small>{shipping.readiness === "test-ready" ? "Test workflow ready" : shipping.readiness === "production-ready" ? "Production workflow ready" : shipping.readiness === "production-locked" ? "Real shipping blocked by safety lock" : shipping.configured ? "Setup still needs attention" : "Add EASYPOST_API_KEY"}</small>
+          </article>
           <article className={shipping.fromAddressConfigured ? "is-ready" : "is-missing"}><span>Ship-from address</span><strong>{shipping.fromAddressConfigured ? "Configured" : "Missing"}</strong><small>{shipping.fromAddressConfigured ? shipping.originLabel : "Set it in Site Content"}</small></article>
           <article className={shipping.webhookSecretConfigured ? "is-ready" : "is-warning"}><span>Tracking webhook</span><strong>{shipping.webhookSecretConfigured ? "Signed" : "Not configured"}</strong><small>{shipping.webhookSecretConfigured ? "HMAC verification enabled" : "Add EASYPOST_WEBHOOK_SECRET before production"}</small></article>
-          <article className={shipping.autoBuyLabels ? "is-ready" : "is-warning"}><span>Automatic labels</span><strong>{shipping.autoBuyLabels ? "Enabled" : "Manual approval"}</strong><small>{shipping.autoBuyLabels ? "Ready jobs can buy within the rate-change guardrail" : "Safer default while testing"}</small></article>
+          <article className={shipping.mode === "production" && shipping.businessCallsAllowed ? "is-ready" : "is-warning"}>
+            <span>Label mode</span>
+            <strong>{shipping.mode === "test" ? "Test only" : shipping.mode === "production-locked" ? "Live locked" : shipping.mode === "production" ? "Live enabled" : "Unavailable"}</strong>
+            <small>{shipping.autoBuyLabels ? "Automatic label buying is enabled" : "Automatic label buying is off; owner approval remains required"}</small>
+          </article>
         </div>
-        <div className="stripe-webhook-box"><div><span>EasyPost webhook endpoint</span><code>{shipping.webhookUrl}</code></div><button className="button button-secondary button-small" type="button" onClick={() => void copyText(shipping.webhookUrl, "EasyPost webhook URL copied.")}>Copy URL</button></div>
-        <div className="stripe-setup-note"><strong>Label safety</strong><span>Before purchasing a label, Mesh Harbor re-rates the package. Large price increases require owner review instead of silently eating the difference.</span></div>
+        <div className="stripe-webhook-box">
+          <div><span>EasyPost webhook endpoint</span><code>{shipping.webhookUrl}</code></div>
+          <div className="stripe-webhook-actions">
+            <button className="button button-secondary button-small" type="button" onClick={() => void copyText(shipping.webhookUrl, "EasyPost webhook URL copied.")}>Copy URL</button>
+            <button className="button button-secondary button-small" type="button" disabled={busy === "shipping-test"} onClick={() => void testShippingConnection()}>{busy === "shipping-test" ? "Testing…" : "Test EasyPost Connection"}</button>
+          </div>
+        </div>
+        {shippingDiagnostic && <div className="stripe-setup-note"><strong>Connection test</strong><span>{shippingDiagnostic.message} {shippingDiagnostic.webhookFound ? (shippingDiagnostic.webhookDisabled ? "The matching webhook is disabled." : "The matching webhook is active.") : "The expected webhook was not found."} Checked {new Date(shippingDiagnostic.checkedAt).toLocaleString()}.</span></div>}
+        <div className="stripe-setup-note"><strong>Label safety</strong><span>{shipping.mode === "test" ? "Test mode is active. No production shipping can be purchased with the current test credential." : shipping.mode === "production-locked" ? "A production key is present, but real rates and labels remain blocked until EASYPOST_LIVE_ENABLED is deliberately enabled." : "Before purchasing a label, Mesh Harbor re-rates the package. Large price increases require owner review instead of silently eating the difference."}</span></div>
       </>}
     </section>
 
