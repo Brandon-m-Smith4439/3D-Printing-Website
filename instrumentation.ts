@@ -1,0 +1,1 @@
+export async function register(){ if(process.env.NEXT_RUNTIME!=="nodejs")return; const {startCustomerFollowUpScheduler}=await import("./lib/customer-follow-up-scheduler"); startCustomerFollowUpScheduler(); }
