@@ -5,7 +5,8 @@ export function isPdfBytes(bytes:Uint8Array){
 export async function extractPdfText(bytes:Uint8Array){
   if(!isPdfBytes(bytes))throw new Error('The file does not contain a valid PDF signature.');
   const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const document=await pdfjs.getDocument({data:bytes,useWorkerFetch:false,isEvalSupported:false}).promise;
+  const loadingTask=pdfjs.getDocument({data:bytes,useWorkerFetch:false});
+  const document=await loadingTask.promise;
   const pages:string[]=[];
   try{
     for(let pageNumber=1;pageNumber<=document.numPages;pageNumber+=1){
@@ -15,7 +16,7 @@ export async function extractPdfText(bytes:Uint8Array){
       page.cleanup();
     }
   }finally{
-    await document.destroy();
+    await loadingTask.destroy();
   }
   return pages.join('\n').replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
