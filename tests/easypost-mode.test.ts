@@ -42,3 +42,16 @@ assert.deepEqual(
   ]),
   { webhookFound: false, webhookDisabled: false },
 );
+
+import { easyPostReadinessPresentation } from "../lib/easypost-mode.ts";
+
+assert.deepEqual(easyPostReadinessPresentation("test-ready"), {
+  tone: "good",
+  label: "EasyPost test ready",
+  detail: "Rates, test labels, refunds, and tracking can be validated safely; live shipping remains off.",
+});
+assert.deepEqual(easyPostReadinessPresentation("production-locked"), {
+  tone: "warning",
+  label: "EasyPost live key locked",
+  detail: "A production key is installed, but real rates and labels are blocked until live shipping is deliberately enabled.",
+});
