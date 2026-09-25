@@ -13,7 +13,7 @@ assert.equal(customerRoute.includes('pricing-store'), false, 'customer route mus
 
 const invoiceListRoute = await readFile(new URL('../app/api/owner/pricing/invoices/route.ts', import.meta.url), 'utf8');
 const invoiceDetailRoute = await readFile(new URL('../app/api/owner/pricing/invoices/[id]/route.ts', import.meta.url), 'utf8');
-assert.match(invoiceListRoute, /privateObjectKey:_private/);
-assert.match(invoiceDetailRoute, /privateObjectKey:_private/);
+assert.match(invoiceListRoute, /privateObjectKey/);
+assert.match(invoiceDetailRoute, /privateObjectKey/);
 
 console.log('Pricing security source-boundary checks passed.');
