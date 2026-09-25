@@ -85,6 +85,32 @@ assert.equal(records[0].status,'canceled');
 assert.equal(records[0].nextAttemptAt,'');
 
 await resetState();
+sendCalls=[]; notifyCalls=[]; auditCalls=[];
+await store.updateFollowUpSettings(true,'owner');
+// Permanent non-preference provider failures are terminal and must not retry every hourly sweep.
+result=await engine.runCustomerFollowUpSweep(deps(data(),{sendEmail:async({record})=>{sendCalls.push(record.id);return {ok:false,retryable:false,reason:'Email service rejected the reminder request.'};}}));
+assert.equal(result.failed,1);
+records=await store.readFollowUps();
+assert.equal(records[0].status,'failed');
+assert.equal(records[0].nextAttemptAt,'');
+const sendsBeforePermanentRetry=sendCalls.length;
+result=await engine.runCustomerFollowUpSweep(deps(data(),{sendEmail:async({record})=>{sendCalls.push(record.id);return {ok:true,emailId:'should-not-send'};}}));
+assert.equal(result.sent,0);
+assert.equal(sendCalls.length,sendsBeforePermanentRetry);
+
+await resetState();
+sendCalls=[]; notifyCalls=[]; auditCalls=[];
+await store.updateFollowUpSettings(true,'owner');
+// An ambiguous in-flight record may retry only inside the provider idempotency window.
+await store.upsertFollowUp({id:'req-1:quote:q-req-1:r1:stage1',requestId:'req-1',requestCode:'REQ-ONE',customerAccountId:'cus-1',type:'quote',stage:1,anchorId:'q-req-1',anchorRevision:1,dueAt:isoAgo(2),status:'sending',subject:'subject',text:'text',idempotencyKey:'meshharbor:req-1:quote:q-req-1:r1:stage1',attemptCount:1,lastAttemptAt:isoAgo(25),nextAttemptAt:'',sentAt:'',resendEmailId:'',reason:'',createdAt:isoAgo(50),updatedAt:isoAgo(25)});
+result=await engine.runCustomerFollowUpSweep(deps(data()));
+assert.equal(result.sent,0);
+assert.equal(sendCalls.length,0);
+records=await store.readFollowUps();
+assert.equal(records[0].status,'failed');
+assert.match(records[0].reason,/ambiguous/i);
+
+await resetState();
 await store.updateFollowUpSettings(true,'owner');
 await store.upsertFollowUp({id:'req-1:quote:q-old:r1:stage1',requestId:'req-1',requestCode:'REQ-ONE',customerAccountId:'cus-1',type:'quote',stage:1,anchorId:'q-old',anchorRevision:1,dueAt:isoAgo(20),status:'pending',subject:'old',text:'old',idempotencyKey:'meshharbor:old',attemptCount:0,lastAttemptAt:'',nextAttemptAt:'',sentAt:'',resendEmailId:'',reason:'',createdAt:isoAgo(50),updatedAt:isoAgo(50)});
 await engine.runCustomerFollowUpSweep(deps(data({quotes:[quote('req-1',{id:'q-new',revision:2})]})));
