@@ -58,3 +58,12 @@ export function easyPostReadinessPresentation(readiness: EasyPostReadiness) {
       return { tone: "warning" as const, label: "EasyPost not configured", detail: "Add the EasyPost API key before testing carrier shipping." };
   }
 }
+
+export function easyPostDiagnosticNoticeKind(input: {
+  connected: boolean;
+  webhookFound: boolean;
+  webhookDisabled: boolean;
+}): "success" | "warning" | "error" {
+  if (!input.connected) return "error";
+  return input.webhookFound && !input.webhookDisabled ? "success" : "warning";
+}
