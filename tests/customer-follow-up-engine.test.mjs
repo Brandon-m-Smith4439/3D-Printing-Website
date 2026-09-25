@@ -69,6 +69,13 @@ assert.equal(records[0].status,'failed');
 assert.ok(records[0].nextAttemptAt);
 assert.equal(notifyCalls.length,1);
 
+// Exhausted or permanent failed records are terminal and must not resend on later sweeps.
+await store.updateFollowUp(records[0].id,{status:'failed',attemptCount:3,nextAttemptAt:'',reason:'Email service is temporarily unavailable.'});
+const sendsBeforeTerminalRetry=sendCalls.length;
+result=await engine.runCustomerFollowUpSweep(deps(data(),{sendEmail:async({record})=>{sendCalls.push(record.id);return {ok:true,emailId:'should-not-send'};}}));
+assert.equal(result.sent,0);
+assert.equal(sendCalls.length,sendsBeforeTerminalRetry);
+
 await resetState();
 sendCalls=[]; notifyCalls=[]; auditCalls=[];
 await store.updateFollowUpSettings(true,'owner');
