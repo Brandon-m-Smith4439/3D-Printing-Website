@@ -19,3 +19,17 @@ export function resolveEasyPostOperationalMode(key: string, liveEnabled: boolean
 export function easyPostBusinessCallsAllowed(mode: EasyPostOperationalMode) {
   return mode === "test" || mode === "production";
 }
+
+export type EasyPostWebhookSummary = { webhookFound: boolean; webhookDisabled: boolean };
+
+export function summarizeEasyPostWebhooks(
+  expectedUrl: string,
+  webhooks: Array<{ url?: string | null; disabled_at?: string | null }>,
+): EasyPostWebhookSummary {
+  const normalizedExpected = expectedUrl.trim().replace(/\/$/, "");
+  const match = webhooks.find((item) => (item.url || "").trim().replace(/\/$/, "") === normalizedExpected);
+  return {
+    webhookFound: Boolean(match),
+    webhookDisabled: Boolean(match?.disabled_at),
+  };
+}
