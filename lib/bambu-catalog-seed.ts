@@ -3,6 +3,7 @@ import type { BambuFilamentCatalogItem, BambuMaterialClass, BambuPackageType } f
 
 const VERIFIED_AT='2026-09-25T14:30:00.000Z';
 const STORE='https://bambulab-us.myshopify.com';
+const PRICE_DROP_2026='https://forum.bambulab.com/t/filament-prices-drop-across-all-regions/259832';
 
 type SeedInput={id:string;familyKey:string;displayName:string;materialClass:BambuMaterialClass;packageType:BambuPackageType;netWeightGrams:number;msrpCents:number;sourceUrl:string};
 function row(input:SeedInput):BambuFilamentCatalogItem{
@@ -12,11 +13,11 @@ function row(input:SeedInput):BambuFilamentCatalogItem{
 // Reference/MSRP seed only. Posted Bambu invoices take precedence for costing.
 // Families reflect the official US filament navigation verified on 2026-09-25.
 export const bambuCatalogSeed:BambuFilamentCatalogItem[]=[
-  row({id:'pla-basic-refill',familyKey:'pla-basic',displayName:'PLA Basic — Refill',materialClass:'PLA',packageType:'refill',netWeightGrams:1000,msrpCents:1999,sourceUrl:`${STORE}/products/pla-basic-filament`}),
+  row({id:'pla-basic-refill',familyKey:'pla-basic',displayName:'PLA Basic — Refill',materialClass:'PLA',packageType:'refill',netWeightGrams:1000,msrpCents:1599,sourceUrl:PRICE_DROP_2026}),
   row({id:'pla-basic-spool',familyKey:'pla-basic',displayName:'PLA Basic — With Spool',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:2299,sourceUrl:`${STORE}/products/pla-basic-filament`}),
   row({id:'pla-matte-refill',familyKey:'pla-matte',displayName:'PLA Matte — Refill',materialClass:'PLA',packageType:'refill',netWeightGrams:1000,msrpCents:1999,sourceUrl:`${STORE}/products/pla-matte`}),
   row({id:'pla-matte-spool',familyKey:'pla-matte',displayName:'PLA Matte — With Spool',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:2299,sourceUrl:`${STORE}/products/pla-matte`}),
-  row({id:'pla-pure-refill',familyKey:'pla-pure',displayName:'PLA Pure — Refill',materialClass:'PLA',packageType:'refill',netWeightGrams:1000,msrpCents:1699,sourceUrl:'https://blog.bambulab.com/introducing-bambu-lab-pla-pure-a-filament-made-for-printing-where-you-live/'}),
+  row({id:'pla-pure-refill',familyKey:'pla-pure',displayName:'PLA Pure — Refill',materialClass:'PLA',packageType:'refill',netWeightGrams:1000,msrpCents:1699,sourceUrl:PRICE_DROP_2026}),
   row({id:'pla-translucent',familyKey:'pla-translucent',displayName:'PLA Translucent',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:2499,sourceUrl:`${STORE}/collections/pla`}),
   row({id:'pla-silk-multicolor',familyKey:'pla-silk-multicolor',displayName:'PLA Silk Multi-Color',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:2499,sourceUrl:`${STORE}/collections/pla`}),
   row({id:'pla-silk-plus',familyKey:'pla-silk-plus',displayName:'PLA Silk+',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:2299,sourceUrl:`${STORE}/collections/pla`}),
@@ -32,6 +33,7 @@ export const bambuCatalogSeed:BambuFilamentCatalogItem[]=[
   row({id:'pla-cf-spool',familyKey:'pla-cf',displayName:'PLA-CF — With Spool',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:3499,sourceUrl:`${STORE}/products/pla-cf`}),
   row({id:'pla-glow',familyKey:'pla-glow',displayName:'PLA Glow',materialClass:'PLA',packageType:'with-spool',netWeightGrams:1000,msrpCents:2499,sourceUrl:`${STORE}/collections/pla`}),
   row({id:'pla-cmyk-bundle',familyKey:'pla-cmyk',displayName:'PLA CMYK Lithophane Bundle',materialClass:'PLA',packageType:'filament-only',netWeightGrams:4000,msrpCents:6999,sourceUrl:`${STORE}/collections/pla`}),
+  row({id:'petg-basic-refill',familyKey:'petg-basic',displayName:'PETG Basic — Refill',materialClass:'PETG',packageType:'refill',netWeightGrams:1000,msrpCents:1399,sourceUrl:PRICE_DROP_2026}),
   row({id:'petg-hf-refill',familyKey:'petg-hf',displayName:'PETG HF — Refill',materialClass:'PETG',packageType:'refill',netWeightGrams:1000,msrpCents:1999,sourceUrl:`${STORE}/pages/bambu-filament`}),
   row({id:'petg-hf-spool',familyKey:'petg-hf',displayName:'PETG HF — With Spool',materialClass:'PETG',packageType:'with-spool',netWeightGrams:1000,msrpCents:2299,sourceUrl:`${STORE}/pages/bambu-filament`}),
   row({id:'petg-translucent-refill',familyKey:'petg-translucent',displayName:'PETG Translucent — Refill',materialClass:'PETG',packageType:'refill',netWeightGrams:1000,msrpCents:1999,sourceUrl:`${STORE}/collections/petg`}),
