@@ -21,3 +21,24 @@ assert.equal(easyPostBusinessCallsAllowed("test"), true);
 assert.equal(easyPostBusinessCallsAllowed("production"), true);
 
 console.log("EasyPost mode policy checks passed.");
+
+import { summarizeEasyPostWebhooks } from "../lib/easypost-mode.ts";
+
+assert.deepEqual(
+  summarizeEasyPostWebhooks("https://meshharbor3d.com/api/shipping/easypost/webhook", [
+    { url: "https://meshharbor3d.com/api/shipping/easypost/webhook", disabled_at: null },
+  ]),
+  { webhookFound: true, webhookDisabled: false },
+);
+assert.deepEqual(
+  summarizeEasyPostWebhooks("https://meshharbor3d.com/api/shipping/easypost/webhook", [
+    { url: "https://meshharbor3d.com/api/shipping/easypost/webhook", disabled_at: "2026-09-25T00:00:00Z" },
+  ]),
+  { webhookFound: true, webhookDisabled: true },
+);
+assert.deepEqual(
+  summarizeEasyPostWebhooks("https://meshharbor3d.com/api/shipping/easypost/webhook", [
+    { url: "https://example.com/other", disabled_at: null },
+  ]),
+  { webhookFound: false, webhookDisabled: false },
+);
