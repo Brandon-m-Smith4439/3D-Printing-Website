@@ -1,4 +1,5 @@
 import type { QuoteCostSnapshot } from './pricing-types.ts';
+import { quoteCostingIsComplete } from './quote-cost-engine.ts';
 
 export type ProfitabilityAttentionItem = {
   id: string;
@@ -33,11 +34,11 @@ export function buildProfitabilityAttention(input:{requests:RequestLike[];quotes
     const snapshots = input.snapshots.filter((snapshot) => snapshot.requestId === request.id && snapshot.quoteId === quote.id && snapshot.quoteRevision === quote.revision);
     if (request.status === 'completed') {
       const finalized = snapshots.find((snapshot) => snapshot.status === 'finalized');
-      if (!finalized) {
+      if (!finalized || !quoteCostingIsComplete(finalized)) {
         items.push({
-          id:`profitability:${request.id}:not-finalized`, severity:'watch', category:'profitability',
-          title:'Completed job cost is not finalized',
-          detail:'Finalize actual material, machine, labor, packaging, and shipping costs so completed contribution profit is accurate.',
+          id:`profitability:${request.id}:${finalized?'incomplete':'not-finalized'}`, severity:'watch', category:'profitability',
+          title:finalized?'Completed job costing is incomplete':'Completed job cost is not finalized',
+          detail:finalized?'One or more used materials has no cost basis. Add an invoice, MSRP, or fallback cost before relying on completed contribution profit.':'Finalize actual material, machine, labor, packaging, and shipping costs so completed contribution profit is accurate.',
           requestId:request.id, requestCode:request.requestCode, createdAt:request.updatedAt || request.createdAt,
         });
       }
@@ -51,6 +52,15 @@ export function buildProfitabilityAttention(input:{requests:RequestLike[];quotes
         title:'Quote is missing costing',
         detail:'Add Bambu material, machine, and labor estimates so expected contribution profit can be measured.',
         requestId:request.id, requestCode:request.requestCode, createdAt:quote.sentAt || quote.updatedAt || request.updatedAt,
+      });
+      continue;
+    }
+    if (!quoteCostingIsComplete(estimate)) {
+      items.push({
+        id:`profitability:${request.id}:incomplete-costing`, severity:'watch', category:'profitability',
+        title:'Quote has incomplete costing',
+        detail:'One or more used materials has no cost basis. Add an invoice, MSRP, or fallback cost before relying on expected contribution profit.',
+        requestId:request.id, requestCode:request.requestCode, createdAt:estimate.updatedAt || quote.updatedAt || request.updatedAt,
       });
       continue;
     }
