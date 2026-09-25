@@ -18,6 +18,7 @@ const snapshots=[
 snapshot('q1:r1:estimate','r1','q1','estimate',10000,6000,4000,4500),
 snapshot('q2:r1:estimate','r2','q2','estimate',12000,7000,4167),
 snapshot('q2:r1:actual','r2','q2','finalized',12000,8000,3333),
+{...snapshot('q3:r1:actual','r3','q3','finalized',8000,500,9375),materialLines:[{id:'m-unpriced',catalogItemId:'missing',grams:100,displayName:'Unknown Bambu material',costSource:'unpriced',costPerGramMicros:0,extendedCostCents:0}]},
 snapshot('q4:r1:actual','r4','q4','finalized',9000,4000,5556),
 ];
 const report=buildProfitabilityReport({requests,quotes,snapshots,now,range:'30d'});
