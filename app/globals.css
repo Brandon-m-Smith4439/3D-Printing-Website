@@ -1913,9 +1913,10 @@ main { min-height: 65vh; }
 .stripe-webhook-box > div { display:grid; gap:5px; min-width:0; }
 .stripe-webhook-box span { color:#789799; font-size:.65rem; font-weight:850; text-transform:uppercase; letter-spacing:.08em; }
 .stripe-webhook-box code { color:#acdcd9; font-size:.72rem; overflow-wrap:anywhere; }
+.stripe-webhook-actions { display:flex !important; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 .stripe-setup-note { display:flex; gap:10px 16px; align-items:flex-start; margin-top:12px; padding:12px 14px; border-radius:11px; background:rgba(46,214,202,.045); color:#8eaaaa; font-size:.73rem; line-height:1.55; }
 .stripe-setup-note strong { color:#afe7e3; white-space:nowrap; }
-@media (max-width:900px){.stripe-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.stripe-webhook-box{align-items:stretch;flex-direction:column;}.stripe-webhook-box .button{align-self:flex-start;}}
+@media (max-width:900px){.stripe-status-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.stripe-webhook-box{align-items:stretch;flex-direction:column;}.stripe-webhook-box .button{align-self:flex-start;}.stripe-webhook-actions{justify-content:flex-start;}}
 @media (max-width:560px){.stripe-status-grid{grid-template-columns:1fr;}.stripe-setup-note{display:grid;}}
 
 

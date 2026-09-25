@@ -3,6 +3,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ShippingAddress, StoredQuote } from "@/lib/quote-types";
 import { getSiteContent } from "@/lib/site-content-store";
 import type { ShipmentStatus } from "@/lib/shipment-types";
+import {
+  classifyEasyPostCredential,
+  easyPostBusinessCallsAllowed,
+  resolveEasyPostOperationalMode,
+  summarizeEasyPostWebhooks,
+  type EasyPostOperationalMode,
+} from "@/lib/easypost-mode";
 
 const ALLOWED_CARRIERS = new Set(["USPS", "UPS", "FedEx"]);
 
@@ -13,6 +20,17 @@ export type EasyPostRate = {
   rateCents: number;
   deliveryDays: number | null;
   deliveryDate: string;
+};
+
+export type EasyPostDiagnostic = {
+  connected: boolean;
+  credentialMode: "test" | "production" | "unconfigured";
+  operationalMode: EasyPostOperationalMode;
+  webhookFound: boolean;
+  webhookDisabled: boolean;
+  expectedWebhookUrl: string;
+  checkedAt: string;
+  message: string;
 };
 
 export type EasyPostTracker = {
@@ -53,9 +71,17 @@ type RawTracker = {
 };
 
 function apiKey() { return (process.env.EASYPOST_API_KEY || "").trim(); }
+function liveEnabled() { return /^(1|true|yes|on)$/i.test((process.env.EASYPOST_LIVE_ENABLED || "").trim()); }
+function operationalMode(): EasyPostOperationalMode { return resolveEasyPostOperationalMode(apiKey(), liveEnabled()); }
+function assertBusinessCallsAllowed() {
+  const mode = operationalMode();
+  if (mode === "unconfigured") throw new Error("EasyPost is not configured.");
+  if (!easyPostBusinessCallsAllowed(mode)) {
+    throw new Error("EasyPost production shipping is locked. Enable EASYPOST_LIVE_ENABLED only after the live-shipping readiness review.");
+  }
+}
 export function easyPostConfigured() {
-  const key = apiKey();
-  return Boolean(key && /^EZ(?:TK|AK)/i.test(key) && !key.includes("YOUR_") && !key.includes("replace"));
+  return classifyEasyPostCredential(apiKey()) !== "unconfigured";
 }
 
 function originReady(origin: { street1: string; city: string; state: string; zip: string }) {
@@ -64,15 +90,30 @@ function originReady(origin: { street1: string; city: string; state: string; zip
 
 export async function easyPostConfigurationSummary() {
   const key = apiKey();
-  const testMode = /^EZTK/i.test(key);
+  const credentialMode = classifyEasyPostCredential(key);
+  const mode = operationalMode();
   const content = await getSiteContent();
   const fromReady = originReady(content.shippingOrigin);
   const webhookSecret = (process.env.EASYPOST_WEBHOOK_SECRET || "").trim();
+  const webhookSecretConfigured = Boolean(webhookSecret && webhookSecret.length >= 16);
+  const configured = credentialMode !== "unconfigured";
+  const businessCallsAllowed = easyPostBusinessCallsAllowed(mode);
+  const readiness = !configured
+    ? "unconfigured"
+    : mode === "production-locked"
+      ? "production-locked"
+      : credentialMode === "test"
+        ? (fromReady && webhookSecretConfigured ? "test-ready" : "test-incomplete")
+        : (fromReady && webhookSecretConfigured && businessCallsAllowed ? "production-ready" : "production-incomplete");
   return {
-    configured: easyPostConfigured(),
-    mode: easyPostConfigured() ? (testMode ? "test" : "production") : "unconfigured",
+    configured,
+    credentialMode,
+    mode,
+    liveEnabled: liveEnabled(),
+    businessCallsAllowed,
+    readiness,
     fromAddressConfigured: fromReady,
-    webhookSecretConfigured: Boolean(webhookSecret && webhookSecret.length >= 16),
+    webhookSecretConfigured,
     autoBuyLabels: /^(1|true|yes|on)$/i.test((process.env.EASYPOST_AUTO_BUY_LABELS || "").trim()),
     webhookUrl: `${((process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").trim().replace(/\/$/, ""))}/api/shipping/easypost/webhook`,
     originLabel: fromReady ? `${content.shippingOrigin.city}, ${content.shippingOrigin.state} ${content.shippingOrigin.zip}` : "Not configured",
@@ -80,6 +121,52 @@ export async function easyPostConfigurationSummary() {
 }
 
 function authHeader() { return `Basic ${Buffer.from(`${apiKey()}:`).toString("base64")}`; }
+
+export async function testEasyPostConnection(): Promise<EasyPostDiagnostic> {
+  const summary = await easyPostConfigurationSummary();
+  const checkedAt = new Date().toISOString();
+  const base = {
+    credentialMode: summary.credentialMode,
+    operationalMode: summary.mode,
+    expectedWebhookUrl: summary.webhookUrl,
+    checkedAt,
+  } as const;
+
+  if (!summary.configured) {
+    return { ...base, connected: false, webhookFound: false, webhookDisabled: false, message: "EasyPost is not configured." };
+  }
+
+  try {
+    const response = await easyPostFetch("https://api.easypost.com/v2/webhooks", {
+      method: "GET",
+      headers: { Authorization: authHeader(), Accept: "application/json" },
+    });
+    if (!response.ok) {
+      const message = response.status === 401 || response.status === 403
+        ? "EasyPost rejected the configured API credential."
+        : "EasyPost connection test failed. Try again shortly.";
+      return { ...base, connected: false, webhookFound: false, webhookDisabled: false, message };
+    }
+    const payload = await response.json().catch(() => ({})) as {
+      webhooks?: Array<{ url?: string | null; disabled_at?: string | null }>;
+    };
+    const webhook = summarizeEasyPostWebhooks(summary.webhookUrl, payload.webhooks || []);
+    const message = !webhook.webhookFound
+      ? "EasyPost credentials are valid, but the expected Mesh Harbor webhook was not found."
+      : webhook.webhookDisabled
+        ? "EasyPost credentials are valid, but the Mesh Harbor webhook is disabled."
+        : "EasyPost connection and configured webhook are healthy.";
+    return { ...base, connected: true, ...webhook, message };
+  } catch {
+    return {
+      ...base,
+      connected: false,
+      webhookFound: false,
+      webhookDisabled: false,
+      message: "EasyPost could not be reached for the connection test.",
+    };
+  }
+}
 
 async function fromAddress() {
   const content = await getSiteContent();
@@ -157,6 +244,7 @@ async function easyPostFetch(url: string, init: RequestInit) {
 }
 
 export async function getLiveShippingRates(quote: StoredQuote, to: ShippingAddress) {
+  assertBusinessCallsAllowed();
   if (!easyPostConfigured()) throw new Error("Live shipping rates are not configured yet. The owner needs to add an EasyPost API key.");
   const origin = await fromAddress();
   if (!originReady(origin)) throw new Error("Mesh Harbor 3D's ship-from address is not configured yet. The owner can set it under Owner → Site Content.");
@@ -209,6 +297,7 @@ export async function getLiveShippingRates(quote: StoredQuote, to: ShippingAddre
 }
 
 export async function verifySelectedEasyPostRate(shipmentId: string, rateId: string) {
+  assertBusinessCallsAllowed();
   if (!easyPostConfigured()) throw new Error("Live shipping rates are not configured yet.");
   const response = await easyPostFetch(`https://api.easypost.com/v2/shipments/${encodeURIComponent(shipmentId)}`, {
     headers: { Authorization: authHeader(), Accept: "application/json" },
@@ -232,6 +321,7 @@ export async function verifySelectedEasyPostRate(shipmentId: string, rateId: str
 }
 
 export async function buyEasyPostShipment(shipmentId: string, rateId: string) {
+  assertBusinessCallsAllowed();
   if (!easyPostConfigured()) throw new Error("EasyPost label purchasing is not configured yet.");
   const response = await easyPostFetch(`https://api.easypost.com/v2/shipments/${encodeURIComponent(shipmentId)}/buy`, {
     method: "POST",
@@ -261,6 +351,7 @@ export async function buyEasyPostShipment(shipmentId: string, rateId: string) {
 }
 
 export async function refundEasyPostShipment(shipmentId: string) {
+  assertBusinessCallsAllowed();
   if (!easyPostConfigured()) throw new Error("EasyPost label refunds are not configured yet.");
   const response = await easyPostFetch(`https://api.easypost.com/v2/shipments/${encodeURIComponent(shipmentId)}/refund`, {
     method: "POST",
