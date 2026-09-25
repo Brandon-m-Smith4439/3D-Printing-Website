@@ -7,7 +7,7 @@ import { ensureBambuCatalogSeeded, readBambuCatalog } from '@/lib/pricing-store'
 import { requestIpHash,writeAudit } from '@/lib/audit-log';
 const lineSchema=z.object({id:z.string().min(1),catalogItemId:z.string().max(120),packageType:z.enum(['refill','with-spool','filament-only']).optional(),netWeightGramsPerUnit:z.number().int().min(0).max(10000).optional()}).strict();
 const patchSchema=z.object({lines:z.array(lineSchema).min(1).max(100)}).strict();
-function safe(record:NonNullable<Awaited<ReturnType<typeof findBambuInvoiceImport>>>){const {privateObjectKey:_private,...result}=record;return result;}
+function safe(record:NonNullable<Awaited<ReturnType<typeof findBambuInvoiceImport>>>){const result={...record};delete (result as Partial<typeof record>).privateObjectKey;return result;}
 export async function GET(request:NextRequest,context:{params:Promise<{id:string}>}){if(!await requestIsOwner(request))return NextResponse.json({message:'Sign in required.'},{status:401});const {id}=await context.params;const item=await findBambuInvoiceImport(id);if(!item)return NextResponse.json({message:'Invoice import not found.'},{status:404});return NextResponse.json({invoice:safe(item)},{headers:{'Cache-Control':'no-store'}});}
 export async function PATCH(request:NextRequest,context:{params:Promise<{id:string}>}){
   if(!await requestIsOwner(request))return NextResponse.json({message:'Sign in required.'},{status:401});
