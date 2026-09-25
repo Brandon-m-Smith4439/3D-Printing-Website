@@ -7,6 +7,7 @@ import {
   classifyEasyPostCredential,
   easyPostBusinessCallsAllowed,
   resolveEasyPostOperationalMode,
+  summarizeEasyPostWebhooks,
   type EasyPostOperationalMode,
 } from "@/lib/easypost-mode";
 
@@ -19,6 +20,17 @@ export type EasyPostRate = {
   rateCents: number;
   deliveryDays: number | null;
   deliveryDate: string;
+};
+
+export type EasyPostDiagnostic = {
+  connected: boolean;
+  credentialMode: "test" | "production" | "unconfigured";
+  operationalMode: EasyPostOperationalMode;
+  webhookFound: boolean;
+  webhookDisabled: boolean;
+  expectedWebhookUrl: string;
+  checkedAt: string;
+  message: string;
 };
 
 export type EasyPostTracker = {
@@ -109,6 +121,52 @@ export async function easyPostConfigurationSummary() {
 }
 
 function authHeader() { return `Basic ${Buffer.from(`${apiKey()}:`).toString("base64")}`; }
+
+export async function testEasyPostConnection(): Promise<EasyPostDiagnostic> {
+  const summary = await easyPostConfigurationSummary();
+  const checkedAt = new Date().toISOString();
+  const base = {
+    credentialMode: summary.credentialMode,
+    operationalMode: summary.mode,
+    expectedWebhookUrl: summary.webhookUrl,
+    checkedAt,
+  } as const;
+
+  if (!summary.configured) {
+    return { ...base, connected: false, webhookFound: false, webhookDisabled: false, message: "EasyPost is not configured." };
+  }
+
+  try {
+    const response = await easyPostFetch("https://api.easypost.com/v2/webhooks", {
+      method: "GET",
+      headers: { Authorization: authHeader(), Accept: "application/json" },
+    });
+    if (!response.ok) {
+      const message = response.status === 401 || response.status === 403
+        ? "EasyPost rejected the configured API credential."
+        : "EasyPost connection test failed. Try again shortly.";
+      return { ...base, connected: false, webhookFound: false, webhookDisabled: false, message };
+    }
+    const payload = await response.json().catch(() => ({})) as {
+      webhooks?: Array<{ url?: string | null; disabled_at?: string | null }>;
+    };
+    const webhook = summarizeEasyPostWebhooks(summary.webhookUrl, payload.webhooks || []);
+    const message = !webhook.webhookFound
+      ? "EasyPost credentials are valid, but the expected Mesh Harbor webhook was not found."
+      : webhook.webhookDisabled
+        ? "EasyPost credentials are valid, but the Mesh Harbor webhook is disabled."
+        : "EasyPost connection and configured webhook are healthy.";
+    return { ...base, connected: true, ...webhook, message };
+  } catch {
+    return {
+      ...base,
+      connected: false,
+      webhookFound: false,
+      webhookDisabled: false,
+      message: "EasyPost could not be reached for the connection test.",
+    };
+  }
+}
 
 async function fromAddress() {
   const content = await getSiteContent();
