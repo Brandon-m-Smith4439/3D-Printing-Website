@@ -28,7 +28,7 @@ async function defaultLoadData():Promise<FollowUpData>{
     import("./request-store.ts"), import("./quote-store.ts"), import("./final-invoice-store.ts"), import("./database.ts"),
   ]);
   const [requests,quotes,invoices,accounts,controls]=await Promise.all([readRequests(),readQuotes(),readFinalInvoices(),readCollection<CustomerAccount>("customers"),readFollowUpControls()]);
-  return {requests,quotes,invoices,accounts:accounts.map(a=>({...a,preferences:{emailStatusUpdates:false,showQueuePosition:true,...(a.preferences||{})}})),controls};
+  return {requests,quotes,invoices,accounts:accounts.map(a=>({...a,preferences:{...(a.preferences||{}),emailStatusUpdates:a.preferences?.emailStatusUpdates ?? false,showQueuePosition:a.preferences?.showQueuePosition ?? true}})),controls};
 }
 async function defaultNotify(...args:Parameters<NotifyFn>){ const {notifyCustomer}=await import("./customer-notifications.ts"); return notifyCustomer(...args); }
 async function defaultAudit(entry:Omit<AuditEntry,"id"|"createdAt">){ const {writeAudit}=await import("./audit-log.ts"); return writeAudit(entry); }
