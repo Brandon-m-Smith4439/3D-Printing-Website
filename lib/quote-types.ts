@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CustomerPolicyAcceptance } from "@/lib/customer-policies";
 
 export const quoteStatuses = ["draft", "sent", "countered", "approved", "declined", "deposit-paid", "void"] as const;
 export type QuoteStatus = (typeof quoteStatuses)[number];
@@ -101,6 +102,7 @@ export type StoredQuote = QuoteSnapshot & {
   approvedAt: string;
   approvedByCustomerId: string;
   approvalSnapshot: QuoteSnapshot | null;
+  policyAcceptance?: CustomerPolicyAcceptance | null;
   stripeCheckoutSessionId: string;
   stripeCheckoutAmountCents: number;
   depositPaidAt: string;
