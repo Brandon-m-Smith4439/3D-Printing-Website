@@ -1,6 +1,8 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { quoteNetDepositPaidCents, type QuotePaymentRecord, type StoredQuote } from "@/lib/quote-types";
+import { assertStripeNewCommerceAllowed, stripeLiveEnabled, stripeOperationalMode } from "@/lib/stripe-client";
+import { stripeBusinessCallsAllowed } from "@/lib/stripe-mode";
 
 export function siteOrigin() {
   const configured = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
@@ -19,16 +21,22 @@ export function stripeConfigurationSummary() {
   const keyConfigured = stripeConfigured();
   const webhookConfigured = Boolean(webhookSecret && webhookSecret.startsWith("whsec_") && !webhookSecret.includes("replace"));
   const mode = key.startsWith("sk_live_") || key.startsWith("rk_live_") ? "live" : key.startsWith("sk_test_") || key.startsWith("rk_test_") ? "test" : "unconfigured";
+  const operationalMode = stripeOperationalMode();
+  const liveEnabled = stripeLiveEnabled();
+  const businessCallsAllowed = stripeBusinessCallsAllowed(operationalMode);
   const secureOrigin = origin.startsWith("https://");
   return {
     keyConfigured,
     webhookConfigured,
     mode,
+    operationalMode,
+    liveEnabled,
+    businessCallsAllowed,
     siteOrigin: origin,
     secureOrigin,
     webhookUrl: `${origin}/api/payments/stripe/webhook`,
-    checkoutReady: keyConfigured && (process.env.NODE_ENV !== "production" || secureOrigin),
-    productionReady: keyConfigured && webhookConfigured && secureOrigin && mode === "live",
+    checkoutReady: keyConfigured && businessCallsAllowed && (process.env.NODE_ENV !== "production" || secureOrigin),
+    productionReady: keyConfigured && webhookConfigured && secureOrigin && mode === "live" && liveEnabled && businessCallsAllowed,
   } as const;
 }
 
@@ -38,6 +46,7 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
     if (process.env.NODE_ENV === "production") throw new Error("Stripe deposit payments are not configured.");
     return { id: `cs_dev_${input.quote.id}_r${input.quote.revision}_a${input.amountCents}`, url: `${siteOrigin()}/profile?payment=development` };
   }
+  assertStripeNewCommerceAllowed();
   const origin = siteOrigin();
   if (process.env.NODE_ENV === "production" && !origin.startsWith("https://")) throw new Error("NEXT_PUBLIC_SITE_URL must be your public HTTPS site URL before accepting real Stripe payments.");
 
