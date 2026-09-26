@@ -7,6 +7,7 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { quoteDepositOutstandingCents, quoteDepositRefundDueCents, quoteNetDepositPaidCents } from "@/lib/quote-types";
 import { reconcileQuoteDepositRefund } from "@/lib/quote-payment-adjustments";
+import { customerPolicyAcceptanceSchema } from "@/lib/customer-policies";
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const customer = await customerFromRequest(request);
@@ -15,6 +16,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (!sameOrigin(request)) return NextResponse.json({ message: "Request origin was not accepted." }, { status: 403 });
 
   const { id } = await context.params;
+  let body: unknown;
+  try {
+    const raw = await request.text();
+    if (raw.length > 2_000) return NextResponse.json({ message: "Policy acknowledgment is too large." }, { status: 413 });
+    body = JSON.parse(raw);
+  } catch {
+    return NextResponse.json({ message: "Review and accept the current customer policies before approving this quote." }, { status: 400 });
+  }
+  const policy = customerPolicyAcceptanceSchema.safeParse(body);
+  if (!policy.success) return NextResponse.json({ message: "Review and accept the current Custom Order Terms and Fulfillment Policy before approving this quote." }, { status: 400 });
+
   const quote = await quoteById(id);
   if (!quote || quote.customerAccountId !== customer.id) return NextResponse.json({ message: "Quote not found." }, { status: 404 });
   if (quote.status !== "sent") return NextResponse.json({ message: "This quote is not currently awaiting approval." }, { status: 409 });
@@ -23,7 +35,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const source = await getStoredRequest(quote.requestId);
   if (!source || source.customerAccountId !== customer.id) return NextResponse.json({ message: "Request not found." }, { status: 404 });
 
-  let approved = await approveQuote(id, customer.id);
+  let approved = await approveQuote(id, customer.id, policy.data.policyVersion);
   if (!approved) return NextResponse.json({ message: "Could not approve quote." }, { status: 409 });
 
   const paidBefore = quoteNetDepositPaidCents(approved);
@@ -59,7 +71,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       action: "quote-approved",
       targetType: "quote",
       targetId: id,
-      summary: `Customer approved quote revision ${approved.revision} for ${source.requestCode}. Current deposit credit: $${(quoteNetDepositPaidCents(approved) / 100).toFixed(2)}.`,
+      summary: `Customer approved quote revision ${approved.revision} for ${source.requestCode} under policy ${policy.data.policyVersion}. Current deposit credit: ${(quoteNetDepositPaidCents(approved) / 100).toFixed(2)}.`,
       ipHash: requestIpHash(request),
     }),
   ];
