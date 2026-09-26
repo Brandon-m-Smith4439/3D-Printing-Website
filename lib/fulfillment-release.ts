@@ -99,6 +99,7 @@ export function evaluateFulfillmentRelease(input: FulfillmentReleaseInput) {
       && input.shippingSelected
       && !labelReady,
     canComplete: input.depositSatisfied
+      && productionReady
       && input.finalBalancePaid
       && (input.fulfillmentMode !== "shipping" || labelReady),
     checks,
