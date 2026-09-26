@@ -44,6 +44,14 @@ const shippingBase={
   assert.equal(release.canComplete,false);
 }
 {
+  const release=evaluateFulfillmentRelease({...shippingBase,trackingCode:"9400TEST",shipmentStatus:"return_to_sender"});
+  assert.equal(release.canComplete,false);
+}
+{
+  const release=evaluateFulfillmentRelease({...shippingBase,trackingCode:"9400TEST",shipmentStatus:"failure"});
+  assert.equal(release.canComplete,false);
+}
+{
   const release=evaluateFulfillmentRelease({...shippingBase,jobStatus:"printing"});
   assert.equal(release.canBuyShippingLabel,false);
   assert.equal(release.canComplete,false);
