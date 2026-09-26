@@ -145,6 +145,20 @@ export function OwnerOperationsCenter({
       </article>)}
     </section>
 
+    {snapshot.launchReadiness&&<section className="owner-panel launch-readiness-panel">
+      <div className="launch-readiness-heading">
+        <div><p className="eyebrow">LAUNCH READINESS</p><h3>{snapshot.launchReadiness.operatingMode==="live-ready"?"Production commerce checks are green.":"Guarded launch checklist"}</h3><p>{snapshot.launchReadiness.operatingMode==="live-ready"?"The configured payment and shipping integrations report production readiness.":"The website can continue operating in its current guarded/test posture while remaining live-commerce items are resolved deliberately."}</p></div>
+        <div className={`launch-readiness-score mode-${snapshot.launchReadiness.operatingMode}`}><strong>{snapshot.launchReadiness.readyCount}/{snapshot.launchReadiness.items.length}</strong><span>checks ready</span><small>{snapshot.launchReadiness.blockedCount} blocked · {snapshot.launchReadiness.attentionCount} attention</small></div>
+      </div>
+      <div className="launch-readiness-grid">
+        {snapshot.launchReadiness.items.map(item=><article className={`launch-readiness-item status-${item.status}`} key={item.id}>
+          <span>{item.status==="ready"?"✓":item.status==="blocked"?"!":"•"}</span>
+          <div><strong>{item.title}</strong><small>{item.category}</small><p>{item.detail}</p></div>
+        </article>)}
+      </div>
+      <div className="launch-readiness-footer"><strong>{snapshot.launchReadiness.liveCommerceReady?"Live-commerce readiness reported":"Live-commerce activation remains intentionally guarded"}</strong><span>No launch checklist item changes Stripe or EasyPost live mode by itself.</span></div>
+    </section>}
+
     <section className="operations-search owner-panel">
       <div className="operations-section-heading">
         <div><p className="eyebrow">GLOBAL SEARCH</p><h3>Find any customer or job</h3></div>
