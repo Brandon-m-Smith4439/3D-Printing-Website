@@ -8,6 +8,8 @@ import type { ShipmentRecord, ShipmentTrackingEvent } from "@/lib/shipment-types
 import { quoteDepositSatisfied } from "@/lib/quote-types";
 import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
 import { finalInvoicePaid } from "@/lib/final-invoice-types";
+import { readQueue } from "@/lib/queue-store";
+import { evaluateFulfillmentRelease } from "@/lib/fulfillment-release";
 
 function maxIncreaseCents(customerRateCents: number) {
   const fixed = Number(process.env.EASYPOST_AUTO_BUY_MAX_INCREASE_CENTS || 200);
@@ -51,6 +53,25 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
   const existing = await shipmentForRequest(requestId);
   if (existing?.trackingCode && existing.refundStatus !== "refunded") {
     return { shipment: existing, purchased: false, requiresConfirmation: false };
+  }
+
+  const jobs = await readQueue();
+  const job = request.queueJobId ? jobs.find((item) => item.id === request.queueJobId) : null;
+  const release = evaluateFulfillmentRelease({
+    hasQuote: true,
+    fulfillmentMode: quote.fulfillmentMode,
+    depositSatisfied: quote.status === "deposit-paid" && quoteDepositSatisfied(quote),
+    jobStatus: job?.status || "",
+    finalBalancePaid: finalInvoicePaid(finalInvoice),
+    shippingSelected: Boolean(quote.shippingSelection),
+    trackingCode: existing?.trackingCode || "",
+    shipmentStatus: existing?.status || "not_created",
+    refundStatus: existing?.refundStatus || "",
+    pickupScheduled: false,
+  });
+  if (!release.canBuyShippingLabel) {
+    if (!job || job.status !== "ready") throw new Error("Mark production Ready before purchasing a shipping label.");
+    throw new Error("This order is not currently eligible for a new shipping label.");
   }
 
   const fresh = await getLiveShippingRates(quote, quote.shippingSelection.address);
@@ -127,17 +148,12 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
   return { shipment: record, purchased: true, requiresConfirmation: false };
 }
 
-export async function autoBuyLabelIfEligible(requestId: string) {
+export async function autoBuyLabelIfEligible(_requestId: string) {
   if (!easyPostAutoBuyEnabled()) return { attempted: false, warning: "" };
-  try {
-    const result = await buyLabelForRequest(requestId);
-    if (result.requiresConfirmation) {
-      return { attempted: true, warning: result.shipment.reviewReason || "Shipping cost changed and needs owner review." };
-    }
-    return { attempted: true, warning: "" };
-  } catch (error) {
-    return { attempted: true, warning: error instanceof Error ? error.message : "Automatic shipping-label purchase failed." };
-  }
+  return {
+    attempted: false,
+    warning: "Automatic label purchase is blocked in v0.94. An authenticated owner must explicitly confirm each EasyPost label purchase.",
+  };
 }
 
 export async function refundLabelForRequest(requestId: string) {
