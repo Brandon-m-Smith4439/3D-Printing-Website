@@ -76,10 +76,12 @@ export function buildLaunchReadiness(input: {
 
   const stripeReadyForSandbox = input.stripe.keyConfigured && input.stripe.webhookConfigured && input.stripe.checkoutReady;
   items.push(input.stripe.productionReady
-    ? item("stripe", "Stripe payments", "ready", "Stripe reports live production readiness.", "payments")
-    : stripeReadyForSandbox
-      ? item("stripe", "Stripe payments", "attention", `Stripe is healthy in ${input.stripe.mode} mode. Live mode remains intentionally unlaunched.`, "payments")
-      : item("stripe", "Stripe payments", "blocked", "Stripe key, HTTPS checkout, or webhook signing is incomplete.", "payments"));
+    ? item("stripe", "Stripe payments", "ready", "Stripe reports live production readiness with the explicit live gate enabled.", "payments")
+    : input.stripe.operationalMode === "live-locked"
+      ? item("stripe", "Stripe payments", "attention", "A live Stripe key is configured, but STRIPE_LIVE_ENABLED is off. New real charges and final invoices remain blocked.", "payments")
+      : stripeReadyForSandbox
+        ? item("stripe", "Stripe payments", "attention", `Stripe is healthy in ${input.stripe.mode} mode. Live mode remains intentionally unlaunched.`, "payments")
+        : item("stripe", "Stripe payments", "blocked", "Stripe key, HTTPS checkout, webhook signing, or the explicit live gate is incomplete.", "payments"));
 
   const easyPostReady = input.shipping.readiness === "production-ready" || input.shipping.readiness === "test-ready";
   items.push(input.shipping.readiness === "production-ready"
