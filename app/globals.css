@@ -4467,3 +4467,51 @@ button.operations-attention-item:focus-visible {
   .profile-repeat-actions { align-items:stretch; flex-direction:column; }
   .profile-repeat-actions .button { width:100%; }
 }
+
+
+/* V0.93 customer policies + launch readiness */
+.policy-version { display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 26px; }
+.policy-version span { padding:6px 9px; border:1px solid rgba(124,239,231,.16); border-radius:999px; background:rgba(46,214,202,.035); color:var(--muted); font-size:.68rem; font-weight:800; }
+.policy-page a { color:var(--accent-2); text-underline-offset:3px; }
+.policy-inline-links { margin-top:8px !important; font-size:.72rem; }
+.policy-inline-links a { color:var(--accent-2); font-weight:800; }
+.customer-policy-acceptance { display:flex; align-items:flex-start; gap:10px; padding:12px; border:1px solid rgba(124,239,231,.17); border-radius:12px; background:rgba(46,214,202,.035); cursor:pointer; }
+.customer-policy-acceptance input { flex:0 0 auto; width:18px; min-height:18px; margin-top:2px; accent-color:var(--accent); }
+.customer-policy-acceptance > span { display:grid; gap:3px; min-width:0; }
+.customer-policy-acceptance strong { font-size:.76rem; color:#ecfffd; }
+.customer-policy-acceptance small { color:var(--muted); font-size:.68rem; line-height:1.5; }
+.customer-policy-acceptance a { color:var(--accent-2); font-weight:800; text-underline-offset:2px; }
+
+.launch-readiness-panel { display:grid; gap:15px; }
+.launch-readiness-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+.launch-readiness-heading > div:first-child { display:grid; gap:3px; max-width:760px; }
+.launch-readiness-heading h3,.launch-readiness-heading p { margin:0; }
+.launch-readiness-heading p { color:var(--muted); font-size:.76rem; line-height:1.5; }
+.launch-readiness-score { display:grid; gap:2px; min-width:145px; padding:12px 14px; border:1px solid rgba(255,210,122,.22); border-radius:13px; background:rgba(255,210,122,.045); text-align:right; }
+.launch-readiness-score strong { font-size:1.35rem; font-variant-numeric:tabular-nums; }
+.launch-readiness-score span { font-size:.7rem; font-weight:800; }
+.launch-readiness-score small { color:var(--muted); font-size:.63rem; }
+.launch-readiness-score.mode-live-ready { border-color:rgba(119,230,190,.27); background:rgba(119,230,190,.055); }
+.launch-readiness-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.launch-readiness-item { display:grid; grid-template-columns:auto minmax(0,1fr); gap:9px; align-items:start; padding:11px; border:1px solid rgba(107,201,202,.1); border-radius:11px; background:rgba(255,255,255,.014); min-width:0; }
+.launch-readiness-item > span { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.04); font-size:.72rem; font-weight:900; }
+.launch-readiness-item > div { display:grid; grid-template-columns:1fr auto; gap:2px 8px; min-width:0; }
+.launch-readiness-item strong { font-size:.76rem; overflow-wrap:anywhere; }
+.launch-readiness-item small { color:var(--muted); font-size:.61rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+.launch-readiness-item p { grid-column:1 / -1; margin:2px 0 0; color:var(--muted); font-size:.68rem; line-height:1.45; }
+.launch-readiness-item.status-ready { border-color:rgba(119,230,190,.15); }
+.launch-readiness-item.status-ready > span { background:rgba(119,230,190,.1); color:#a9f3d5; }
+.launch-readiness-item.status-attention { border-color:rgba(255,210,122,.17); }
+.launch-readiness-item.status-attention > span { background:rgba(255,210,122,.09); color:#f2d79e; }
+.launch-readiness-item.status-blocked { border-color:rgba(255,130,130,.18); }
+.launch-readiness-item.status-blocked > span { background:rgba(255,130,130,.09); color:#ffb4b4; }
+.launch-readiness-footer { display:flex; justify-content:space-between; gap:12px; padding-top:3px; color:var(--muted); font-size:.68rem; }
+.launch-readiness-footer strong { color:#dceeed; }
+
+@media (max-width:720px){
+  .launch-readiness-heading { flex-direction:column; }
+  .launch-readiness-score { width:100%; min-width:0; text-align:left; }
+  .launch-readiness-grid { grid-template-columns:1fr; }
+  .launch-readiness-footer { flex-direction:column; gap:3px; }
+  .customer-policy-acceptance { padding:11px; }
+}
