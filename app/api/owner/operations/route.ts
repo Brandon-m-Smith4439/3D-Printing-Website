@@ -14,6 +14,10 @@ import { getFollowUpSettings, readFollowUps } from "@/lib/customer-follow-up-sto
 import { previewCustomerFollowUps } from "@/lib/customer-follow-up-engine";
 import { readCostSnapshots } from "@/lib/quote-cost-store";
 import { buildOwnerProfitabilityOperations } from "@/lib/owner-profitability-operations";
+import { getSiteContent } from "@/lib/site-content-store";
+import { ownerSecurityStatus } from "@/lib/owner-security";
+import { buildLaunchReadiness } from "@/lib/launch-readiness";
+import { CUSTOMER_POLICY_VERSION } from "@/lib/customer-policies";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +26,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
 
-  const [requests, quotes, queue, invoices, shipments, audit, backups, shipping, followUpSettings, followUpRecords, followUpPreview, costSnapshots] = await Promise.all([
+  const [requests, quotes, queue, invoices, shipments, audit, backups, shipping, followUpSettings, followUpRecords, followUpPreview, costSnapshots, content, security] = await Promise.all([
     readRequests(),
     readQuotes(),
     readQueue(),
@@ -35,6 +39,8 @@ export async function GET(request: NextRequest) {
     readFollowUps(),
     previewCustomerFollowUps(),
     readCostSnapshots(),
+    getSiteContent(),
+    ownerSecurityStatus(),
   ]);
 
   const now = new Date();
@@ -63,5 +69,17 @@ export async function GET(request: NextRequest) {
     profitabilityAttention: profitability.attention,
   }, now);
 
-  return NextResponse.json({ snapshot }, { headers: { "Cache-Control": "no-store" } });
+  const launchReadiness = buildLaunchReadiness({
+    stripe: stripeConfigurationSummary(),
+    shipping,
+    shippingOrigin: content.shippingOrigin,
+    pickup: content.pickup,
+    backups,
+    security,
+    followUps: snapshot.followUps,
+    policyVersion: CUSTOMER_POLICY_VERSION,
+    now,
+  });
+
+  return NextResponse.json({ snapshot: { ...snapshot, launchReadiness } }, { headers: { "Cache-Control": "no-store" } });
 }
