@@ -20,6 +20,8 @@ export async function Footer() {
           <Link href="/gallery">Gallery</Link>
           <Link href="/queue">Queue</Link>
           <Link href="/custom-request">Custom Request</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/fulfillment">Fulfillment</Link>
           <Link href="/privacy">Privacy</Link>
           <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer">Etsy Shop</a>
           <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer">Whatnot Shop</a>

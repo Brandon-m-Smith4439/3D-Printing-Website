@@ -28,6 +28,10 @@ jobs:
         run: node --experimental-strip-types tests/pickup-schedule.test.mjs
       - name: Verify repeat and gallery request prefills
         run: node --experimental-strip-types tests/request-prefill.test.mjs
+      - name: Verify customer policy acceptance
+        run: node --experimental-strip-types tests/customer-policies.test.mjs
+      - name: Verify launch readiness model
+        run: node --experimental-strip-types tests/launch-readiness.test.mjs
       - name: Verify customer follow-up policy
         run: |
           node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-policy.test.mjs
@@ -1049,7 +1053,7 @@ jobs:
           done
           node <<'NODE'
           const widths = [320,390,430,650,720,721,1024,1440,1920,2560,3440];
-          const paths = ["/", "/gallery", "/custom-request", "/queue", "/login", "/login?admin=1", "/privacy"];
+          const paths = ["/", "/gallery", "/custom-request", "/queue", "/login", "/login?admin=1", "/terms", "/fulfillment", "/privacy"];
           const pages = await (await fetch("http://127.0.0.1:9222/json/list")).json();
           if (!pages.length) throw new Error("Chrome debugging page was not available.");
           const ws = new WebSocket(pages[0].webSocketDebuggerUrl);
@@ -1103,6 +1107,10 @@ jobs:
           for W in 390 1440; do
             google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,1800 --screenshot=visual-smoke/gallery-$W.png http://127.0.0.1:3000/gallery
             google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,2400 --screenshot=visual-smoke/gallery-request-$W.png 'http://127.0.0.1:3000/custom-request?gallery=desk-organizer'
+          done
+          for W in 390 1440; do
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,2600 --screenshot=visual-smoke/terms-$W.png http://127.0.0.1:3000/terms
+            google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,2600 --screenshot=visual-smoke/fulfillment-$W.png http://127.0.0.1:3000/fulfillment
           done
           for W in 320 390 720 721 1440 1920 3440; do
             google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,3000 --screenshot=visual-smoke/custom-request-$W.png http://127.0.0.1:3000/custom-request

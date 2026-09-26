@@ -6,6 +6,7 @@ import type { StoredRequest } from "@/lib/request-types";
 import type { ShipmentRecord } from "@/lib/shipment-types";
 import type { ProfitabilityReport } from "@/lib/profitability-report";
 import type { ProfitabilityAttentionItem } from "@/lib/owner-profitability-attention";
+import type { LaunchReadinessReport } from "@/lib/launch-readiness";
 
 export type OwnerAttentionSeverity = "urgent" | "action" | "watch";
 export type OwnerAttentionCategory =
@@ -76,6 +77,7 @@ export type OwnerOperationsSnapshot = {
   integrations: OwnerIntegrationHealth;
   followUps: OwnerFollowUpSummary;
   profitability: ProfitabilityReport;
+  launchReadiness?: LaunchReadinessReport;
 };
 
 export type OwnerBackupInfo = {
