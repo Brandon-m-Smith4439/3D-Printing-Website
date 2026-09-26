@@ -291,6 +291,7 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
 
   function patch(values: Partial<SiteContent>) { setDraft((current) => ({ ...current, ...values })); }
   function patchShippingOrigin(values: Partial<SiteContent["shippingOrigin"]>) { setDraft((current) => ({ ...current, shippingOrigin: { ...current.shippingOrigin, ...values } })); }
+  function patchPickup(values: Partial<SiteContent["pickup"]>) { setDraft((current) => ({ ...current, pickup: { ...current.pickup, ...values } })); }
   function patchGallery(index: number, values: Partial<GalleryItem>) { setDraft((current) => ({ ...current, galleryItems: current.galleryItems.map((item, i) => i === index ? { ...item, ...values } : item) })); }
 
   async function uploadLogo(file: File | undefined) {
@@ -320,7 +321,7 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
       const response = await fetch("/api/owner/site-content", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
       const result = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(result.message || "Could not save site content.");
-      onNotice({ kind: "success", text: "Site content saved. Public pages will use the new branding, links, and gallery." }); await onChanged();
+      onNotice({ kind: "success", text: "Site content saved. Branding, shops, shipping origin, and local pickup settings are updated." }); await onChanged();
     } catch (error) { onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not save site content." }); }
     finally { setBusy(false); }
   }
@@ -365,6 +366,34 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
           <label><span>ZIP code</span><input autoComplete="postal-code" inputMode="numeric" value={draft.shippingOrigin.zip} maxLength={10} onChange={(event) => { const digits = event.target.value.replace(/\D/g, "").slice(0, 9); patchShippingOrigin({ zip: digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits }); }} placeholder="28110" /></label>
         </div>
         <div className="shipping-origin-note"><strong>Live-rate checklist</strong><span>Save this address, then add your EasyPost API key to the host&apos;s secret environment variables. The Security &amp; Backups tab will show when both pieces are ready.</span></div>
+      </div>
+
+      <div className="owner-pickup-editor">
+        <div className="owner-gallery-heading">
+          <div><p className="eyebrow">LOCAL PICKUP</p><h3>Pickup location & appointments</h3><p>Customers see only the public area until they reserve a time. The exact address and arrival instructions are revealed inside their private profile after booking.</p></div>
+          <label className="pickup-enable-toggle"><input type="checkbox" checked={draft.pickup.enabled} onChange={(event) => patchPickup({ enabled: event.target.checked })}/><span>Enable scheduling</span></label>
+        </div>
+        <div className="owner-edit-grid pickup-location-grid">
+          <label><span>Pickup location name</span><input value={draft.pickup.locationName} maxLength={120} onChange={(event) => patchPickup({ locationName: event.target.value })}/></label>
+          <label><span>Public area</span><input value={draft.pickup.publicArea} maxLength={120} onChange={(event) => patchPickup({ publicArea: event.target.value })} placeholder="Monroe, NC"/></label>
+          <label className="wide"><span>Exact street address</span><input value={draft.pickup.street1} maxLength={120} onChange={(event) => patchPickup({ street1: event.target.value })} placeholder="Shown only after booking"/></label>
+          <label><span>Suite / unit</span><input value={draft.pickup.street2} maxLength={120} onChange={(event) => patchPickup({ street2: event.target.value })} placeholder="Optional"/></label>
+          <label><span>City</span><input value={draft.pickup.city} maxLength={80} onChange={(event) => patchPickup({ city: event.target.value })}/></label>
+          <label><span>State</span><input value={draft.pickup.state} maxLength={2} onChange={(event) => patchPickup({ state: event.target.value.replace(/[^A-Za-z]/g, "").slice(0,2).toUpperCase() })}/></label>
+          <label><span>ZIP code</span><input inputMode="numeric" value={draft.pickup.zip} maxLength={10} onChange={(event) => { const digits=event.target.value.replace(/\D/g,"").slice(0,9);patchPickup({zip:digits.length>5?`${digits.slice(0,5)}-${digits.slice(5)}`:digits}); }}/></label>
+          <label className="wide"><span>Arrival instructions</span><textarea rows={3} value={draft.pickup.instructions} maxLength={600} onChange={(event) => patchPickup({ instructions: event.target.value })}/></label>
+        </div>
+        <div className="pickup-schedule-settings">
+          <div className="pickup-weekday-editor"><span>Available days</span><div>{[["Sun",0],["Mon",1],["Tue",2],["Wed",3],["Thu",4],["Fri",5],["Sat",6]].map(([label,value])=>{const day=Number(value);const active=draft.pickup.weekdays.includes(day);return <button key={day} type="button" className={active?"is-active":""} onClick={()=>patchPickup({weekdays:active?draft.pickup.weekdays.filter(item=>item!==day):[...draft.pickup.weekdays,day].sort()})}>{label}</button>;})}</div></div>
+          <div className="owner-edit-grid">
+            <label><span>Start time</span><input type="time" value={draft.pickup.startTime} onChange={(event)=>patchPickup({startTime:event.target.value})}/></label>
+            <label><span>End time</span><input type="time" value={draft.pickup.endTime} onChange={(event)=>patchPickup({endTime:event.target.value})}/></label>
+            <label><span>Appointment length</span><select value={draft.pickup.slotMinutes} onChange={(event)=>patchPickup({slotMinutes:Number(event.target.value)})}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select></label>
+            <label><span>Booking window</span><select value={draft.pickup.bookingWindowDays} onChange={(event)=>patchPickup({bookingWindowDays:Number(event.target.value)})}><option value={7}>7 days</option><option value={14}>14 days</option><option value={21}>21 days</option><option value={30}>30 days</option></select></label>
+            <label><span>Minimum lead time</span><select value={draft.pickup.minimumLeadHours} onChange={(event)=>patchPickup({minimumLeadHours:Number(event.target.value)})}><option value={0}>No minimum</option><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={4}>4 hours</option><option value={12}>12 hours</option><option value={24}>24 hours</option></select></label>
+          </div>
+        </div>
+        <div className="shipping-origin-note"><strong>Designated pickup area: {draft.pickup.publicArea || "Set a public area"}</strong><span>Scheduling stays unavailable until it is enabled and a complete exact address is saved. Existing appointments keep a snapshot of the address and instructions they were booked with.</span></div>
       </div>
 
       <div className="owner-gallery-heading"><div><p className="eyebrow">GALLERY MANAGER</p><h3>Public print images</h3></div><button className="button button-secondary button-small" type="button" onClick={addGalleryItem}>+ Add Gallery Item</button></div>
