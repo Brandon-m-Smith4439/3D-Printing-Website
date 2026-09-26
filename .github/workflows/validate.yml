@@ -1104,6 +1104,102 @@ jobs:
           for W in 390 720 721 1440 1920 3440; do
             google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1               --window-size=$W,1300 --screenshot=visual-smoke/owner-login-$W.png 'http://127.0.0.1:3000/login?admin=1'
           done
+      - name: Capture local pickup scheduling UI
+        run: |
+          curl -fsS -c /tmp/pickup-customer.cookies \
+            -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" \
+            -H "Content-Type: application/json" \
+            --data '{"displayName":"Pickup Customer","email":"pickup-ci@example.test","password":"pickup-test-password-123","emailStatusUpdates":false}' \
+            http://127.0.0.1:3000/api/account/register >/tmp/pickup-register.json
+
+          node --experimental-strip-types --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { DatabaseSync } from "node:sqlite";
+          import { defaultSiteContent } from "./lib/site.ts";
+          const registration=JSON.parse(fs.readFileSync("/tmp/pickup-register.json","utf8"));
+          const customerId=registration.customer?.id;
+          if(!customerId) throw new Error("Pickup visual customer registration did not return an id");
+          const db=new DatabaseSync("/tmp/meshharbor-v086.sqlite");
+          const now=new Date().toISOString();
+          const customerRow=db.prepare("SELECT json FROM app_records WHERE collection='customers' AND id=?").get(customerId);
+          const customer=JSON.parse(customerRow.json);
+          customer.emailVerifiedAt=now;
+          db.prepare("UPDATE app_records SET json=?,updated_at=? WHERE collection='customers' AND id=?").run(JSON.stringify(customer),now,customerId);
+
+          const content={...defaultSiteContent,pickup:{...defaultSiteContent.pickup,enabled:true,street1:"100 Test Harbor Way",city:"Monroe",state:"NC",zip:"28110",instructions:"Park in the designated pickup space and use your order code when you arrive."}};
+          const request={id:"req-pickup-visual",requestCode:"MH3D-PICKUP-CI",status:"queued",name:"Pickup Customer",email:"pickup-ci@example.test",phone:"",projectType:"other",modelStatus:"ready",fulfillmentMethod:"pickup",assemblyPreference:"unsure",quantity:1,dimensions:"6 x 4 x 3 in",materialPreference:"pla",colorPreference:"Teal",budget:"",neededBy:"",neededBySubmitted:"",referenceUrl:"",description:"Pickup scheduling visual validation print",imageUrl:"",attachments:[],internalNote:"",createdAt:now,updatedAt:now,queuedAt:now,queueJobId:"job-pickup-visual",customerAccountId:customerId,riskLevel:"none",riskFlags:[],source:"customer",emailNotifications:false};
+          const quote={id:"quote-pickup-visual",requestId:request.id,requestCode:request.requestCode,customerAccountId:customerId,status:"deposit-paid",revision:1,basePriceCents:8000,assemblyMode:"not-required",assemblyFeeCents:0,rushFeeCents:0,fulfillmentMode:"pickup",localDeliveryFeeCents:0,packageWeightOz:0,packageLengthIn:0,packageWidthIn:0,packageHeightIn:0,shippingSelection:null,totalCents:8000,depositCents:4000,balanceCents:4000,currency:"usd",material:"Bambu PLA Basic",dimensions:"6 x 4 x 3 in",estimatedReadyDate:"",notes:"",terms:"Pickup visual validation terms for this test order.",createdAt:now,updatedAt:now,sentAt:now,approvedAt:now,approvedByCustomerId:customerId,approvalSnapshot:null,stripeCheckoutSessionId:"",stripeCheckoutAmountCents:0,depositPaidAt:now,paymentProvider:"stripe",payments:[{id:"pay-pickup-visual",revision:1,amountCents:4000,checkoutSessionId:"visual",paymentIntentId:"visual",paidAt:now}],refunds:[],history:[]};
+          const job={id:"job-pickup-visual",sourceRequestId:request.id,publicCode:"3D-PICKUP",publicTitle:"Pickup scheduling validation",customerName:request.name,customerEmail:request.email,fulfillmentMethod:"pickup",quantity:1,status:"ready",estimatedReadyDate:"",imageUrl:"",publicNote:"",privateNote:"",sortOrder:0,createdAt:now,updatedAt:now,completedAt:"",completionEmailSentAt:""};
+          const insert=db.prepare("INSERT OR REPLACE INTO app_records(collection,id,json,updated_at) VALUES (?,?,?,?)");
+          insert.run("site-content","singleton",JSON.stringify(content),now);
+          insert.run("requests",request.id,JSON.stringify(request),now);
+          insert.run("quotes",quote.id,JSON.stringify(quote),now);
+          insert.run("queue",job.id,JSON.stringify(job),now);
+          db.close();
+          NODE
+
+          rm -rf /tmp/meshharbor-pickup-chrome
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+            --remote-debugging-port=9227 --user-data-dir=/tmp/meshharbor-pickup-chrome about:blank >/tmp/pickup-chrome.log 2>&1 &
+          PICKUP_CHROME_PID=$!
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:9227/json/version >/dev/null; then break; fi
+            sleep 0.5
+          done
+          node <<'NODE'
+          const fs=require("node:fs");
+          (async()=>{
+            const pages=await (await fetch("http://127.0.0.1:9227/json/list")).json();
+            const page=pages.find(p=>p.type==="page");
+            if(!page) throw new Error("No pickup Chrome page target");
+            const ws=new WebSocket(page.webSocketDebuggerUrl);
+            await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
+            let id=0;const pending=new Map();
+            ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id&&pending.has(m.id)){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(new Error(m.error.message)):p.resolve(m.result);}};
+            const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params}));});
+            const wait=ms=>new Promise(r=>setTimeout(r,ms));
+            async function waitFor(text){
+              for(let i=0;i<40;i++){
+                const found=await send("Runtime.evaluate",{expression:`document.body.innerText.includes(${JSON.stringify(text)})`,returnByValue:true});
+                if(found.result.value)return;
+                await wait(250);
+              }
+              const body=await send("Runtime.evaluate",{expression:"document.body.innerText.slice(0,6000)",returnByValue:true});
+              throw new Error("Timed out waiting for "+text+". Body: "+body.result.value);
+            }
+            async function capture(name,width){
+              await send("Emulation.setDeviceMetricsOverride",{width,height:1500,deviceScaleFactor:1,mobile:width<=720});
+              await wait(250);
+              const metrics=await send("Runtime.evaluate",{expression:"(()=>({scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth,bodyWidth:document.body.scrollWidth}))()",returnByValue:true});
+              const x=metrics.result.value;
+              if(x.scrollWidth>x.clientWidth+1||x.bodyWidth>x.clientWidth+1)throw new Error(name+" horizontal overflow at "+width+": "+JSON.stringify(x));
+              const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+              fs.writeFileSync(`visual-smoke/${name}-${width}.png`,Buffer.from(shot.data,"base64"));
+            }
+            await send("Page.enable");await send("Runtime.enable");
+            await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1500,deviceScaleFactor:1,mobile:false});
+            await send("Page.navigate",{url:"http://127.0.0.1:3000/login"});await wait(500);
+            const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/account/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:"pickup-ci@example.test",password:"pickup-test-password-123"})});return {status:r.status,text:await r.text()};})()`,awaitPromise:true,returnByValue:true});
+            if(login.result.value.status!==200)throw new Error("Pickup customer login failed: "+JSON.stringify(login.result.value));
+            await send("Page.navigate",{url:"http://127.0.0.1:3000/profile"});await waitFor("Schedule your pickup");
+            await capture("customer-pickup-available",390);await capture("customer-pickup-available",1440);
+            const booked=await send("Runtime.evaluate",{expression:`(async()=>{const g=await fetch("/api/account/requests/req-pickup-visual/pickup",{cache:"no-store"});const data=await g.json();if(!data.slots?.length)return {error:"no slots",data};const r=await fetch("/api/account/requests/req-pickup-visual/pickup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slotId:data.slots[0].id})});return {status:r.status,data:await r.json()};})()`,awaitPromise:true,returnByValue:true});
+            if(booked.result.value.status!==200)throw new Error("Pickup booking failed: "+JSON.stringify(booked.result.value));
+            await send("Page.navigate",{url:"http://127.0.0.1:3000/profile"});await waitFor("Pickup scheduled");
+            await capture("customer-pickup-confirmed",390);await capture("customer-pickup-confirmed",1440);
+
+            const ownerLogin=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return r.status;})()`,awaitPromise:true,returnByValue:true});
+            if(ownerLogin.result.value!==200)throw new Error("Pickup owner login failed: "+ownerLogin.result.value);
+            await send("Page.navigate",{url:"http://127.0.0.1:3000/owner"});await waitFor("OPERATIONS CENTER");
+            const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Site Content"));b?.click();return Boolean(b);})()`,returnByValue:true});
+            if(!clicked.result.value)throw new Error("Site Content tab missing");
+            await waitFor("Pickup location & appointments");
+            await capture("owner-pickup-settings",390);await capture("owner-pickup-settings",1440);
+            ws.close();
+          })().catch(error=>{console.error(error);process.exit(1);});
+          NODE
+          kill "$PICKUP_CHROME_PID" 2>/dev/null || true
+
       - name: Upload responsive visual matrix
         uses: actions/upload-artifact@v4
         with:
