@@ -12,6 +12,7 @@ import { quoteDepositSatisfied } from "@/lib/quote-types";
 import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
 import { finalInvoicePaid } from "@/lib/final-invoice-types";
 import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
+import { activePickupForRequest, completePickup } from "@/lib/pickup-store";
 
 export const runtime = "nodejs";
 
@@ -96,6 +97,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const sourceBefore = await getStoredRequest(job.sourceRequestId);
     if (job.status === "completed") {
       const sourceAfter = await updateStoredRequest(job.sourceRequestId, { status: "completed" });
+      const pickup = await activePickupForRequest(job.sourceRequestId);
+      if (pickup) await completePickup(pickup.id);
       if (sourceAfter) await notifyCustomer(sourceAfter, "Your print is complete.", { email: false });
     } else if (sourceBefore) {
       const labels: Record<string, string> = {

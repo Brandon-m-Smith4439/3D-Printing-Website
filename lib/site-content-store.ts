@@ -18,6 +18,28 @@ const shippingOriginSchema = z.object({
   country: z.literal("US").default("US"),
 });
 
+const pickupTime = z.string().trim().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a valid 24-hour time.");
+const pickupSchema = z.object({
+  enabled: z.boolean().default(false),
+  locationName: z.string().trim().min(1).max(120),
+  publicArea: z.string().trim().min(1).max(120),
+  street1: z.string().trim().max(120),
+  street2: z.string().trim().max(120),
+  city: z.string().trim().max(80),
+  state: z.string().trim().max(2).refine((value) => value === "" || /^[A-Za-z]{2}$/.test(value), "Use a 2-letter state code."),
+  zip: z.string().trim().max(10).refine((value) => value === "" || /^\d{5}(?:-\d{4})?$/.test(value), "Use a 5-digit ZIP code or ZIP+4."),
+  country: z.literal("US").default("US"),
+  instructions: z.string().trim().max(600),
+  weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+  startTime: pickupTime,
+  endTime: pickupTime,
+  slotMinutes: z.coerce.number().int().min(15).max(120),
+  bookingWindowDays: z.coerce.number().int().min(1).max(60),
+  minimumLeadHours: z.coerce.number().int().min(0).max(72),
+}).superRefine((value, ctx) => {
+  if (value.endTime <= value.startTime) ctx.addIssue({ code: "custom", path: ["endTime"], message: "Pickup end time must be after the start time." });
+});
+
 export const galleryItemSchema = z.object({
   id: z.string().trim().min(1).max(80).regex(/^[A-Za-z0-9_-]+$/),
   title: z.string().trim().min(1).max(100),
@@ -39,6 +61,7 @@ export const siteContentSchema = z.object({
   etsyUrl: externalUrl,
   whatnotUrl: externalUrl,
   shippingOrigin: shippingOriginSchema.default(defaultSiteContent.shippingOrigin),
+  pickup: pickupSchema.default(defaultSiteContent.pickup),
   galleryItems: z.array(galleryItemSchema).max(40),
 });
 

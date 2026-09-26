@@ -17,6 +17,7 @@ import { readCostSnapshots } from "@/lib/quote-cost-store";
 import { readPricingPresets } from "@/lib/pricing-preset-store";
 import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { resolveMaterialCost } from "@/lib/material-cost-resolver";
+import { readPickupAppointments } from "@/lib/pickup-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
   if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   void ensureDailyBackup().catch((error) => console.error("Daily backup failed", error));
   await ensureBambuCatalogSeeded();
-  const [requests, quotes, shipments, finalInvoices, accounts, controls, followUpRecords, pricingSettings, pricingCatalog, costSnapshots, pricingPresets, purchaseLots] = await Promise.all([readRequests(), readQuotes(), readShipments(), readFinalInvoices(), readCollection<CustomerAccount>("customers"), readFollowUpControls(), readFollowUps(), readPricingSettings(), readBambuCatalog(), readCostSnapshots(), readPricingPresets(), readFilamentPurchaseLots()]);
+  const [requests, quotes, shipments, finalInvoices, pickups, accounts, controls, followUpRecords, pricingSettings, pricingCatalog, costSnapshots, pricingPresets, purchaseLots] = await Promise.all([readRequests(), readQuotes(), readShipments(), readFinalInvoices(), readPickupAppointments(), readCollection<CustomerAccount>("customers"), readFollowUpControls(), readFollowUps(), readPricingSettings(), readBambuCatalog(), readCostSnapshots(), readPricingPresets(), readFilamentPurchaseLots()]);
   requests.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const accountById = new Map(accounts.map((item) => [item.id, item]));
   const controlByRequest = new Map(controls.map((item) => [item.requestId, item]));
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
   }));
   const costing=Object.fromEntries(requests.map((item)=>[item.id,costSnapshots.filter((snapshot)=>snapshot.requestId===item.id).sort((a,b)=>b.quoteRevision-a.quoteRevision||b.updatedAt.localeCompare(a.updatedAt))]));
   const materialCosts=Object.fromEntries(pricingCatalog.map((item)=>[item.id,resolveMaterialCost(item,purchaseLots)]));
-  return NextResponse.json({ requests, quotes, shipments, finalInvoices, followUps, pricing:{settings:pricingSettings,catalog:pricingCatalog,materialCosts,costing,presets:pricingPresets} }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ requests, quotes, shipments, finalInvoices, pickups, followUps, pricing:{settings:pricingSettings,catalog:pricingCatalog,materialCosts,costing,presets:pricingPresets} }, { headers: { "Cache-Control": "no-store" } });
 }
 
 
