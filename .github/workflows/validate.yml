@@ -464,11 +464,16 @@ jobs:
             await send("Page.navigate",{url:"http://localhost:3002/owner"}); await wait(1000);
             const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Security & Backups"));b?.click();return Boolean(b);})()`,returnByValue:true});
             if(!clicked.result.value)throw new Error("Security & Backups tab missing");
-            await wait(700);
-            const body=await send("Runtime.evaluate",{expression:`document.body.innerText`,returnByValue:true});
-            const text=body.result.value||"";
-            for(const required of ["Two-factor authentication","Sign out other owner sessions","Verify backup"]){
-              if(!text.includes(required))throw new Error("Owner security UI missing: "+required);
+            const requiredSecurityText=["Two-factor authentication","Sign out other owner sessions","Verify backup"];
+            let securityText="";
+            for(let i=0;i<40;i++){
+              const body=await send("Runtime.evaluate",{expression:`document.body.innerText`,returnByValue:true});
+              securityText=body.result.value||"";
+              if(requiredSecurityText.every(required=>securityText.includes(required)))break;
+              await wait(250);
+            }
+            for(const required of requiredSecurityText){
+              if(!securityText.includes(required))throw new Error("Owner security UI missing after async load: "+required+". Body: "+securityText.slice(0,6000));
             }
             const securityWidths=[320,390,720,721,1440,3440];
             const securityOverflow=[];
