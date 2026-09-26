@@ -1107,10 +1107,10 @@ jobs:
       - name: Capture local pickup scheduling UI
         run: |
           curl -fsS -c /tmp/pickup-customer.cookies \
-            -H "Origin: https://meshharbor3d.com" -H "X-Forwarded-Host: meshharbor3d.com" -H "X-Forwarded-Proto: https" \
+            -H "Origin: http://127.0.0.1:3001" \
             -H "Content-Type: application/json" \
             --data '{"displayName":"Pickup Customer","email":"pickup-ci@example.test","password":"pickup-test-password-123","emailStatusUpdates":false}' \
-            http://127.0.0.1:3000/api/account/register >/tmp/pickup-register.json
+            http://127.0.0.1:3001/api/account/register >/tmp/pickup-register.json
 
           node --experimental-strip-types --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -1119,7 +1119,7 @@ jobs:
           const registration=JSON.parse(fs.readFileSync("/tmp/pickup-register.json","utf8"));
           const customerId=registration.customer?.id;
           if(!customerId) throw new Error("Pickup visual customer registration did not return an id");
-          const db=new DatabaseSync("/tmp/meshharbor-v086.sqlite");
+          const db=new DatabaseSync("/tmp/meshharbor-v086-invoice.sqlite");
           const now=new Date().toISOString();
           const customerRow=db.prepare("SELECT json FROM app_records WHERE collection='customers' AND id=?").get(customerId);
           const customer=JSON.parse(customerRow.json);
@@ -1178,19 +1178,19 @@ jobs:
             }
             await send("Page.enable");await send("Runtime.enable");
             await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1500,deviceScaleFactor:1,mobile:false});
-            await send("Page.navigate",{url:"http://127.0.0.1:3000/login"});await wait(500);
+            await send("Page.navigate",{url:"http://127.0.0.1:3001/login"});await wait(500);
             const login=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/account/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:"pickup-ci@example.test",password:"pickup-test-password-123"})});return {status:r.status,text:await r.text()};})()`,awaitPromise:true,returnByValue:true});
             if(login.result.value.status!==200)throw new Error("Pickup customer login failed: "+JSON.stringify(login.result.value));
-            await send("Page.navigate",{url:"http://127.0.0.1:3000/profile"});await waitFor("Schedule your pickup");
+            await send("Page.navigate",{url:"http://127.0.0.1:3001/profile"});await waitFor("Schedule your pickup");
             await capture("customer-pickup-available",390);await capture("customer-pickup-available",1440);
             const booked=await send("Runtime.evaluate",{expression:`(async()=>{const g=await fetch("/api/account/requests/req-pickup-visual/pickup",{cache:"no-store"});const data=await g.json();if(!data.slots?.length)return {error:"no slots",data};const r=await fetch("/api/account/requests/req-pickup-visual/pickup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({slotId:data.slots[0].id})});return {status:r.status,data:await r.json()};})()`,awaitPromise:true,returnByValue:true});
             if(booked.result.value.status!==200)throw new Error("Pickup booking failed: "+JSON.stringify(booked.result.value));
-            await send("Page.navigate",{url:"http://127.0.0.1:3000/profile"});await waitFor("Pickup scheduled");
+            await send("Page.navigate",{url:"http://127.0.0.1:3001/profile"});await waitFor("Pickup scheduled");
             await capture("customer-pickup-confirmed",390);await capture("customer-pickup-confirmed",1440);
 
             const ownerLogin=await send("Runtime.evaluate",{expression:`(async()=>{const r=await fetch("/api/owner/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:"ci-owner-password-12345"})});return r.status;})()`,awaitPromise:true,returnByValue:true});
             if(ownerLogin.result.value!==200)throw new Error("Pickup owner login failed: "+ownerLogin.result.value);
-            await send("Page.navigate",{url:"http://127.0.0.1:3000/owner"});await waitFor("OPERATIONS CENTER");
+            await send("Page.navigate",{url:"http://127.0.0.1:3001/owner"});await waitFor("OPERATIONS CENTER");
             const clicked=await send("Runtime.evaluate",{expression:`(()=>{const b=[...document.querySelectorAll(".owner-tabs button")].find(x=>x.textContent?.includes("Site Content"));b?.click();return Boolean(b);})()`,returnByValue:true});
             if(!clicked.result.value)throw new Error("Site Content tab missing");
             await waitFor("Pickup location & appointments");
