@@ -91,6 +91,9 @@ export type OwnerStripeSummary = {
   keyConfigured: boolean;
   webhookConfigured: boolean;
   mode: "test" | "live" | "unconfigured";
+  operationalMode: "test" | "live-locked" | "live" | "unconfigured";
+  liveEnabled: boolean;
+  businessCallsAllowed: boolean;
   siteOrigin: string;
   secureOrigin: boolean;
   checkoutReady: boolean;
