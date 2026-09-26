@@ -205,15 +205,16 @@ export async function selectQuoteShipping(id:string, customerId:string, rate:Eas
   });
 }
 
-export async function approveQuote(id: string, customerId: string) {
+export async function approveQuote(id: string, customerId: string, policyVersion: string) {
   return mutate(async () => {
     const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
     const current = normalizeQuote(items[index]);
     if (current.customerAccountId !== customerId || current.status !== "sent") return null;
     if (current.fulfillmentMode === "shipping" && !current.shippingSelection) return null;
     const now = new Date().toISOString();
-    const next: StoredQuote = { ...current, status: "approved", approvedAt: now, approvedByCustomerId: customerId, approvalSnapshot: quoteSnapshot(current), updatedAt: now,
-      history: [...current.history, event({ actor:"customer", event:"approved", revision:current.revision, summary:`Customer approved quote revision ${current.revision}.`, snapshot:quoteSnapshot(current) })] };
+    const next: StoredQuote = { ...current, status: "approved", approvedAt: now, approvedByCustomerId: customerId, approvalSnapshot: quoteSnapshot(current),
+      policyAcceptance: { version: policyVersion, acceptedAt: now, customerAccountId: customerId }, updatedAt: now,
+      history: [...current.history, event({ actor:"customer", event:"approved", revision:current.revision, summary:`Customer approved quote revision ${current.revision} and policy ${policyVersion}.`, snapshot:quoteSnapshot(current) })] };
     items[index] = next; await writeQuotes(items); return next;
   });
 }
