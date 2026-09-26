@@ -24,6 +24,8 @@ jobs:
         run: npm ci
       - name: Verify EasyPost mode policy
         run: node --experimental-strip-types tests/easypost-mode.test.mjs
+      - name: Verify local pickup scheduling
+        run: node --experimental-strip-types tests/pickup-schedule.test.mjs
       - name: Verify customer follow-up policy
         run: |
           node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-follow-up-policy.test.mjs
