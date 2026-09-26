@@ -24,6 +24,25 @@ export type ShippingOrigin = {
   country: "US";
 };
 
+export type PickupSettings = {
+  enabled: boolean;
+  locationName: string;
+  publicArea: string;
+  street1: string;
+  street2: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: "US";
+  instructions: string;
+  weekdays: number[];
+  startTime: string;
+  endTime: string;
+  slotMinutes: number;
+  bookingWindowDays: number;
+  minimumLeadHours: number;
+};
+
 export type SiteContent = {
   name: string;
   tagline: string;
@@ -36,6 +55,7 @@ export type SiteContent = {
   etsyUrl: string;
   whatnotUrl: string;
   shippingOrigin: ShippingOrigin;
+  pickup: PickupSettings;
   galleryItems: GalleryItem[];
 };
 
@@ -58,6 +78,24 @@ export const defaultSiteContent: SiteContent = {
     state: "",
     zip: "",
     country: "US",
+  },
+  pickup: {
+    enabled: false,
+    locationName: "Mesh Harbor 3D Local Pickup",
+    publicArea: "Monroe, NC",
+    street1: "",
+    street2: "",
+    city: "Monroe",
+    state: "NC",
+    zip: "",
+    country: "US",
+    instructions: "Exact pickup address and arrival instructions are shown after you schedule a pickup time.",
+    weekdays: [1, 2, 3, 4, 5, 6],
+    startTime: "17:30",
+    endTime: "20:00",
+    slotMinutes: 30,
+    bookingWindowDays: 14,
+    minimumLeadHours: 2,
   },
   galleryItems: [
     {
