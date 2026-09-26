@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useState } from "react";
+import Link from "next/link";
 import { Turnstile } from "@/components/Turnstile";
 import { formatBusinessDate, isFutureBusinessDate, isRushRequestDate, normalizeBusinessDate } from "@/lib/business-date";
 import type { RequestPrefill } from "@/lib/request-prefill";
@@ -429,7 +430,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
             {!initialCustomer&&createAccount&&<div className="request-account-passwords"><label><span>Password</span><input name="accountPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required={createAccount}/></label><label><span>Confirm password</span><input name="accountPasswordConfirm" type="password" minLength={10} maxLength={128} autoComplete="new-password" required={createAccount}/></label></div>}
             <label className="settings-check"><input name="emailNotifications" type="checkbox" checked={emailNotifications} disabled={!initialCustomer&&!createAccount} onChange={(event)=>setEmailNotifications(event.target.checked)} /><span><strong>Email me request status updates</strong><small>{initialCustomer?.emailVerified?"Status changes for this request can also be sent to your verified email.":createAccount?"Email status updates begin after the new account email is verified.":"Create an account with this request to enable verified email status updates."}</small></span></label>
           </section>
-          <div className="payment-terms-note payment-terms-prominent"><strong>50% deposit before production</strong><p>After the quote, design details, and final price are confirmed, a 50% deposit is required before production begins. The remaining 50% is due before shipment or at the pickup/delivery handoff. If a confirmed project is canceled after materials have been purchased or printing has begun, the deposit may be applied to materials, machine time, and work already completed, subject to the final agreed order terms.</p></div>
+          <div className="payment-terms-note payment-terms-prominent"><strong>50% deposit before production</strong><p>After the quote, design details, and final price are confirmed, a 50% deposit is required before production begins. The remaining 50% is due before shipment or at the pickup/delivery handoff. If a confirmed project is canceled after materials have been purchased or printing has begun, the deposit may be applied to materials, machine time, and work already completed, subject to the final agreed order terms.</p><p className="policy-inline-links">Review the <Link href="/terms" target="_blank">Custom Order Terms</Link> and <Link href="/fulfillment" target="_blank">Fulfillment Policy</Link>.</p></div>
         </div>
 
         <aside className="request-summary-panel">
