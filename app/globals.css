@@ -4442,3 +4442,28 @@ button.operations-attention-item:focus-visible {
   .pickup-weekday-editor > div { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .pickup-slot-grid,.owner-pickup-facts { grid-template-columns:1fr; }
 }
+
+
+/* V0.92 repeat business + gallery conversion */
+.gallery-card-body { display:grid; align-content:start; gap:8px; }
+.gallery-card-request-link { display:inline-flex; align-items:center; gap:7px; width:max-content; max-width:100%; margin-top:4px; color:var(--accent-2); font-size:.76rem; font-weight:850; text-decoration:none; }
+.gallery-card-request-link span { transition:transform .18s ease; }
+.gallery-card-request-link:hover span { transform:translateX(3px); }
+.request-prefill-banner { display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px; align-items:start; margin-bottom:14px; padding:14px 16px; border:1px solid rgba(124,239,231,.2); border-radius:14px; background:linear-gradient(145deg,rgba(46,214,202,.07),rgba(255,255,255,.018)); }
+.request-prefill-banner > .eyebrow { padding-top:3px; white-space:nowrap; }
+.request-prefill-banner > div { display:grid; gap:3px; min-width:0; }
+.request-prefill-banner strong { color:#ecfffd; overflow-wrap:anywhere; }
+.request-prefill-banner p { margin:0; color:var(--muted); font-size:.75rem; line-height:1.5; }
+.request-prefill-banner.source-repeat { border-color:rgba(119,230,190,.26); background:linear-gradient(145deg,rgba(119,230,190,.07),rgba(255,255,255,.018)); }
+.profile-repeat-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; padding:11px 12px; border:1px solid rgba(124,239,231,.14); border-radius:12px; background:rgba(46,214,202,.025); }
+.profile-repeat-actions > div { display:grid; gap:2px; min-width:0; }
+.profile-repeat-actions strong { font-size:.78rem; }
+.profile-repeat-actions span { color:var(--muted); font-size:.69rem; line-height:1.4; }
+.profile-repeat-actions .button { flex:0 0 auto; white-space:nowrap; }
+
+@media (max-width:720px){
+  .request-prefill-banner { grid-template-columns:1fr; gap:6px; padding:12px; }
+  .request-prefill-banner > .eyebrow { padding-top:0; }
+  .profile-repeat-actions { align-items:stretch; flex-direction:column; }
+  .profile-repeat-actions .button { width:100%; }
+}
