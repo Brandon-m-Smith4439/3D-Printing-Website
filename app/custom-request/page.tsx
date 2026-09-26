@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { CustomRequestForm } from "@/components/CustomRequestForm";
 import { minimumRequestDate } from "@/lib/business-date";
 import { currentCustomer } from "@/lib/customer-auth";
+import { getSiteContent } from "@/lib/site-content-store";
+import { readRequests } from "@/lib/request-store";
+import { findRepeatRequestForCustomer, prefillFromGallery, prefillFromRequest, type RequestPrefill } from "@/lib/request-prefill";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +13,17 @@ export const metadata: Metadata = {
   description: "Request a custom 3D print and share project details for review and quoting.",
 };
 
-export default async function CustomRequestPage() {
+export default async function CustomRequestPage({ searchParams }: { searchParams: Promise<{ repeat?: string; gallery?: string }> }) {
   const minNeededBy = minimumRequestDate();
-  const customer = await currentCustomer();
+  const [customer, content, params] = await Promise.all([currentCustomer(), getSiteContent(), searchParams]);
+  let initialPrefill: RequestPrefill | null = null;
+  if (params.repeat && customer) {
+    const repeatRequest = findRepeatRequestForCustomer(await readRequests(), params.repeat, customer.id);
+    if (repeatRequest) initialPrefill = prefillFromRequest(repeatRequest);
+  } else if (params.gallery) {
+    const galleryItem = content.galleryItems.find((item) => item.id === params.gallery);
+    if (galleryItem) initialPrefill = prefillFromGallery(galleryItem);
+  }
 
   return (
     <section className="section page-hero custom-request-page">
@@ -37,7 +48,7 @@ export default async function CustomRequestPage() {
           <div><span>3</span><div><strong>Deposit & production</strong><small>50% deposit starts the job</small></div></div>
         </div>
 
-        <CustomRequestForm minNeededBy={minNeededBy} initialCustomer={customer ? { displayName: customer.displayName, email: customer.email, emailVerified: customer.emailVerified, emailStatusUpdates: customer.preferences.emailStatusUpdates } : null} />
+        <CustomRequestForm minNeededBy={minNeededBy} initialCustomer={customer ? { displayName: customer.displayName, email: customer.email, emailVerified: customer.emailVerified, emailStatusUpdates: customer.preferences.emailStatusUpdates } : null} initialPrefill={initialPrefill} />
       </div>
     </section>
   );

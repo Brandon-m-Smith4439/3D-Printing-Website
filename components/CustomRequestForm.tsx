@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useState } from "react";
 import { Turnstile } from "@/components/Turnstile";
 import { formatBusinessDate, isFutureBusinessDate, isRushRequestDate, normalizeBusinessDate } from "@/lib/business-date";
+import type { RequestPrefill } from "@/lib/request-prefill";
 
 type Status = "idle" | "sending" | "success" | "error";
 type FieldErrors = Record<string, string>;
@@ -45,7 +46,7 @@ const friendlyMessages: Record<string, string> = {
   consent: "Please agree to be contacted about this request.",
 };
 
-export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededBy: string; initialCustomer?: { displayName: string; email: string; emailVerified: boolean; emailStatusUpdates: boolean } | null }) {
+export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill }: { minNeededBy: string; initialCustomer?: { displayName: string; email: string; emailVerified: boolean; emailStatusUpdates: boolean } | null; initialPrefill?: RequestPrefill | null }) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -61,17 +62,17 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
   const [summary, setSummary] = useState<RequestSummary>({
     name: initialCustomer?.displayName || "",
     email: initialCustomer?.email || "",
-    projectType: "",
-    modelStatus: "",
-    fulfillmentMethod: "",
-    assemblyPreference: "",
-    quantity: "1",
-    dimensions: "",
-    materialPreference: "no-preference",
-    colorPreference: "",
+    projectType: initialPrefill?.projectType || "",
+    modelStatus: initialPrefill?.modelStatus || "",
+    fulfillmentMethod: initialPrefill?.fulfillmentMethod || "",
+    assemblyPreference: initialPrefill?.assemblyPreference || "",
+    quantity: String(initialPrefill?.quantity || 1),
+    dimensions: initialPrefill?.dimensions || "",
+    materialPreference: initialPrefill?.materialPreference || "no-preference",
+    colorPreference: initialPrefill?.colorPreference || "",
     neededBy: "",
     budget: "",
-    referenceUrl: "",
+    referenceUrl: initialPrefill?.referenceUrl || "",
   });
 
   const normalizedNeededBy = normalizeBusinessDate(neededByValue);
@@ -280,17 +281,17 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
       setSummary({
         name: initialCustomer?.displayName || "",
         email: initialCustomer?.email || "",
-        projectType: "",
-        modelStatus: "",
-        fulfillmentMethod: "",
-        assemblyPreference: "",
-        quantity: "1",
-        dimensions: "",
-        materialPreference: "no-preference",
-        colorPreference: "",
+        projectType: initialPrefill?.projectType || "",
+        modelStatus: initialPrefill?.modelStatus || "",
+        fulfillmentMethod: initialPrefill?.fulfillmentMethod || "",
+        assemblyPreference: initialPrefill?.assemblyPreference || "",
+        quantity: String(initialPrefill?.quantity || 1),
+        dimensions: initialPrefill?.dimensions || "",
+        materialPreference: initialPrefill?.materialPreference || "no-preference",
+        colorPreference: initialPrefill?.colorPreference || "",
         neededBy: "",
         budget: "",
-        referenceUrl: "",
+        referenceUrl: initialPrefill?.referenceUrl || "",
       });
       if (typeof window !== "undefined" && "turnstile" in window) {
         (window as typeof window & { turnstile?: { reset: () => void } }).turnstile?.reset();
@@ -315,6 +316,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
         syncSummary(event.currentTarget);
       }}
     >
+      {initialPrefill && <div className={`request-prefill-banner source-${initialPrefill.sourceType}`}><span className="eyebrow">STARTING POINT</span><div><strong>{initialPrefill.sourceLabel}</strong><p>{initialPrefill.sourceDetail}</p></div></div>}
       <div className="request-workspace">
         <div className="request-main-column">
           <section className="request-form-section">
@@ -335,33 +337,33 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
               </label>
               <label className={fieldClass("phone")}>
                 <span>Phone <small className="optional-label">Optional</small></span>
-                <input name="phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={30} pattern={"[0-9 \\(\\)\\+\\.\\-]{7,30}"} title="Use numbers and normal phone formatting only, such as (704) 555-0123." placeholder="(704) 555-0123" aria-invalid={Boolean(fieldErrors.phone)} />
+                <input name="phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={30} pattern={"[0-9 \\(\\)\\+\\.\\-]{7,30}"} title="Use numbers and normal phone formatting only, such as (704) 555-0123." placeholder="(704) 555-0123" defaultValue={initialPrefill?.phone || ""} aria-invalid={Boolean(fieldErrors.phone)} />
                 {fieldErrors.phone && <small className="field-error">{fieldErrors.phone}</small>}
               </label>
               <label className={fieldClass("projectType")}>
                 <span>What is the print for? *</span>
-                <select name="projectType" defaultValue="" required aria-invalid={Boolean(fieldErrors.projectType)}>
+                <select name="projectType" defaultValue={initialPrefill?.projectType || ""} required aria-invalid={Boolean(fieldErrors.projectType)}>
                   <option value="" disabled>Select one</option><option value="display">Display / collectible</option><option value="functional">Functional part</option><option value="replacement">Replacement part</option><option value="prototype">Prototype</option><option value="other">Other</option>
                 </select>
                 {fieldErrors.projectType && <small className="field-error">{fieldErrors.projectType}</small>}
               </label>
               <label className={fieldClass("modelStatus")}>
                 <span>Do you already have a 3D model? *</span>
-                <select name="modelStatus" defaultValue="" required aria-invalid={Boolean(fieldErrors.modelStatus)}>
+                <select name="modelStatus" defaultValue={initialPrefill?.modelStatus || ""} required aria-invalid={Boolean(fieldErrors.modelStatus)}>
                   <option value="" disabled>Select one</option><option value="ready">Yes — print-ready model</option><option value="needs-adjustment">Yes — may need changes</option><option value="reference-only">No — I have photos / references</option><option value="idea-only">No — I only have the idea</option>
                 </select>
                 {fieldErrors.modelStatus && <small className="field-error">{fieldErrors.modelStatus}</small>}
               </label>
               <label className={fieldClass("fulfillmentMethod")}>
                 <span>How would you like to receive it? *</span>
-                <select name="fulfillmentMethod" defaultValue="" required aria-invalid={Boolean(fieldErrors.fulfillmentMethod)}>
+                <select name="fulfillmentMethod" defaultValue={initialPrefill?.fulfillmentMethod || ""} required aria-invalid={Boolean(fieldErrors.fulfillmentMethod)}>
                   <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option><option value="local-delivery">Local delivery</option><option value="unsure">Not sure yet</option>
                 </select>
                 {fieldErrors.fulfillmentMethod && <small className="field-error">{fieldErrors.fulfillmentMethod}</small>}
               </label>
               <label className={fieldClass("assemblyPreference")}>
                 <span>How would you like multi-part prints delivered? *</span>
-                <select name="assemblyPreference" defaultValue="" required aria-invalid={Boolean(fieldErrors.assemblyPreference)}>
+                <select name="assemblyPreference" defaultValue={initialPrefill?.assemblyPreference || ""} required aria-invalid={Boolean(fieldErrors.assemblyPreference)}>
                   <option value="" disabled>Select one</option>
                   <option value="assembled">Assembled for me</option>
                   <option value="disassembled">Disassembled — I will assemble it</option>
@@ -379,10 +381,10 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
               <div><h2>Print specifications</h2><p>These details help estimate material, machine time, and scheduling.</p></div>
             </div>
             <div className="form-grid request-spec-grid">
-              <label className={fieldClass("quantity")}><span>Quantity *</span><input name="quantity" type="number" min={1} max={500} defaultValue={1} required aria-invalid={Boolean(fieldErrors.quantity)} />{fieldErrors.quantity && <small className="field-error">{fieldErrors.quantity}</small>}</label>
-              <label className={fieldClass("dimensions")}><span>Approx. dimensions <small className="optional-label">Optional</small></span><input name="dimensions" maxLength={120} placeholder={'Example: 8" × 5" × 3"'} /></label>
-              <label className={fieldClass("materialPreference")}><span>Material <small className="optional-label">Optional</small></span><select name="materialPreference" defaultValue="no-preference"><option value="no-preference">No preference</option><option value="pla">PLA</option><option value="petg">PETG</option><option value="asa">ASA</option><option value="tpu">TPU / flexible</option><option value="resin">Resin</option><option value="other">Other / unsure</option></select></label>
-              <label className={fieldClass("colorPreference")}><span>Color preference <small className="optional-label">Optional</small></span><input name="colorPreference" maxLength={120} placeholder="Black, multicolor, match a reference…" /></label>
+              <label className={fieldClass("quantity")}><span>Quantity *</span><input name="quantity" type="number" min={1} max={500} defaultValue={initialPrefill?.quantity || 1} required aria-invalid={Boolean(fieldErrors.quantity)} />{fieldErrors.quantity && <small className="field-error">{fieldErrors.quantity}</small>}</label>
+              <label className={fieldClass("dimensions")}><span>Approx. dimensions <small className="optional-label">Optional</small></span><input name="dimensions" maxLength={120} defaultValue={initialPrefill?.dimensions || ""} placeholder={'Example: 8" × 5" × 3"'} /></label>
+              <label className={fieldClass("materialPreference")}><span>Material <small className="optional-label">Optional</small></span><select name="materialPreference" defaultValue={initialPrefill?.materialPreference || "no-preference"}><option value="no-preference">No preference</option><option value="pla">PLA</option><option value="petg">PETG</option><option value="asa">ASA</option><option value="tpu">TPU / flexible</option><option value="resin">Resin</option><option value="other">Other / unsure</option></select></label>
+              <label className={fieldClass("colorPreference")}><span>Color preference <small className="optional-label">Optional</small></span><input name="colorPreference" maxLength={120} defaultValue={initialPrefill?.colorPreference || ""} placeholder="Black, multicolor, match a reference…" /></label>
               <div className={fieldClass("neededBy", "needed-by-field")}>
                 <label className="field-label" htmlFor="neededBy">Needed by <small className="optional-label">Optional</small></label>
                 <div className="date-entry-shell">
@@ -405,7 +407,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
               <span className="request-section-icon">03</span>
               <div><h2>References & files</h2><p>Share anything that helps explain shape, style, fit, or the model itself.</p></div>
             </div>
-            <label className={fieldClass("referenceUrl")}><span>Reference link <small className="optional-label">Optional</small></span><input name="referenceUrl" type="url" maxLength={500} placeholder="Google Drive, Dropbox, model listing, photo link, etc." aria-invalid={Boolean(fieldErrors.referenceUrl)} /><small>Use a complete http:// or https:// link.</small>{fieldErrors.referenceUrl && <small className="field-error">{fieldErrors.referenceUrl}</small>}</label>
+            <label className={fieldClass("referenceUrl")}><span>Reference link <small className="optional-label">Optional</small></span><input name="referenceUrl" type="url" maxLength={500} defaultValue={initialPrefill?.referenceUrl || ""} placeholder="Google Drive, Dropbox, model listing, photo link, etc." aria-invalid={Boolean(fieldErrors.referenceUrl)} /><small>Use a complete http:// or https:// link.</small>{fieldErrors.referenceUrl && <small className="field-error">{fieldErrors.referenceUrl}</small>}</label>
             <div className="request-upload-panel request-upload-redesign">
               <div><span className="field-label">Secure attachments <small className="optional-label">Optional</small></span><small>Up to 3 files, 10 MB each. Images are re-encoded to strip ordinary metadata. STL/3MF files stay private and production uploads require malware scanning.</small></div>
               <label className={`request-upload-button ${uploading ? "is-busy" : ""}`}>{uploading ? "Scanning / uploading…" : "Choose files"}<input type="file" multiple disabled={uploading || attachments.length >= 3} accept="image/png,image/jpeg,image/webp,.stl,.3mf" onChange={(event) => void uploadAttachments(event)} /></label>
@@ -416,7 +418,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer }: { minNeededB
 
           <section className="request-form-section request-description-section">
             <div className="request-section-heading"><span className="request-section-icon">04</span><div><h2>Describe the request</h2><p>Tell me what matters most so I can quote it correctly the first time.</p></div></div>
-            <label className={fieldClass("description")}><span>Tell me about the print *</span><textarea name="description" minLength={20} maxLength={2500} rows={8} required aria-invalid={Boolean(fieldErrors.description)} placeholder="What do you want made? Include how it will be used, important dimensions, finish expectations, tolerances, special features, or anything else I should know." />{fieldErrors.description && <small className="field-error">{fieldErrors.description}</small>}</label>
+            <label className={fieldClass("description")}><span>Tell me about the print *</span><textarea name="description" minLength={20} maxLength={2500} rows={8} required defaultValue={initialPrefill?.description || ""} aria-invalid={Boolean(fieldErrors.description)} placeholder="What do you want made? Include how it will be used, important dimensions, finish expectations, tolerances, special features, or anything else I should know." />{fieldErrors.description && <small className="field-error">{fieldErrors.description}</small>}</label>
           </section>
 
           <label className="honeypot" aria-hidden="true">Company site<input name="website" tabIndex={-1} autoComplete="off" /></label>
