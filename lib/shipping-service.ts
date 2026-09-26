@@ -74,6 +74,10 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
     throw new Error("This order is not currently eligible for a new shipping label.");
   }
 
+  if (options.force && existing?.status !== "review_required") {
+    throw new Error("A changed shipping rate must be reviewed before an override purchase can be authorized.");
+  }
+
   const fresh = await getLiveShippingRates(quote, quote.shippingSelection.address);
   const matching = fresh.rates.find((rate) =>
     rate.carrier === quote.shippingSelection?.carrier &&
