@@ -21,7 +21,7 @@ export type FulfillmentReleaseCheck = {
   detail: string;
 };
 
-const invalidShipmentStatuses = new Set(["not_created", "review_required", "refund_submitted", "refunded"]);
+const invalidShipmentStatuses = new Set(["not_created", "review_required", "refund_submitted", "refunded", "failure", "return_to_sender"]);
 const invalidRefundStatuses = new Set(["submitted", "refunded"]);
 
 export function shipmentHasUsableLabel(input: Pick<FulfillmentReleaseInput, "trackingCode" | "shipmentStatus" | "refundStatus">) {
