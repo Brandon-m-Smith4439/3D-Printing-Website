@@ -4,7 +4,7 @@ import { minimumRequestDate } from "@/lib/business-date";
 import { currentCustomer } from "@/lib/customer-auth";
 import { getSiteContent } from "@/lib/site-content-store";
 import { readRequests } from "@/lib/request-store";
-import { findRepeatRequestForCustomer, prefillFromGallery, prefillFromRequest } from "@/lib/request-prefill";
+import { findRepeatRequestForCustomer, prefillFromGallery, prefillFromRequest, type RequestPrefill } from "@/lib/request-prefill";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 export default async function CustomRequestPage({ searchParams }: { searchParams: Promise<{ repeat?: string; gallery?: string }> }) {
   const minNeededBy = minimumRequestDate();
   const [customer, content, params] = await Promise.all([currentCustomer(), getSiteContent(), searchParams]);
-  let initialPrefill = null;
+  let initialPrefill: RequestPrefill | null = null;
   if (params.repeat && customer) {
     const repeatRequest = findRepeatRequestForCustomer(await readRequests(), params.repeat, customer.id);
     if (repeatRequest) initialPrefill = prefillFromRequest(repeatRequest);
