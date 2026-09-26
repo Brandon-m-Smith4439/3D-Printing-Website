@@ -19,6 +19,9 @@ type StripeStatus = {
   keyConfigured: boolean;
   webhookConfigured: boolean;
   mode: "test" | "live" | "unconfigured";
+  operationalMode: "test" | "live-locked" | "live" | "unconfigured";
+  liveEnabled: boolean;
+  businessCallsAllowed: boolean;
   siteOrigin: string;
   secureOrigin: boolean;
   webhookUrl: string;
@@ -378,13 +381,13 @@ export function OwnerSecurityPanel({ onNotice }: { onNotice: (n: Notice) => void
       <p className="owner-panel-intro">Customers pay the 50% deposit on Stripe-hosted Checkout, then receive a Stripe-hosted invoice for the remaining balance when production is marked Ready. Secret keys stay server-side.</p>
       {!stripe ? <div className="queue-empty compact"><strong>Checking Stripe configuration…</strong></div> : <>
         <div className="stripe-status-grid">
-          <article className={stripe.keyConfigured ? "is-ready" : "is-missing"}><span>Server key</span><strong>{stripe.keyConfigured ? "Configured" : "Missing"}</strong><small>{stripe.mode === "test" ? "Sandbox / test mode" : stripe.mode === "live" ? "Live payments" : "Add STRIPE_SECRET_KEY"}</small></article>
+          <article className={stripe.keyConfigured ? "is-ready" : "is-missing"}><span>Server key</span><strong>{stripe.keyConfigured ? "Configured" : "Missing"}</strong><small>{stripe.mode === "test" ? "Sandbox / test mode" : stripe.mode === "live" ? (stripe.liveEnabled ? "Live key + gate enabled" : "Live key configured · gate locked") : "Add STRIPE_SECRET_KEY"}</small></article>
           <article className={stripe.webhookConfigured ? "is-ready" : "is-missing"}><span>Webhook signing</span><strong>{stripe.webhookConfigured ? "Configured" : "Missing"}</strong><small>{stripe.webhookConfigured ? "Signed events can be verified" : "Add STRIPE_WEBHOOK_SECRET"}</small></article>
           <article className={stripe.secureOrigin ? "is-ready" : "is-warning"}><span>Public site URL</span><strong>{stripe.secureOrigin ? "HTTPS ready" : "Local / not HTTPS"}</strong><small>{stripe.siteOrigin}</small></article>
-          <article className={stripe.productionReady ? "is-ready" : "is-warning"}><span>Go-live status</span><strong>{stripe.productionReady ? "Ready for live payments" : stripe.checkoutReady ? "Testing available" : "Setup incomplete"}</strong><small>{stripe.productionReady ? "Live key + webhook + HTTPS detected" : "Finish the checklist before real charges"}</small></article>
+          <article className={stripe.productionReady ? "is-ready" : "is-warning"}><span>Go-live status</span><strong>{stripe.productionReady ? "Ready for live payments" : stripe.operationalMode==="live-locked" ? "Live key locked" : stripe.checkoutReady ? "Testing available" : "Setup incomplete"}</strong><small>{stripe.productionReady ? "Live key + webhook + HTTPS + explicit live gate" : stripe.operationalMode==="live-locked" ? "STRIPE_LIVE_ENABLED is off, so new real charges and invoices are blocked." : "Finish the checklist before real charges"}</small></article>
         </div>
         <div className="stripe-webhook-box"><div><span>Webhook endpoint</span><code>{stripe.webhookUrl}</code></div><button className="button button-secondary button-small" type="button" onClick={() => void copyText(stripe.webhookUrl, "Stripe webhook URL copied.")}>Copy URL</button></div>
-        <div className="stripe-setup-note"><strong>Recommended sequence</strong><span>Keep Stripe in test mode while validating both the 50% deposit and final-balance invoice flow. Before live use, make sure Stripe Invoicing is enabled for the account, the webhook receives invoice.paid and invoice.payment_failed, and then switch to a live restricted key only with explicit approval.</span></div>
+        <div className="stripe-setup-note"><strong>Recommended sequence</strong><span>Keep Stripe in test mode while validating both the 50% deposit and final-balance invoice flow. Before live use, make sure Stripe Invoicing is enabled for the account, the webhook receives invoice.paid and invoice.payment_failed, and then switch to a live restricted key only with explicit approval, then enable STRIPE_LIVE_ENABLED as the final controlled gate.</span></div>
       </>}
     </section>
 

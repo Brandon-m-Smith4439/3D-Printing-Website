@@ -6,7 +6,11 @@ import { buyLabelForRequest } from "@/lib/shipping-service";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 
 export const runtime = "nodejs";
-const schema = z.object({ force: z.boolean().optional().default(false) }).strict();
+const schema = z.object({
+  confirmPurchase: z.literal(true),
+  force: z.boolean().optional().default(false),
+  confirmRateChange: z.boolean().optional().default(false),
+}).strict();
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
@@ -21,12 +25,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
   }
   const parsed = schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ message: "Invalid shipping-label request." }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ message: "Explicit owner confirmation is required before purchasing a shipping label." }, { status: 400 });
+  if (parsed.data.force && !parsed.data.confirmRateChange) {
+    return NextResponse.json({ message: "Confirm the changed carrier rate before purchasing this label." }, { status: 400 });
+  }
   try {
     const result = await buyLabelForRequest(id, { force: parsed.data.force });
     await writeAudit({
       actor: "owner", actorId: "owner", action: result.purchased ? "shipping-label-purchased" : result.requiresConfirmation ? "shipping-label-review" : "shipping-label-existing",
-      targetType: "request", targetId: id, summary: result.purchased ? `Shipping label purchased for ${result.shipment.requestCode}.` : result.shipment.reviewReason || `Shipping label already exists for ${result.shipment.requestCode}.`,
+      targetType: "request", targetId: id, summary: result.purchased ? `Owner-confirmed shipping label purchased for ${result.shipment.requestCode}.` : result.shipment.reviewReason || `Shipping label already exists for ${result.shipment.requestCode}.`,
       ipHash: requestIpHash(request),
     });
     return NextResponse.json({

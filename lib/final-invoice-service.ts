@@ -6,7 +6,7 @@ import type { FinalInvoiceRecord, FinalInvoiceStatus } from "@/lib/final-invoice
 import { getStoredRequest } from "@/lib/request-store";
 import { quoteForRequest } from "@/lib/quote-store";
 import { quoteDepositSatisfied, quoteNetDepositPaidCents } from "@/lib/quote-types";
-import { stripeClient, stripeKeyMode, stripeSdkConfigured } from "@/lib/stripe-client";
+import { assertStripeNewCommerceAllowed, stripeClient, stripeKeyMode, stripeSdkConfigured } from "@/lib/stripe-client";
 
 function dueDays() {
   const configured = Number(process.env.STRIPE_FINAL_INVOICE_DUE_DAYS || 7);
@@ -128,6 +128,8 @@ export async function ensureFinalInvoiceForRequest(requestId: string) {
       throw new Error("The existing final invoice is closed in Stripe. Review it in Stripe before creating a replacement.");
     }
   }
+
+  if (stripeSdkConfigured()) assertStripeNewCommerceAllowed();
 
   const stripeCustomerId = await ensureStripeCustomer({
     customerAccountId: request.customerAccountId || "",

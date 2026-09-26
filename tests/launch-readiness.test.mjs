@@ -3,7 +3,7 @@ import { buildLaunchReadiness } from "../lib/launch-readiness.ts";
 
 const now=new Date("2026-09-26T12:00:00.000Z");
 const base={
-  stripe:{keyConfigured:true,webhookConfigured:true,mode:"test",siteOrigin:"https://meshharbor3d.com",secureOrigin:true,checkoutReady:true,productionReady:false},
+  stripe:{keyConfigured:true,webhookConfigured:true,mode:"test",operationalMode:"test",liveEnabled:false,businessCallsAllowed:true,siteOrigin:"https://meshharbor3d.com",secureOrigin:true,checkoutReady:true,productionReady:false},
   shipping:{configured:true,credentialMode:"test",mode:"test",liveEnabled:false,businessCallsAllowed:true,readiness:"test-ready",fromAddressConfigured:true,webhookSecretConfigured:true,autoBuyLabels:false},
   shippingOrigin:{name:"Mesh Harbor 3D",street1:"100 Test Way",street2:"",city:"Monroe",state:"NC",zip:"28110",country:"US"},
   pickup:{enabled:true,locationName:"Mesh Harbor 3D Local Pickup",publicArea:"Monroe, NC",street1:"100 Test Way",street2:"",city:"Monroe",state:"NC",zip:"28110",country:"US",instructions:"Private.",weekdays:[1,2,3,4,5],startTime:"17:30",endTime:"20:00",slotMinutes:30,bookingWindowDays:14,minimumLeadHours:2},
@@ -24,10 +24,17 @@ const base={
 }
 
 {
-  const report=buildLaunchReadiness({...base,stripe:{...base.stripe,mode:"live",productionReady:true},shipping:{...base.shipping,credentialMode:"production",mode:"production",liveEnabled:true,readiness:"production-ready"}});
+  const report=buildLaunchReadiness({...base,stripe:{...base.stripe,mode:"live",operationalMode:"live",liveEnabled:true,businessCallsAllowed:true,productionReady:true},shipping:{...base.shipping,credentialMode:"production",mode:"production",liveEnabled:true,readiness:"production-ready"}});
   assert.equal(report.operatingMode,"live-ready");
   assert.equal(report.liveCommerceReady,true);
   assert.equal(report.items.find(x=>x.id==="live-commerce")?.status,"ready");
+}
+
+{
+  const report=buildLaunchReadiness({...base,stripe:{...base.stripe,mode:"live",operationalMode:"live-locked",liveEnabled:false,businessCallsAllowed:false,checkoutReady:false,productionReady:false}});
+  assert.equal(report.liveCommerceReady,false);
+  assert.equal(report.items.find(x=>x.id==="stripe")?.status,"attention");
+  assert.match(report.items.find(x=>x.id==="stripe")?.detail||"",/STRIPE_LIVE_ENABLED/);
 }
 
 {

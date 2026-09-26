@@ -13,6 +13,8 @@ import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
 import { finalInvoicePaid } from "@/lib/final-invoice-types";
 import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
 import { activePickupForRequest, completePickup } from "@/lib/pickup-store";
+import { shipmentForRequest } from "@/lib/shipment-store";
+import { evaluateFulfillmentRelease } from "@/lib/fulfillment-release";
 
 export const runtime = "nodejs";
 
@@ -62,9 +64,31 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const source = await getStoredRequest(existing.sourceRequestId);
     const quote = source ? await quoteForRequest(source.id) : null;
     if (quote) {
-      const finalInvoice = await finalInvoiceForRequest(source!.id);
+      const [finalInvoice, shipment, pickup] = await Promise.all([
+        finalInvoiceForRequest(source!.id),
+        quote.fulfillmentMode === "shipping" ? shipmentForRequest(source!.id) : Promise.resolve(null),
+        quote.fulfillmentMode === "pickup" ? activePickupForRequest(source!.id) : Promise.resolve(null),
+      ]);
+      const release = evaluateFulfillmentRelease({
+        hasQuote: true,
+        fulfillmentMode: quote.fulfillmentMode,
+        depositSatisfied: quote.status === "deposit-paid" && quoteDepositSatisfied(quote),
+        jobStatus: existing.status,
+        finalBalancePaid: finalInvoicePaid(finalInvoice),
+        shippingSelected: Boolean(quote.shippingSelection),
+        trackingCode: shipment?.trackingCode || "",
+        shipmentStatus: shipment?.status || "not_created",
+        refundStatus: shipment?.refundStatus || "",
+        pickupScheduled: Boolean(pickup),
+      });
       if (!finalInvoicePaid(finalInvoice)) {
         return NextResponse.json({ message: "The final balance invoice must be paid before this customer request can be marked Completed." }, { status: 409 });
+      }
+      if (!release.canComplete) {
+        const message = quote.fulfillmentMode === "shipping"
+          ? "Purchase an active owner-confirmed shipping label and tracking number before marking this shipped order Completed."
+          : "Mark production Ready and resolve the fulfillment release checks before marking this order Completed.";
+        return NextResponse.json({ message }, { status: 409 });
       }
     }
   }
