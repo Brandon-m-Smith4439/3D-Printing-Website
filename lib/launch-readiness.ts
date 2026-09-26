@@ -93,7 +93,7 @@ export function buildLaunchReadiness(input: {
         : item("easypost", "EasyPost shipping", "blocked", "EasyPost credentials, ship-from address, or webhook signing is incomplete.", "shipping"));
 
   items.push(input.shipping.autoBuyLabels
-    ? item("auto-buy", "Automatic label purchase", "attention", "Automatic label buying is enabled. Mesh Harbor policy calls for owner-reviewed label purchase before live launch.", "shipping")
+    ? item("auto-buy", "Automatic label purchase", "attention", "EASYPOST_AUTO_BUY_LABELS is set, but v0.94 blocks automatic purchases and requires owner confirmation. Turn the legacy flag off.", "shipping")
     : item("auto-buy", "Automatic label purchase", "ready", "Automatic label buying is off; label purchase remains owner-controlled.", "shipping"));
 
   items.push(input.followUps.deploymentEnabled && input.followUps.ownerEnabled
