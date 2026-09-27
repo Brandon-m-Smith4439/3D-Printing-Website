@@ -4545,3 +4545,29 @@ button.operations-attention-item:focus-visible {
   .owner-fulfillment-release-heading { align-items:flex-start; flex-direction:column; }
   .owner-fulfillment-release-grid { grid-template-columns:1fr; }
 }
+
+
+/* V0.95 production order options */
+.request-private-option { display:flex; align-items:flex-start; gap:10px; padding:13px 14px; border:1px solid rgba(124,239,231,.16); border-radius:13px; background:rgba(46,214,202,.03); }
+.request-private-option input { width:18px; min-height:18px; margin-top:2px; accent-color:var(--accent); flex:0 0 auto; }
+.request-private-option > span { display:grid; gap:3px; min-width:0; }
+.request-private-option strong { color:#ecfffd; font-size:.78rem; }
+.request-private-option small { color:var(--muted); font-size:.69rem; line-height:1.5; }
+.queue-private-image { position:absolute; inset:0; display:grid; place-items:center; align-content:center; gap:7px; background:radial-gradient(circle at 50% 35%,rgba(46,214,202,.12),rgba(5,18,24,.96)); color:var(--accent-2); }
+.queue-private-image > span { display:grid; place-items:center; width:48px; height:48px; border:1px solid rgba(124,239,231,.24); border-radius:50%; font-size:1.45rem; }
+.queue-private-image small { font-size:.64rem; font-weight:900; letter-spacing:.14em; }
+.queue-track-item.is-private .queue-track-copy h3 { color:#d9ebea; }
+.customer-tax-callout { display:grid; gap:3px; margin-top:10px; padding:11px 12px; border:1px solid rgba(124,239,231,.14); border-radius:11px; background:rgba(46,214,202,.025); }
+.customer-tax-callout strong { font-size:.74rem; color:#e8fbf9; }
+.customer-tax-callout span { color:var(--muted); font-size:.68rem; line-height:1.48; }
+.quote-payment-options { display:grid; gap:10px; margin-top:14px; padding-top:14px; border-top:1px solid rgba(107,201,202,.11); }
+.quote-payment-options > div:first-child { display:grid; gap:3px; }
+.quote-payment-options > div:first-child small,.quote-local-payment-select small { color:var(--muted); font-size:.67rem; line-height:1.45; }
+.quote-local-payment-select { display:grid; gap:6px; max-width:460px; }
+.quote-local-payment-select select { min-height:42px; }
+.owner-local-payment-panel .shipping-rate-review { margin-top:2px; }
+
+@media (max-width:720px){
+  .request-private-option { padding:12px; }
+  .quote-payment-options .quote-fulfillment-options { grid-template-columns:1fr; }
+}
