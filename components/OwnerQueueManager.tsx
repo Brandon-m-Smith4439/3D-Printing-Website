@@ -406,6 +406,7 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
           <label><span>Business name</span><input value={draft.name} maxLength={80} onChange={(event) => patch({ name: event.target.value })} /></label>
           <label><span>Tagline</span><input value={draft.tagline} maxLength={140} onChange={(event) => patch({ tagline: event.target.value })} /></label>
           <label><span>Short description</span><textarea rows={3} value={draft.description} maxLength={300} onChange={(event) => patch({ description: event.target.value })} /></label>
+          <label><span>Public customer email</span><input type="email" value={draft.contactEmail} maxLength={160} onChange={(event) => patch({ contactEmail: event.target.value })} /><small>Use a Mesh Harbor 3D address only. This address is shown publicly and used as the preferred customer contact.</small></label>
           <div className="owner-edit-grid">
             <label><span>Hero logo letters</span><input value={draft.logoLetters} maxLength={4} onChange={(event) => patch({ logoLetters: event.target.value })} /></label>
             <label><span>Etsy shop URL</span><input type="url" value={draft.etsyUrl} onChange={(event) => patch({ etsyUrl: event.target.value })} /></label>
