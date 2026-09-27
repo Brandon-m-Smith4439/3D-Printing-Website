@@ -13,7 +13,7 @@ import { validateQuoteCostInput } from "@/lib/quote-cost-input";
 import { ensureBambuCatalogSeeded, readBambuCatalog, readPricingSettings } from "@/lib/pricing-store";
 import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { readShipments } from "@/lib/shipment-store";
-import { quoteCostingIsComplete, resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
+import { resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
 import { automaticReadyDate } from "@/lib/quote-ready-date";
 import { saveCostSnapshot } from "@/lib/quote-cost-store";
 
@@ -109,8 +109,6 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     const settings=pricingSettingsForValidation||await readPricingSettings();
     const shipment=shipments.find(item=>item.requestId===source.id&&item.quoteId===quote.id)||null;
     const resolved=resolveQuoteCostSnapshot({quote,costing,settings,catalog,lots,shipment,now:new Date().toISOString(),status:"estimate"});
-    if(parsed.data.action==="send"&&!quoteCostingIsComplete(resolved))return NextResponse.json({message:"One or more filament lines are unpriced. Import a Bambu invoice, verify MSRP, or add a fallback material cost before sending this quote."},{status:409});
-    if(parsed.data.action==="send"&&!resolved.priceMeetsTarget)return NextResponse.json({message:`The quote is below its selected ${(resolved.targetMarginBasisPoints/100).toFixed(0)}% target margin. Apply the Cost & Margin target price before sending.`},{status:409});
     costSnapshot=await saveCostSnapshot(resolved);
   }
 
