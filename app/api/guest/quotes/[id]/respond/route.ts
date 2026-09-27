@@ -12,7 +12,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   let body:unknown;try{const raw=await request.text();if(raw.length>5000)return NextResponse.json({message:"Response is too large."},{status:413});body=JSON.parse(raw);}catch{return NextResponse.json({message:"Invalid quote response."},{status:400});}
   const parsed=customerQuoteResponseSchema.safeParse(body);if(!parsed.success)return NextResponse.json({message:"Please check your quote response."},{status:400});
-  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id||quote.customerAccountId)return NextResponse.json({message:"Quote not found."},{status:404});
+  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id )return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="sent")return NextResponse.json({message:"This quote is no longer awaiting a response."},{status:409});
   const updatedQuote=await respondToGuestQuote(id,guest.id,parsed.data);if(!updatedQuote)return NextResponse.json({message:"Could not record your response."},{status:409});
   await updateStoredRequest(guest.id,{status:"reviewing"});
