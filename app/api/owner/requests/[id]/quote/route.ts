@@ -13,7 +13,8 @@ import { validateQuoteCostInput } from "@/lib/quote-cost-input";
 import { ensureBambuCatalogSeeded, readBambuCatalog, readPricingSettings } from "@/lib/pricing-store";
 import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { readShipments } from "@/lib/shipment-store";
-import { resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
+import { quoteCostingIsComplete, resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
+import { automaticReadyDate } from "@/lib/quote-ready-date";
 import { saveCostSnapshot } from "@/lib/quote-cost-store";
 
 export async function POST(request:NextRequest,context:{params:Promise<{id:string}>}){
@@ -40,6 +41,13 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(Object.prototype.hasOwnProperty.call(root,"costing")){
     try{costing=validateQuoteCostInput(root.costing);}catch(error){return NextResponse.json({message:error instanceof Error?error.message:"Check the internal costing fields."},{status:400});}
   }
+  if(parsed.data.action==="send"&&!costing)return NextResponse.json({message:"Complete Cost & Margin before sending the quote."},{status:400});
+  const pricingSettingsForValidation=costing?await readPricingSettings():null;
+  if(costing&&pricingSettingsForValidation){
+    if(costing.machineHours>0&&pricingSettingsForValidation.defaultMachineHourlyCostCents<=0)return NextResponse.json({message:"Configure Printer + electricity / machine hour under Pricing Settings before sending a costed quote."},{status:409});
+    if(costing.designHours>0&&pricingSettingsForValidation.defaultDesignHourlyCostCents<=0)return NextResponse.json({message:"Configure the pre-processing labor rate under Pricing Settings before sending a costed quote."},{status:409});
+    if(costing.postProcessingHours>0&&pricingSettingsForValidation.defaultPostProcessingHourlyCostCents<=0)return NextResponse.json({message:"Configure the post-processing labor rate under Pricing Settings before sending a costed quote."},{status:409});
+  }
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
   if(source.source!=="owner"&&source.fulfillmentMethod!=="unsure"&&parsed.data.fulfillmentMode!==source.fulfillmentMethod){
     return NextResponse.json({message:"Customer-submitted fulfillment cannot be changed by the owner. Ask the customer to submit or confirm a different fulfillment choice before quoting."},{status:409});
@@ -48,7 +56,8 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
 
   const jobs=await readQueue();
   const scheduleBoundary=queueScheduleBoundary(jobs,source.id);
-  const skipsQueue=quoteWouldSkipQueue(jobs,parsed.data.estimatedReadyDate,source.id);
+  const effectiveReadyDate=costing?automaticReadyDate(costing.machineHours,scheduleBoundary.latestDate):parsed.data.estimatedReadyDate;
+  const skipsQueue=quoteWouldSkipQueue(jobs,effectiveReadyDate,source.id);
   if(skipsQueue&&parsed.data.rushFeeCents<50){
     return NextResponse.json({
       message:`The requested ready date would skip active queue work. The current queue extends through ${scheduleBoundary.latestDate}. Add a rush fee or choose ${scheduleBoundary.latestDate} or later.`,
@@ -87,7 +96,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     depositCents:parsed.data.depositCents,
     material:parsed.data.material,
     dimensions:parsed.data.dimensions,
-    estimatedReadyDate:parsed.data.estimatedReadyDate,
+    estimatedReadyDate:effectiveReadyDate,
     notes:parsed.data.notes,
     terms:parsed.data.terms,
     send:parsed.data.action==="send",
@@ -96,9 +105,13 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   let costSnapshot=null;
   if(costing){
     await ensureBambuCatalogSeeded();
-    const [settings,catalog,lots,shipments]=await Promise.all([readPricingSettings(),readBambuCatalog(),readFilamentPurchaseLots(),readShipments()]);
+    const [catalog,lots,shipments]=await Promise.all([readBambuCatalog(),readFilamentPurchaseLots(),readShipments()]);
+    const settings=pricingSettingsForValidation||await readPricingSettings();
     const shipment=shipments.find(item=>item.requestId===source.id&&item.quoteId===quote.id)||null;
-    costSnapshot=await saveCostSnapshot(resolveQuoteCostSnapshot({quote,costing,settings,catalog,lots,shipment,now:new Date().toISOString(),status:"estimate"}));
+    const resolved=resolveQuoteCostSnapshot({quote,costing,settings,catalog,lots,shipment,now:new Date().toISOString(),status:"estimate"});
+    if(parsed.data.action==="send"&&!quoteCostingIsComplete(resolved))return NextResponse.json({message:"One or more filament lines are unpriced. Import a Bambu invoice, verify MSRP, or add a fallback material cost before sending this quote."},{status:409});
+    if(parsed.data.action==="send"&&!resolved.priceMeetsTarget)return NextResponse.json({message:`The quote is below its selected ${(resolved.targetMarginBasisPoints/100).toFixed(0)}% target margin. Apply the Cost & Margin target price before sending.`},{status:409});
+    costSnapshot=await saveCostSnapshot(resolved);
   }
 
   if(parsed.data.action==="send"){
