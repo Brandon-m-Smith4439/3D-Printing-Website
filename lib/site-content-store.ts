@@ -33,11 +33,17 @@ const pickupSchema = z.object({
   weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
   startTime: pickupTime,
   endTime: pickupTime,
+  weekdayStartTime: pickupTime.default(defaultSiteContent.pickup.weekdayStartTime),
+  weekdayEndTime: pickupTime.default(defaultSiteContent.pickup.weekdayEndTime),
+  weekendStartTime: pickupTime.default(defaultSiteContent.pickup.weekendStartTime),
+  weekendEndTime: pickupTime.default(defaultSiteContent.pickup.weekendEndTime),
   slotMinutes: z.coerce.number().int().min(15).max(120),
   bookingWindowDays: z.coerce.number().int().min(1).max(60),
   minimumLeadHours: z.coerce.number().int().min(0).max(72),
 }).superRefine((value, ctx) => {
   if (value.endTime <= value.startTime) ctx.addIssue({ code: "custom", path: ["endTime"], message: "Pickup end time must be after the start time." });
+  if (value.weekdayEndTime <= value.weekdayStartTime) ctx.addIssue({ code: "custom", path: ["weekdayEndTime"], message: "Weekday pickup end time must be after the start time." });
+  if (value.weekendEndTime <= value.weekendStartTime) ctx.addIssue({ code: "custom", path: ["weekendEndTime"], message: "Weekend pickup end time must be after the start time." });
 });
 
 export const galleryItemSchema = z.object({
@@ -76,6 +82,9 @@ function migrateLegacyBrand(content: SiteContent): SiteContent {
   if (!next.wordmarkImage || next.wordmarkImage === "/brand/logo.svg") next.wordmarkImage = defaultSiteContent.wordmarkImage;
   if (next.logoAlt === "LayerCraft 3D logo") next.logoAlt = defaultSiteContent.logoAlt;
   if (next.logoLetters === "L3") next.logoLetters = defaultSiteContent.logoLetters;
+  if (!next.shippingOrigin.street1) next.shippingOrigin = { ...defaultSiteContent.shippingOrigin };
+  if (!next.pickup.street1) next.pickup = { ...next.pickup, ...defaultSiteContent.pickup };
+  next.whatnotUrl = "";
   return next;
 }
 
@@ -90,7 +99,7 @@ export async function getSiteContent(): Promise<SiteContent> {
       return {
         ...branded,
         etsyUrl: branded.etsyUrl === "https://www.etsy.com/" ? (legacyEtsy || "") : branded.etsyUrl,
-        whatnotUrl: branded.whatnotUrl === "https://www.whatnot.com/" ? (legacyWhatnot || "") : branded.whatnotUrl,
+        whatnotUrl: "",
       };
     }
     console.error("Invalid site content in database; using built-in defaults.", parsed.error.flatten());
