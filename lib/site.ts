@@ -68,8 +68,8 @@ export const defaultSiteContent: SiteContent = {
   logoAlt: "Mesh Harbor 3D lighthouse, mesh, and wave emblem",
   logoLetters: "MH",
   businessTimeZone: "America/New_York",
-  etsyUrl: "https://www.etsy.com/",
-  whatnotUrl: "https://www.whatnot.com/",
+  etsyUrl: "",
+  whatnotUrl: "",
   shippingOrigin: {
     name: "Mesh Harbor 3D",
     street1: "",
