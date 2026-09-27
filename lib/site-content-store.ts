@@ -83,7 +83,15 @@ function migrateLegacyBrand(content: SiteContent): SiteContent {
   if (next.logoAlt === "LayerCraft 3D logo") next.logoAlt = defaultSiteContent.logoAlt;
   if (next.logoLetters === "L3") next.logoLetters = defaultSiteContent.logoLetters;
   if (!next.shippingOrigin.street1) next.shippingOrigin = { ...defaultSiteContent.shippingOrigin };
-  if (!next.pickup.street1) next.pickup = { ...next.pickup, ...defaultSiteContent.pickup };
+  const defaultPickupIdentity = next.pickup.locationName === "Mesh Harbor 3D Local Pickup" && next.pickup.publicArea === "Monroe, NC";
+  if (!next.pickup.street1 || defaultPickupIdentity) {
+    next.pickup = {
+      ...next.pickup,
+      ...defaultSiteContent.pickup,
+      enabled: true,
+      weekdays: [0,1,2,3,4,5,6],
+    };
+  }
   next.whatnotUrl = "";
   return next;
 }
@@ -94,7 +102,6 @@ export async function getSiteContent(): Promise<SiteContent> {
     const parsed = siteContentSchema.safeParse(saved || defaultSiteContent);
     if (parsed.success) {
       const legacyEtsy = process.env.NEXT_PUBLIC_ETSY_URL;
-      const legacyWhatnot = process.env.NEXT_PUBLIC_WHATNOT_URL;
       const branded = migrateLegacyBrand(parsed.data);
       return {
         ...branded,
