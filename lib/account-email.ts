@@ -31,7 +31,7 @@ export async function sendVerificationEmail(input: { email: string; displayName:
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [input.email], subject, html }),
+    body: JSON.stringify({ from, to: [input.email], reply_to: site.contactEmail, subject, html }),
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Email provider rejected the verification email.");
@@ -56,7 +56,7 @@ export async function sendPasswordResetEmail(input: { email: string; displayName
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [input.email], subject, html }),
+    body: JSON.stringify({ from, to: [input.email], reply_to: site.contactEmail, subject, html }),
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Email provider rejected the password reset email.");
@@ -81,7 +81,7 @@ export async function sendCustomerLoginCodeEmail(input: { email: string; display
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from, to: [input.email], subject, html }),
+    body: JSON.stringify({ from, to: [input.email], reply_to: site.contactEmail, subject, html }),
     cache: "no-store",
   });
   if (!response.ok) throw new Error("Email provider rejected the sign-in code.");
