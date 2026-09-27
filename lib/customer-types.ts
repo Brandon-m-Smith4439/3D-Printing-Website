@@ -10,6 +10,7 @@ export type CustomerAccount = {
   passwordSalt: string;
   passwordHash: string;
   emailVerifiedAt: string;
+  emailTwoFactorEnabled?: boolean;
   sessionVersion: number;
   preferences: CustomerPreferences;
   stripeCustomerTestId: string;
