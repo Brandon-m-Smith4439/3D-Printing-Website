@@ -83,8 +83,12 @@ async function requestForPayload(payload: GuestPayload | null, requiredKind?: Gu
   if (!payload || (requiredKind && payload.kind !== requiredKind)) return null;
   const stored = await getStoredRequest(payload.rid);
   if (!stored || stored.requestCode !== payload.code || hashEmail(stored.email) !== payload.eh) return null;
-  // Once a verified account claims the request, account authentication becomes authoritative.
-  if (stored.customerAccountId) return null;
+  // Once a linked account is verified, account authentication becomes authoritative.
+  if (stored.customerAccountId) {
+    const { findCustomerById } = await import("@/lib/customer-store");
+    const account = await findCustomerById(stored.customerAccountId);
+    if (account?.emailVerifiedAt) return null;
+  }
   return stored;
 }
 
