@@ -62,3 +62,28 @@ export async function sendPasswordResetEmail(input: { email: string; displayName
   if (!response.ok) throw new Error("Email provider rejected the password reset email.");
   return { sent: true, developmentUrl: "" };
 }
+
+
+export async function sendCustomerLoginCodeEmail(input: { email: string; displayName: string; code: string }) {
+  const site = await getSiteContent();
+  const apiKey = process.env.RESEND_API_KEY || "";
+  const from = process.env.REQUEST_FROM_EMAIL || "";
+  const configured = Boolean(apiKey && !apiKey.startsWith("YOUR_") && from && !from.includes("yourdomain.com"));
+  const subject = `Your ${site.name} sign-in code`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#172033;line-height:1.6"><p style="font-size:13px;font-weight:700;letter-spacing:.08em;color:#4b78a8">${escapeHtml(site.name.toUpperCase())}</p><h1 style="font-size:26px">Verify your sign-in.</h1><p>Hi ${escapeHtml(input.displayName)},</p><p>Enter this one-time code to finish signing in:</p><p style="font-size:30px;font-weight:800;letter-spacing:.18em">${escapeHtml(input.code)}</p><p style="font-size:13px;color:#687789">This code expires in 10 minutes. If you did not try to sign in, change your password and contact Mesh Harbor 3D.</p></div>`;
+
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") throw new Error("Customer two-factor email delivery is not configured.");
+    console.info(`Customer 2FA code (development) -> ${input.email}: ${input.code}`);
+    return { sent: false };
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to: [input.email], subject, html }),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Email provider rejected the sign-in code.");
+  return { sent: true };
+}
