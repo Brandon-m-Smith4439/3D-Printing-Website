@@ -23,12 +23,10 @@ function siteOrigin() {
 export async function sendFollowUpEmail(input: { request: StoredRequest; record: CustomerFollowUpRecord }): Promise<FollowUpEmailResult> {
   const { findCustomerById } = await import("./customer-store.ts");
   const account = input.request.customerAccountId ? await findCustomerById(input.request.customerAccountId) : null;
-  if (input.request.customerAccountId && !account) return { ok: false, retryable: false, reason: "Linked customer account is unavailable." };
-  if (account && !account.emailVerifiedAt) return { ok: false, retryable: false, reason: "Customer email is not verified." };
   const recipient = account?.emailVerifiedAt ? account.email : input.request.email.trim().toLowerCase();
   if (!recipient) return { ok: false, retryable: false, reason: "Customer email is unavailable." };
-  const wantsEmail = input.request.customerAccountId
-    ? (input.request.emailNotifications ?? account?.preferences.emailStatusUpdates ?? false)
+  const wantsEmail = account?.emailVerifiedAt
+    ? (input.request.emailNotifications ?? account.preferences.emailStatusUpdates ?? false)
     : Boolean(input.request.emailNotifications);
   if (!wantsEmail) return { ok: false, retryable: false, reason: "Customer email updates are disabled." };
 
