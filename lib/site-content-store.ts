@@ -6,7 +6,7 @@ import { readSingleton, writeSingleton } from "@/lib/database";
 let writeChain = Promise.resolve();
 
 const localImagePath = z.string().trim().min(1).max(300).refine((value) => value.startsWith("/") && !value.includes("..") && !value.includes("\\"), "Use a local site image path.");
-const externalUrl = z.string().trim().url().max(500);
+const externalUrl = z.union([z.literal(""), z.string().trim().url().max(500)]);
 
 const shippingOriginSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -88,8 +88,8 @@ export async function getSiteContent(): Promise<SiteContent> {
       const branded = migrateLegacyBrand(parsed.data);
       return {
         ...branded,
-        etsyUrl: branded.etsyUrl === "https://www.etsy.com/" && legacyEtsy ? legacyEtsy : branded.etsyUrl,
-        whatnotUrl: branded.whatnotUrl === "https://www.whatnot.com/" && legacyWhatnot ? legacyWhatnot : branded.whatnotUrl,
+        etsyUrl: branded.etsyUrl === "https://www.etsy.com/" ? (legacyEtsy || "") : branded.etsyUrl,
+        whatnotUrl: branded.whatnotUrl === "https://www.whatnot.com/" ? (legacyWhatnot || "") : branded.whatnotUrl,
       };
     }
     console.error("Invalid site content in database; using built-in defaults.", parsed.error.flatten());
