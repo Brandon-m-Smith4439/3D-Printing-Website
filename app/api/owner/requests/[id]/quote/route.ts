@@ -73,6 +73,8 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     assemblyFeeCents:parsed.data.assemblyFeeCents,
     rushFeeCents:parsed.data.rushFeeCents,
     fulfillmentMode:parsed.data.fulfillmentMode,
+    paymentMethod:parsed.data.paymentMethod,
+    localPaymentMethod:parsed.data.localPaymentMethod,
     localDeliveryFeeCents:parsed.data.localDeliveryFeeCents,
     packageWeightOz:parsed.data.packageWeightOz,
     packageLengthIn:parsed.data.packageLengthIn,
