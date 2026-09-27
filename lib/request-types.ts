@@ -43,6 +43,7 @@ export type StoredRequest = {
   riskFlags?: string[];
   source?: "customer" | "owner";
   emailNotifications?: boolean;
+  isAnonymous?: boolean;
 };
 
 export const updateStoredRequestSchema = z.object({ status: z.enum(requestStatuses) });
