@@ -22,7 +22,7 @@ assert.match(checkoutRoute,/quote\.paymentMethod==="cash"/,"local/manual payment
 assert.match(manualRoute,/requestIsOwner/,"manual payment confirmation must require owner auth");
 assert.match(manualRoute,/Mark production Ready before recording the final local payment/,"manual final payment must be gated by Ready status");
 
-assert.match(stripeCheckout,/automatic_tax\]\[enabled\]", "true"/,"Stripe Checkout must enable automatic tax");
+assert.match(stripeCheckout,/automatic_tax\[enabled\]", "true"/,"Stripe Checkout must enable automatic tax");
 assert.match(stripeCheckout,/txcd_99999999/,"Stripe Checkout must classify custom prints as tangible goods");
 assert.match(stripeCheckout,/billing_address_collection", "required"/,"Stripe Checkout must collect tax location");
 assert.match(finalInvoice,/automatic_tax:\s*\{ enabled: true \}/,"final Stripe invoices must enable automatic tax");
