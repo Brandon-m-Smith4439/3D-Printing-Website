@@ -8,6 +8,7 @@ import {
   type AssemblyMode,
   type QuoteFulfillmentMode,
   type QuoteHistoryEntry,
+  type LocalPaymentMethod,
   type QuotePaymentMethod,
   type QuotePaymentRecord,
   type QuoteRefundRecord,
@@ -47,12 +48,13 @@ function normalizeSnapshot(snapshot: QuoteSnapshot | null | undefined): QuoteSna
   const rushFeeCents = Number.isFinite(raw.rushFeeCents) ? Number(raw.rushFeeCents) : 0;
   const fulfillmentMode: QuoteFulfillmentMode = raw.fulfillmentMode || "pickup";
   const paymentMethod: QuotePaymentMethod = (raw as QuoteSnapshot & { paymentMethod?: QuotePaymentMethod }).paymentMethod || "stripe";
+  const localPaymentMethod: LocalPaymentMethod | null = (raw as QuoteSnapshot & { localPaymentMethod?: LocalPaymentMethod | null }).localPaymentMethod || (paymentMethod === "cash" ? "cash" : null);
   const localDeliveryFeeCents = Number.isFinite(raw.localDeliveryFeeCents) ? Number(raw.localDeliveryFeeCents) : 0;
   const shippingSelection = normalizeShippingSelection(raw.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
   const basePriceCents = Number.isFinite(raw.basePriceCents) ? Number(raw.basePriceCents) : Math.max(0, raw.totalCents - assemblyFeeCents - rushFeeCents - localDeliveryFeeCents - shippingCents);
   return {
-    ...raw, basePriceCents, assemblyMode, assemblyFeeCents, rushFeeCents, fulfillmentMode, paymentMethod, localDeliveryFeeCents,
+    ...raw, basePriceCents, assemblyMode, assemblyFeeCents, rushFeeCents, fulfillmentMode, paymentMethod, localPaymentMethod, localDeliveryFeeCents,
     packageWeightOz: Number(raw.packageWeightOz || 0), packageLengthIn: Number(raw.packageLengthIn || 0), packageWidthIn: Number(raw.packageWidthIn || 0), packageHeightIn: Number(raw.packageHeightIn || 0),
     shippingSelection,
   };
@@ -64,6 +66,7 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
   const rushFeeCents = Number.isFinite(item.rushFeeCents) ? item.rushFeeCents : 0;
   const fulfillmentMode: QuoteFulfillmentMode = item.fulfillmentMode || "pickup";
   const paymentMethod: QuotePaymentMethod = item.paymentMethod || "stripe";
+  const localPaymentMethod: LocalPaymentMethod | null = item.localPaymentMethod || (paymentMethod === "cash" ? "cash" : null);
   const localDeliveryFeeCents = Number.isFinite(item.localDeliveryFeeCents) ? item.localDeliveryFeeCents : 0;
   const shippingSelection = normalizeShippingSelection(item.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
@@ -96,7 +99,7 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
     paidAt: item.depositPaidAt,
   }] : [];
   const normalized: StoredQuote = {
-    ...item, assemblyMode, assemblyFeeCents, rushFeeCents, basePriceCents, fulfillmentMode, paymentMethod, localDeliveryFeeCents,
+    ...item, assemblyMode, assemblyFeeCents, rushFeeCents, basePriceCents, fulfillmentMode, paymentMethod, localPaymentMethod, localDeliveryFeeCents,
     packageWeightOz:Number(item.packageWeightOz||0), packageLengthIn:Number(item.packageLengthIn||0), packageWidthIn:Number(item.packageWidthIn||0), packageHeightIn:Number(item.packageHeightIn||0), shippingSelection,
     stripeCheckoutAmountCents: Number(item.stripeCheckoutAmountCents || 0), payments, refunds,
   };
@@ -124,6 +127,7 @@ export function quoteSnapshot(quote: Pick<StoredQuote, keyof QuoteSnapshot>): Qu
     rushFeeCents: quote.rushFeeCents,
     fulfillmentMode: quote.fulfillmentMode,
     paymentMethod: quote.paymentMethod || "stripe",
+    localPaymentMethod: quote.localPaymentMethod || (quote.paymentMethod === "cash" ? "cash" : null),
     localDeliveryFeeCents: quote.localDeliveryFeeCents,
     packageWeightOz: quote.packageWeightOz,
     packageLengthIn: quote.packageLengthIn,
@@ -148,7 +152,7 @@ export async function quoteById(id: string) { const items = await readQuotes(); 
 
 export async function upsertQuote(input: {
   requestId: string; requestCode: string; customerAccountId: string; basePriceCents: number; assemblyMode: AssemblyMode; assemblyFeeCents: number; rushFeeCents: number;
-  fulfillmentMode: QuoteFulfillmentMode; paymentMethod: QuotePaymentMethod; localDeliveryFeeCents: number; packageWeightOz:number; packageLengthIn:number; packageWidthIn:number; packageHeightIn:number;
+  fulfillmentMode: QuoteFulfillmentMode; paymentMethod: QuotePaymentMethod; localPaymentMethod: LocalPaymentMethod | null; localDeliveryFeeCents: number; packageWeightOz:number; packageLengthIn:number; packageWidthIn:number; packageHeightIn:number;
   totalCents: number; depositCents: number; material: string; dimensions: string; estimatedReadyDate: string; notes: string; terms: string; send: boolean;
 }) {
   return mutate(async () => {
@@ -156,7 +160,7 @@ export async function upsertQuote(input: {
     const index = items.findIndex((item) => item.requestId === input.requestId && item.status !== "void");
     const now = new Date().toISOString();
     const existing = index >= 0 ? normalizeQuote(items[index]) : null;
-    const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","rushFeeCents","fulfillmentMode","paymentMethod","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
+    const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","rushFeeCents","fulfillmentMode","paymentMethod","localPaymentMethod","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
     const changed = !existing || changedKeys.some((key) => String((existing as unknown as Record<string, unknown>)[key]) !== String((input as unknown as Record<string, unknown>)[key]));
     const hadCustomerDecision = Boolean(existing && ["approved","countered","declined","deposit-paid"].includes(existing.status));
     const revision = existing ? existing.revision + (((changed && (existing.sentAt || hadCustomerDecision)) || (input.send && hadCustomerDecision)) ? 1 : 0) : 1;
@@ -170,7 +174,7 @@ export async function upsertQuote(input: {
     const quote: StoredQuote = {
       id: existing?.id || randomUUID(), requestId: input.requestId, requestCode: input.requestCode, customerAccountId: input.customerAccountId,
       revision, basePriceCents: input.basePriceCents, assemblyMode: input.assemblyMode, assemblyFeeCents: input.assemblyFeeCents, rushFeeCents: input.rushFeeCents,
-      fulfillmentMode: input.fulfillmentMode, paymentMethod: input.paymentMethod, localDeliveryFeeCents: input.localDeliveryFeeCents, packageWeightOz: input.packageWeightOz,
+      fulfillmentMode: input.fulfillmentMode, paymentMethod: input.paymentMethod, localPaymentMethod: input.localPaymentMethod, localDeliveryFeeCents: input.localDeliveryFeeCents, packageWeightOz: input.packageWeightOz,
       packageLengthIn: input.packageLengthIn, packageWidthIn: input.packageWidthIn, packageHeightIn: input.packageHeightIn, shippingSelection,
       totalCents, depositCents, balanceCents: totalCents - depositCents,
       currency: "usd", material: input.material, dimensions: input.dimensions, estimatedReadyDate: input.estimatedReadyDate,
@@ -265,7 +269,7 @@ export async function recordCashDeposit(id: string, amountCents: number) {
     const candidate: StoredQuote = { ...current, payments:[...current.payments,payment], paymentProvider:"cash", updatedAt:now };
     const satisfied = quoteDepositSatisfied(candidate);
     const next: StoredQuote = { ...candidate, status:satisfied?"deposit-paid":candidate.status, depositPaidAt:satisfied?(current.depositPaidAt||now):current.depositPaidAt,
-      history:[...current.history,event({actor:"owner",event:"deposit-paid",revision:current.revision,summary:`Cash deposit of ${(amount/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} recorded by owner.`,snapshot:quoteSnapshot(current)})] };
+      history:[...current.history,event({actor:"owner",event:"deposit-paid",revision:current.revision,summary:`${current.localPaymentMethod || "cash"} deposit of ${(amount/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} recorded by owner.`,snapshot:quoteSnapshot(current)})] };
     items[index]=next; await writeQuotes(items); return next;
   });
 }
@@ -279,7 +283,7 @@ export async function recordCashFinalPayment(id: string, amountCents: number) {
     if (!current.balanceCents || amount !== current.balanceCents) return null;
     const now = new Date().toISOString();
     const next: StoredQuote = { ...current, paymentProvider:"cash", cashFinalPaidAt:now, cashFinalPaidCents:amount, updatedAt:now,
-      history:[...current.history,event({actor:"owner",event:"deposit-paid",revision:current.revision,summary:`Final cash balance of ${(amount/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} recorded by owner.`,snapshot:quoteSnapshot(current)})] };
+      history:[...current.history,event({actor:"owner",event:"deposit-paid",revision:current.revision,summary:`Final ${current.localPaymentMethod || "cash"} balance of ${(amount/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} recorded by owner.`,snapshot:quoteSnapshot(current)})] };
     items[index]=next; await writeQuotes(items); return next;
   });
 }
