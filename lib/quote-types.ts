@@ -9,6 +9,8 @@ export type AssemblyMode = (typeof assemblyModes)[number];
 
 export const quoteFulfillmentModes = ["pickup", "shipping", "local-delivery"] as const;
 export type QuoteFulfillmentMode = (typeof quoteFulfillmentModes)[number];
+export const quotePaymentMethods = ["stripe", "cash"] as const;
+export type QuotePaymentMethod = (typeof quotePaymentMethods)[number];
 
 export type ShippingAddress = {
   name: string;
@@ -39,6 +41,7 @@ export type QuoteSnapshot = {
   assemblyFeeCents: number;
   rushFeeCents: number;
   fulfillmentMode: QuoteFulfillmentMode;
+  paymentMethod: QuotePaymentMethod;
   localDeliveryFeeCents: number;
   packageWeightOz: number;
   packageLengthIn: number;
@@ -106,7 +109,9 @@ export type StoredQuote = QuoteSnapshot & {
   stripeCheckoutSessionId: string;
   stripeCheckoutAmountCents: number;
   depositPaidAt: string;
-  paymentProvider: "" | "stripe";
+  paymentProvider: "" | "stripe" | "cash";
+  cashFinalPaidAt?: string;
+  cashFinalPaidCents?: number;
   payments: QuotePaymentRecord[];
   refunds: QuoteRefundRecord[];
   history: QuoteHistoryEntry[];
@@ -151,6 +156,7 @@ export const ownerQuoteSchema = z.object({
   assemblyFeeCents: feeCents,
   rushFeeCents: feeCents,
   fulfillmentMode: z.enum(quoteFulfillmentModes),
+  paymentMethod: z.enum(quotePaymentMethods).default("stripe"),
   localDeliveryFeeCents: feeCents,
   packageWeightOz: packageWeight,
   packageLengthIn: packageDimension,
@@ -171,6 +177,9 @@ export const ownerQuoteSchema = z.object({
   if (value.assemblyMode !== "assembled" && value.assemblyFeeCents !== 0) {
     ctx.addIssue({ code: "custom", path: ["assemblyFeeCents"], message: "Assembly labor must be $0 when the order is not assembled by Mesh Harbor 3D." });
   }
+  if (value.paymentMethod === "cash" && value.fulfillmentMode !== "pickup") {
+    ctx.addIssue({ code: "custom", path: ["fulfillmentMode"], message: "Cash payment is available only for local pickup." });
+  }
   if (value.fulfillmentMode !== "local-delivery" && value.localDeliveryFeeCents !== 0) {
     ctx.addIssue({ code: "custom", path: ["localDeliveryFeeCents"], message: "Local delivery fee must be $0 unless local delivery is selected." });
   }
@@ -188,6 +197,12 @@ export const ownerQuoteSchema = z.object({
   const requiredDeposit = Math.round(value.totalCents / 2);
   if (value.depositCents !== requiredDeposit) ctx.addIssue({ code: "custom", path: ["depositCents"], message: "The deposit must be exactly 50% of the current quote total." });
 });
+
+export function quoteCashFinalPaid(quote: Pick<StoredQuote, "paymentMethod" | "cashFinalPaidAt" | "cashFinalPaidCents" | "balanceCents">) {
+  return quote.paymentMethod === "cash"
+    && Boolean(quote.cashFinalPaidAt)
+    && Math.max(0, Number(quote.cashFinalPaidCents || 0)) >= Math.max(0, Number(quote.balanceCents || 0));
+}
 
 export const customerQuoteResponseSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("decline"), message: z.string().trim().max(1200).default("") }),
