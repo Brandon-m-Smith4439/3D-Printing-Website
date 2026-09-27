@@ -176,11 +176,8 @@ export const ownerQuoteSchema = z.object({
   terms: z.string().trim().min(20).max(5000),
   action: z.enum(["save", "send"]),
 }).superRefine((value, ctx) => {
-  if (value.assemblyMode === "assembled" && value.assemblyFeeCents < 50) {
-    ctx.addIssue({ code: "custom", path: ["assemblyFeeCents"], message: "Enter an assembly labor charge for an assembled order." });
-  }
-  if (value.assemblyMode !== "assembled" && value.assemblyFeeCents !== 0) {
-    ctx.addIssue({ code: "custom", path: ["assemblyFeeCents"], message: "Assembly labor must be $0 when the order is not assembled by Mesh Harbor 3D." });
+  if (value.assemblyFeeCents !== 0) {
+    ctx.addIssue({ code: "custom", path: ["assemblyFeeCents"], message: "Assembly labor is included in the Cost & Margin post-processing calculation and must not be itemized separately." });
   }
   if (value.paymentMethod === "cash" && !value.localPaymentMethod) {
     ctx.addIssue({ code: "custom", path: ["localPaymentMethod"], message: "Choose Cash, Zelle, Cash App, Apple Cash, Venmo, or PayPal." });
