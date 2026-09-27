@@ -131,10 +131,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         <Link className={`nav-tab nav-tab-compact ${active("/gallery") ? "nav-active" : ""}`} aria-current={active("/gallery") ? "page" : undefined} href="/gallery">Gallery</Link>
         <Link className={`nav-tab nav-tab-compact ${active("/queue") ? "nav-active" : ""}`} aria-current={active("/queue") ? "page" : undefined} href="/queue">Queue</Link>
         <Link className={`nav-tab nav-request-tab ${active("/custom-request") ? "nav-active" : ""}`} aria-current={active("/custom-request") ? "page" : undefined} href="/custom-request">Custom Request</Link>
-        {(site.whatnotUrl || site.etsyUrl) && <div className="nav-shop-links" aria-label="External shops">
-          {site.whatnotUrl && <a className="shop-icon-image-link whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop">
-            <Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized />
-          </a>}
+        {site.etsyUrl && <div className="nav-shop-links" aria-label="External shop">
           {site.etsyUrl && <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop">
             <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
           </a>}
@@ -219,13 +216,9 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           </nav>
 
           <div className="mobile-drawer-lower">
-            {(site.whatnotUrl || site.etsyUrl) && <section className="mobile-drawer-shop">
+            {site.etsyUrl && <section className="mobile-drawer-shop">
               <span className="mobile-drawer-label">Shop</span>
               <div className="mobile-drawer-shop-grid">
-                {site.whatnotUrl && <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
-                  <Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized />
-                  <span>Whatnot</span>
-                </a>}
                 {site.etsyUrl && <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
                   <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
                   <span>Etsy</span>
