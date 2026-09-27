@@ -14,7 +14,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   let body:unknown;try{const raw=await request.text();if(raw.length>2_000)return NextResponse.json({message:"Policy acknowledgment is too large."},{status:413});body=JSON.parse(raw);}catch{return NextResponse.json({message:"Review and accept the current customer policies before approving this quote."},{status:400});}
   const policy=customerPolicyAcceptanceSchema.safeParse(body);if(!policy.success)return NextResponse.json({message:"Review and accept the current Custom Order Terms and Fulfillment Policy before approving this quote."},{status:400});
-  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id||quote.customerAccountId)return NextResponse.json({message:"Quote not found."},{status:404});
+  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id )return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="sent")return NextResponse.json({message:"This quote is not currently awaiting approval."},{status:409});
   if(quote.fulfillmentMode==="shipping"&&!quote.shippingSelection)return NextResponse.json({message:"Choose a USPS, UPS, or FedEx shipping option before approving this quote."},{status:409});
 
