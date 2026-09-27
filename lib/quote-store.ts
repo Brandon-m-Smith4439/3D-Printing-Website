@@ -247,7 +247,7 @@ export async function selectGuestQuoteShipping(id:string, requestId:string, rate
   return mutate(async()=>{
     const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
     const current=normalizeQuote(items[index]);
-    if(current.requestId!==requestId || current.customerAccountId || current.fulfillmentMode!=="shipping" || current.status!=="sent") return null;
+    if(current.requestId!==requestId || current.fulfillmentMode!=="shipping" || current.status!=="sent") return null;
     const now=new Date().toISOString();
     const shippingSelection:ShippingSelection={shipmentId,rateId:rate.id,carrier:rate.carrier,service:rate.service,rateCents:rate.rateCents,deliveryDays:rate.deliveryDays,deliveryDate:rate.deliveryDate,address,selectedAt:now};
     const totalCents=current.basePriceCents+current.assemblyFeeCents+current.rushFeeCents+current.localDeliveryFeeCents+rate.rateCents;
@@ -262,7 +262,7 @@ export async function approveGuestQuote(id:string, requestId:string, policyVersi
   return mutate(async()=>{
     const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
     const current=normalizeQuote(items[index]);
-    if(current.requestId!==requestId || current.customerAccountId || current.status!=="sent") return null;
+    if(current.requestId!==requestId || current.status!=="sent") return null;
     if(current.fulfillmentMode==="shipping"&&!current.shippingSelection)return null;
     const now=new Date().toISOString();
     const next:StoredQuote={...current,status:"approved",approvedAt:now,approvedByCustomerId:"guest-email",approvalSnapshot:quoteSnapshot(current),
@@ -290,7 +290,7 @@ export async function respondToGuestQuote(id:string, requestId:string, response:
   return mutate(async()=>{
     const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
     const current=normalizeQuote(items[index]);
-    if(current.requestId!==requestId || current.customerAccountId || current.status!=="sent")return null;
+    if(current.requestId!==requestId || current.status!=="sent")return null;
     const now=new Date().toISOString();
     const historyEntry=response.action==="counter"
       ? event({actor:"customer",event:"counter-offer",revision:current.revision,summary:`Guest customer countered quote revision ${current.revision}.`,counterTotalCents:response.counterTotalCents,message:response.message,snapshot:quoteSnapshot(current)})
