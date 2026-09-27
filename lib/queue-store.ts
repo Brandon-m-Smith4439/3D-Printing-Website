@@ -76,6 +76,7 @@ export async function createQueueJob(values: z.infer<typeof createQueueJobSchema
       updatedAt: now,
       completedAt: "",
       completionEmailSentAt: "",
+      isAnonymous: values.isAnonymous,
     };
     jobs.push(job);
     normalizeSortOrders(jobs);
@@ -187,15 +188,16 @@ export async function getPublicQueue(): Promise<PublicQueueJob[]> {
   return jobs
     .filter((job) => job.status !== "completed")
     .sort(publicSort)
-    .map(({ publicCode, publicTitle, quantity, status, estimatedReadyDate, imageUrl, publicNote, sortOrder, createdAt }) => ({
-      publicCode,
-      publicTitle,
-      quantity,
+    .map(({ publicCode, publicTitle, quantity, status, estimatedReadyDate, imageUrl, publicNote, sortOrder, createdAt, isAnonymous }) => ({
+      publicCode: isAnonymous ? "" : publicCode,
+      publicTitle: isAnonymous ? "Private print" : publicTitle,
+      quantity: isAnonymous ? 0 : quantity,
       status,
-      estimatedReadyDate,
-      imageUrl,
-      publicNote,
+      estimatedReadyDate: isAnonymous ? "" : estimatedReadyDate,
+      imageUrl: isAnonymous ? "" : imageUrl,
+      publicNote: isAnonymous ? "" : publicNote,
       sortOrder,
       createdAt,
+      isAnonymous: Boolean(isAnonymous),
     }));
 }
