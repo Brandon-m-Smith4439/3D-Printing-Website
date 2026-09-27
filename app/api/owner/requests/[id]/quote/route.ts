@@ -41,7 +41,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     try{costing=validateQuoteCostInput(root.costing);}catch(error){return NextResponse.json({message:error instanceof Error?error.message:"Check the internal costing fields."},{status:400});}
   }
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
-  if(parsed.data.action==="send"&&!source.customerAccountId)return NextResponse.json({message:"This request is not linked to a verified customer profile yet. You can save a draft, but profile approval requires a linked customer account."},{status:409});
+  if(parsed.data.action==="send"&&!source.customerAccountId&&!source.email.trim())return NextResponse.json({message:"Add a customer email before sending this quote, or save it and use Customer Approved In Person for an owner-created request."},{status:409});
 
   const jobs=await readQueue();
   const scheduleBoundary=queueScheduleBoundary(jobs,source.id);
@@ -118,7 +118,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
       }else{
         message=`A quote is ready for review. Total: $${(quote.totalCents/100).toFixed(2)}. Deposit due after approval: $${(quote.depositCents/100).toFixed(2)}.`;
       }
-      await notifyCustomer(updated,message);
+      await notifyCustomer(updated,message,{forceEmail:true,subject:`${updated.requestCode} quote ready for review`});
     }
   }else if(quote.status==="draft"&&["quoted","accepted","deposit-paid"].includes(source.status)){
     await updateStoredRequest(source.id,{status:"reviewing"});
@@ -139,7 +139,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     costing:costSnapshot,
     queueDateFloor:scheduleBoundary.latestDate,
     message:parsed.data.action==="send"
-      ? quote.revision>1?"Revised quote sent to the customer for fresh approval.":"Quote sent to the customer profile."
+      ? quote.revision>1?"Revised quote sent to the customer for fresh approval.":source.customerAccountId?"Quote sent to the customer profile and email.":"Quote sent to the customer email with a secure request link."
       : "Quote draft saved.",
   });
 }
