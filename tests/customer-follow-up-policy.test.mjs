@@ -75,8 +75,9 @@ items=build({q:null,controls:[{id:'req-1',requestId:'req-1',paused:false,waiting
 assert.ok(eligible(items,'waiting-on-customer',1));
 assert.equal(eligible(build({q:null,controls:[{id:'req-1',requestId:'req-1',paused:false,waitingOnCustomer:false,waitingSince:'',waitingNote:'',updatedAt:NOW.toISOString()}]}),'waiting-on-customer',1),undefined);
 for (const status of ['completed','declined']) assert.equal(build({req:request({status})}).some(x=>x.eligible),false);
-assert.equal(build({req:request({customerAccountId:''})}).some(x=>x.eligible),false);
-assert.equal(build({accounts:[account({emailVerifiedAt:''})]}).some(x=>x.eligible),false);
+assert.equal(build({req:request({customerAccountId:''}),accounts:[]}).some(x=>x.eligible),true);
+assert.equal(build({accounts:[account({emailVerifiedAt:''})]}).some(x=>x.eligible),true);
+assert.equal(build({req:request({customerAccountId:'',email:''}),accounts:[]}).some(x=>x.eligible),false);
 assert.equal(build({req:request({emailNotifications:false})}).some(x=>x.eligible),false);
 assert.equal(build({controls:[{id:'req-1',requestId:'req-1',paused:true,waitingOnCustomer:false,waitingSince:'',waitingNote:'',updatedAt:NOW.toISOString()}]}).some(x=>x.eligible),false);
 

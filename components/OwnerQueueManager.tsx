@@ -410,7 +410,7 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
           <div className="owner-edit-grid">
             <label><span>Hero logo letters</span><input value={draft.logoLetters} maxLength={4} onChange={(event) => patch({ logoLetters: event.target.value })} /></label>
             <label><span>Etsy shop URL</span><input type="url" value={draft.etsyUrl} onChange={(event) => patch({ etsyUrl: event.target.value })} /></label>
-            <label><span>Whatnot shop URL</span><input type="url" value={draft.whatnotUrl} onChange={(event) => patch({ whatnotUrl: event.target.value })} /></label>
+            
           </div>
         </div>
         <div className="site-logo-editor">
@@ -453,8 +453,10 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
         <div className="pickup-schedule-settings">
           <div className="pickup-weekday-editor"><span>Available days</span><div>{[["Sun",0],["Mon",1],["Tue",2],["Wed",3],["Thu",4],["Fri",5],["Sat",6]].map(([label,value])=>{const day=Number(value);const active=draft.pickup.weekdays.includes(day);return <button key={day} type="button" className={active?"is-active":""} onClick={()=>patchPickup({weekdays:active?draft.pickup.weekdays.filter(item=>item!==day):[...draft.pickup.weekdays,day].sort()})}>{label}</button>;})}</div></div>
           <div className="owner-edit-grid">
-            <label><span>Start time</span><input type="time" value={draft.pickup.startTime} onChange={(event)=>patchPickup({startTime:event.target.value})}/></label>
-            <label><span>End time</span><input type="time" value={draft.pickup.endTime} onChange={(event)=>patchPickup({endTime:event.target.value})}/></label>
+            <label><span>Weekday start</span><input type="time" value={draft.pickup.weekdayStartTime} onChange={(event)=>patchPickup({weekdayStartTime:event.target.value,startTime:event.target.value})}/><small>Monday–Friday availability begins after work.</small></label>
+            <label><span>Weekday end</span><input type="time" value={draft.pickup.weekdayEndTime} onChange={(event)=>patchPickup({weekdayEndTime:event.target.value,endTime:event.target.value})}/></label>
+            <label><span>Weekend start</span><input type="time" value={draft.pickup.weekendStartTime} onChange={(event)=>patchPickup({weekendStartTime:event.target.value})}/><small>Weekend hours can be broader because you are off work.</small></label>
+            <label><span>Weekend end</span><input type="time" value={draft.pickup.weekendEndTime} onChange={(event)=>patchPickup({weekendEndTime:event.target.value})}/></label>
             <label><span>Appointment length</span><select value={draft.pickup.slotMinutes} onChange={(event)=>patchPickup({slotMinutes:Number(event.target.value)})}><option value={15}>15 minutes</option><option value={30}>30 minutes</option><option value={45}>45 minutes</option><option value={60}>60 minutes</option></select></label>
             <label><span>Booking window</span><select value={draft.pickup.bookingWindowDays} onChange={(event)=>patchPickup({bookingWindowDays:Number(event.target.value)})}><option value={7}>7 days</option><option value={14}>14 days</option><option value={21}>21 days</option><option value={30}>30 days</option></select></label>
             <label><span>Minimum lead time</span><select value={draft.pickup.minimumLeadHours} onChange={(event)=>patchPickup({minimumLeadHours:Number(event.target.value)})}><option value={0}>No minimum</option><option value={1}>1 hour</option><option value={2}>2 hours</option><option value={4}>4 hours</option><option value={12}>12 hours</option><option value={24}>24 hours</option></select></label>

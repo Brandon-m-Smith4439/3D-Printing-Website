@@ -14,6 +14,7 @@ import { ensureBambuCatalogSeeded, readBambuCatalog, readPricingSettings } from 
 import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { readShipments } from "@/lib/shipment-store";
 import { resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
+import { automaticReadyDate } from "@/lib/quote-ready-date";
 import { saveCostSnapshot } from "@/lib/quote-cost-store";
 
 export async function POST(request:NextRequest,context:{params:Promise<{id:string}>}){
@@ -40,12 +41,23 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(Object.prototype.hasOwnProperty.call(root,"costing")){
     try{costing=validateQuoteCostInput(root.costing);}catch(error){return NextResponse.json({message:error instanceof Error?error.message:"Check the internal costing fields."},{status:400});}
   }
+  if(parsed.data.action==="send"&&!costing)return NextResponse.json({message:"Complete Cost & Margin before sending the quote."},{status:400});
+  const pricingSettingsForValidation=costing?await readPricingSettings():null;
+  if(costing&&pricingSettingsForValidation){
+    if(costing.machineHours>0&&pricingSettingsForValidation.defaultMachineHourlyCostCents<=0)return NextResponse.json({message:"Configure Printer + electricity / machine hour under Pricing Settings before sending a costed quote."},{status:409});
+    if(costing.designHours>0&&pricingSettingsForValidation.defaultDesignHourlyCostCents<=0)return NextResponse.json({message:"Configure the pre-processing labor rate under Pricing Settings before sending a costed quote."},{status:409});
+    if(costing.postProcessingHours>0&&pricingSettingsForValidation.defaultPostProcessingHourlyCostCents<=0)return NextResponse.json({message:"Configure the post-processing labor rate under Pricing Settings before sending a costed quote."},{status:409});
+  }
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
-  if(parsed.data.action==="send"&&!source.customerAccountId)return NextResponse.json({message:"This request is not linked to a verified customer profile yet. You can save a draft, but profile approval requires a linked customer account."},{status:409});
+  if(source.source!=="owner"&&source.fulfillmentMethod!=="unsure"&&parsed.data.fulfillmentMode!==source.fulfillmentMethod){
+    return NextResponse.json({message:"Customer-submitted fulfillment cannot be changed by the owner. Ask the customer to submit or confirm a different fulfillment choice before quoting."},{status:409});
+  }
+  if(parsed.data.action==="send"&&!source.customerAccountId&&!source.email.trim())return NextResponse.json({message:"Add a customer email before sending this quote, or save it and use Customer Approved In Person for an owner-created request."},{status:409});
 
   const jobs=await readQueue();
   const scheduleBoundary=queueScheduleBoundary(jobs,source.id);
-  const skipsQueue=quoteWouldSkipQueue(jobs,parsed.data.estimatedReadyDate,source.id);
+  const effectiveReadyDate=costing?automaticReadyDate(costing.machineHours,scheduleBoundary.latestDate):parsed.data.estimatedReadyDate;
+  const skipsQueue=quoteWouldSkipQueue(jobs,effectiveReadyDate,source.id);
   if(skipsQueue&&parsed.data.rushFeeCents<50){
     return NextResponse.json({
       message:`The requested ready date would skip active queue work. The current queue extends through ${scheduleBoundary.latestDate}. Add a rush fee or choose ${scheduleBoundary.latestDate} or later.`,
@@ -84,7 +96,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     depositCents:parsed.data.depositCents,
     material:parsed.data.material,
     dimensions:parsed.data.dimensions,
-    estimatedReadyDate:parsed.data.estimatedReadyDate,
+    estimatedReadyDate:effectiveReadyDate,
     notes:parsed.data.notes,
     terms:parsed.data.terms,
     send:parsed.data.action==="send",
@@ -93,9 +105,11 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   let costSnapshot=null;
   if(costing){
     await ensureBambuCatalogSeeded();
-    const [settings,catalog,lots,shipments]=await Promise.all([readPricingSettings(),readBambuCatalog(),readFilamentPurchaseLots(),readShipments()]);
+    const [catalog,lots,shipments]=await Promise.all([readBambuCatalog(),readFilamentPurchaseLots(),readShipments()]);
+    const settings=pricingSettingsForValidation||await readPricingSettings();
     const shipment=shipments.find(item=>item.requestId===source.id&&item.quoteId===quote.id)||null;
-    costSnapshot=await saveCostSnapshot(resolveQuoteCostSnapshot({quote,costing,settings,catalog,lots,shipment,now:new Date().toISOString(),status:"estimate"}));
+    const resolved=resolveQuoteCostSnapshot({quote,costing,settings,catalog,lots,shipment,now:new Date().toISOString(),status:"estimate"});
+    costSnapshot=await saveCostSnapshot(resolved);
   }
 
   if(parsed.data.action==="send"){
@@ -118,7 +132,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
       }else{
         message=`A quote is ready for review. Total: $${(quote.totalCents/100).toFixed(2)}. Deposit due after approval: $${(quote.depositCents/100).toFixed(2)}.`;
       }
-      await notifyCustomer(updated,message);
+      await notifyCustomer(updated,message,{forceEmail:true,subject:`${updated.requestCode} quote ready for review`});
     }
   }else if(quote.status==="draft"&&["quoted","accepted","deposit-paid"].includes(source.status)){
     await updateStoredRequest(source.id,{status:"reviewing"});
@@ -139,7 +153,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     costing:costSnapshot,
     queueDateFloor:scheduleBoundary.latestDate,
     message:parsed.data.action==="send"
-      ? quote.revision>1?"Revised quote sent to the customer for fresh approval.":"Quote sent to the customer profile."
+      ? quote.revision>1?"Revised quote sent to the customer for fresh approval.":source.customerAccountId?"Quote sent to the customer profile and email.":"Quote sent to the customer email with a secure request link."
       : "Quote draft saved.",
   });
 }

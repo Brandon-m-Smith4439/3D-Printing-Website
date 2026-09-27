@@ -243,6 +243,63 @@ export async function respondToQuote(id:string, customerId:string, response:{act
   });
 }
 
+export async function selectGuestQuoteShipping(id:string, requestId:string, rate:EasyPostRate, shipmentId:string, address:ShippingAddress) {
+  return mutate(async()=>{
+    const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
+    const current=normalizeQuote(items[index]);
+    if(current.requestId!==requestId || current.fulfillmentMode!=="shipping" || current.status!=="sent") return null;
+    const now=new Date().toISOString();
+    const shippingSelection:ShippingSelection={shipmentId,rateId:rate.id,carrier:rate.carrier,service:rate.service,rateCents:rate.rateCents,deliveryDays:rate.deliveryDays,deliveryDate:rate.deliveryDate,address,selectedAt:now};
+    const totalCents=current.basePriceCents+current.assemblyFeeCents+current.rushFeeCents+current.localDeliveryFeeCents+rate.rateCents;
+    const depositCents=Math.round(totalCents/2);
+    const next:StoredQuote={...current,shippingSelection,totalCents,depositCents,balanceCents:totalCents-depositCents,updatedAt:now,
+      history:[...current.history,event({actor:"customer",event:"shipping-selected",revision:current.revision,summary:`Guest customer selected ${rate.carrier} ${rate.service} shipping for ${(rate.rateCents/100).toLocaleString("en-US",{style:"currency",currency:"USD"})}.`,snapshot:{...quoteSnapshot(current),shippingSelection,totalCents,depositCents,balanceCents:totalCents-depositCents}})]};
+    items[index]=next; await writeQuotes(items); return next;
+  });
+}
+
+export async function approveGuestQuote(id:string, requestId:string, policyVersion:string) {
+  return mutate(async()=>{
+    const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
+    const current=normalizeQuote(items[index]);
+    if(current.requestId!==requestId || current.status!=="sent") return null;
+    if(current.fulfillmentMode==="shipping"&&!current.shippingSelection)return null;
+    const now=new Date().toISOString();
+    const next:StoredQuote={...current,status:"approved",approvedAt:now,approvedByCustomerId:"guest-email",approvalSnapshot:quoteSnapshot(current),
+      policyAcceptance:{version:policyVersion,acceptedAt:now,customerAccountId:"guest-email"},updatedAt:now,
+      history:[...current.history,event({actor:"customer",event:"approved",revision:current.revision,summary:`Guest customer approved quote revision ${current.revision} and policy ${policyVersion}.`,snapshot:quoteSnapshot(current)})]};
+    items[index]=next;await writeQuotes(items);return next;
+  });
+}
+
+export async function approveQuoteInPerson(id:string, requestId:string, policyVersion:string) {
+  return mutate(async()=>{
+    const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
+    const current=normalizeQuote(items[index]);
+    if(current.requestId!==requestId || !["draft","sent"].includes(current.status)) return null;
+    if(current.fulfillmentMode==="shipping"&&!current.shippingSelection)return null;
+    const now=new Date().toISOString();
+    const next:StoredQuote={...current,status:"approved",sentAt:current.sentAt||now,approvedAt:now,approvedByCustomerId:"owner-in-person",approvalSnapshot:quoteSnapshot(current),
+      policyAcceptance:{version:policyVersion,acceptedAt:now,customerAccountId:"owner-in-person"},updatedAt:now,
+      history:[...current.history,event({actor:"owner",event:"approved",revision:current.revision,summary:`Owner recorded in-person customer approval for quote revision ${current.revision} under policy ${policyVersion}.`,snapshot:quoteSnapshot(current)})]};
+    items[index]=next;await writeQuotes(items);return next;
+  });
+}
+
+export async function respondToGuestQuote(id:string, requestId:string, response:{action:"decline";message:string}|{action:"counter";counterTotalCents:number;message:string}) {
+  return mutate(async()=>{
+    const items=await readQuotes(); const index=items.findIndex((item)=>item.id===id); if(index<0)return null;
+    const current=normalizeQuote(items[index]);
+    if(current.requestId!==requestId || current.status!=="sent")return null;
+    const now=new Date().toISOString();
+    const historyEntry=response.action==="counter"
+      ? event({actor:"customer",event:"counter-offer",revision:current.revision,summary:`Guest customer countered quote revision ${current.revision}.`,counterTotalCents:response.counterTotalCents,message:response.message,snapshot:quoteSnapshot(current)})
+      : event({actor:"customer",event:"declined",revision:current.revision,summary:`Guest customer declined quote revision ${current.revision}.`,message:response.message,snapshot:quoteSnapshot(current)});
+    const next:StoredQuote={...current,status:response.action==="counter"?"countered":"declined",updatedAt:now,history:[...current.history,historyEntry]};
+    items[index]=next;await writeQuotes(items);return next;
+  });
+}
+
 export async function markQuoteCheckoutSession(id: string, sessionId: string, amountCents: number) {
   return mutate(async () => {
     const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;

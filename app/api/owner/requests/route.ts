@@ -39,7 +39,9 @@ export async function GET(request: NextRequest) {
       emailEligible: eligibility.allowed,
       emailReason: eligibility.reason,
       emailVerified: Boolean(account?.emailVerifiedAt),
-      effectiveEmailEnabled: Boolean(account && (item.emailNotifications ?? account.preferences?.emailStatusUpdates ?? false)),
+      effectiveEmailEnabled: item.customerAccountId
+        ? Boolean(account && (item.emailNotifications ?? account.preferences?.emailStatusUpdates ?? false))
+        : Boolean(item.email && item.emailNotifications),
       recent: followUpRecords.filter((record) => record.requestId === item.id).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0,5).map((record) => ({
         id:record.id,requestId:record.requestId,requestCode:record.requestCode,customerAccountId:record.customerAccountId,type:record.type,stage:record.stage,anchorId:record.anchorId,anchorRevision:record.anchorRevision,dueAt:record.dueAt,status:record.status,subject:record.subject,text:record.text,idempotencyKey:record.idempotencyKey,attemptCount:record.attemptCount,lastAttemptAt:record.lastAttemptAt,nextAttemptAt:record.nextAttemptAt,sentAt:record.sentAt,reason:record.reason,createdAt:record.createdAt,updatedAt:record.updatedAt
       })),

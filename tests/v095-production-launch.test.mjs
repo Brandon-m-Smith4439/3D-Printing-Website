@@ -37,7 +37,7 @@ assert.match(loginRoute,/createCustomerLoginChallenge/,"customer login must supp
 assert.match(loginVerify,/consumeCustomerLoginChallenge/,"customer two-factor verification route must consume one-time codes");
 assert.match(settings2fa,/setCustomerEmailTwoFactor/,"account settings must support enabling or disabling email 2FA");
 
-assert.match(header,/site\.whatnotUrl \|\| site\.etsyUrl/,"marketplace navigation must disappear when no shop URLs are configured");
+assert.match(header,/site\.etsyUrl &&/,"Etsy navigation must disappear when no Etsy shop URL is configured");
 assert.match(site,/contactEmail:\s*"notifications@meshharbor3d\.com"/,"default public contact must use the Mesh Harbor 3D domain");
 
 console.log("V0.95 production launch source checks passed.");

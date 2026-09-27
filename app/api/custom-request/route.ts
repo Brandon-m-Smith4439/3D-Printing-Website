@@ -5,6 +5,7 @@ import { assessCustomRequestRisk, type RequestRiskAssessment } from "@/lib/reque
 import { customerFromRequest } from "@/lib/customer-auth";
 import { claimCustomerUploads, validateCustomerUploadClaims } from "@/lib/customer-upload-store";
 import { sameOrigin } from "@/lib/owner-api";
+import { notifyCustomer } from "@/lib/customer-notifications";
 
 export const runtime = "nodejs";
 
@@ -252,6 +253,16 @@ export async function POST(request: NextRequest) {
     // The request is already safely stored for the owner. Do not make the customer
     // resubmit and accidentally create a duplicate just because notification failed.
     console.error("Custom request notification failed; request remains stored", error);
+  }
+
+  try {
+    await notifyCustomer(
+      stored,
+      "Your custom request was received. Mesh Harbor 3D will review the project and send the quote to this email. You can use the secure link below any time to check this request without creating an account.",
+      { forceEmail: true, subject: `${stored.requestCode} request received` },
+    );
+  } catch (error) {
+    console.error("Customer request receipt email failed; request remains stored", error);
   }
 
   return NextResponse.json({ message: "Request received.", requestCode: stored.requestCode }, { status: 201 });

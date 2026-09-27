@@ -122,7 +122,7 @@ export async function createOwnerStoredRequest(values: {
       riskLevel: "none",
       riskFlags: [],
       source: "owner",
-      emailNotifications: false,
+      emailNotifications: Boolean(values.email?.trim()),
       isAnonymous: false,
     };
     requests.push(stored);
@@ -138,7 +138,7 @@ export async function getStoredRequest(id: string) {
 
 export async function updateStoredRequest(
   id: string,
-  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId">>,
+  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId" | "emailNotifications" | "fulfillmentMethod">>,
 ) {
   return mutate(async () => {
     const requests = await readRequests();
