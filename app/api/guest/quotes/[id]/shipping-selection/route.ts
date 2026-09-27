@@ -14,7 +14,7 @@ import { readShipments } from "@/lib/shipment-store";
 export async function POST(request:NextRequest,context:{params:Promise<{id:string}>}){
   const guest=await guestRequestFromRequest(request);if(!guest)return NextResponse.json({message:"Open the secure request link from your email again."},{status:401});
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
-  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id||quote.customerAccountId)return NextResponse.json({message:"Quote not found."},{status:404});
+  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id )return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="sent"||quote.fulfillmentMode!=="shipping")return NextResponse.json({message:"Shipping cannot be changed for this quote right now."},{status:409});
   let body:unknown;try{const raw=await request.text();if(raw.length>10_000)return NextResponse.json({message:"Shipping selection is too large."},{status:413});body=JSON.parse(raw);}catch{return NextResponse.json({message:"Invalid shipping selection."},{status:400});}
   const root=body&&typeof body==="object"?body as Record<string,unknown>:{};
