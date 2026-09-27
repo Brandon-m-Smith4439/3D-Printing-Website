@@ -41,6 +41,9 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     try{costing=validateQuoteCostInput(root.costing);}catch(error){return NextResponse.json({message:error instanceof Error?error.message:"Check the internal costing fields."},{status:400});}
   }
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
+  if(source.source!=="owner"&&source.fulfillmentMethod!=="unsure"&&parsed.data.fulfillmentMode!==source.fulfillmentMethod){
+    return NextResponse.json({message:"Customer-submitted fulfillment cannot be changed by the owner. Ask the customer to submit or confirm a different fulfillment choice before quoting."},{status:409});
+  }
   if(parsed.data.action==="send"&&!source.customerAccountId&&!source.email.trim())return NextResponse.json({message:"Add a customer email before sending this quote, or save it and use Customer Approved In Person for an owner-created request."},{status:409});
 
   const jobs=await readQueue();
