@@ -28,7 +28,7 @@ type RequestSummary = {
 
 const projectSummaryLabels: Record<string, string> = { display: "Display / collectible", functional: "Functional part", replacement: "Replacement part", prototype: "Prototype", other: "Other" };
 const modelSummaryLabels: Record<string, string> = { ready: "Print-ready model", "needs-adjustment": "Model may need changes", "reference-only": "Photos / references", "idea-only": "Idea only" };
-const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Carrier shipping", "local-delivery": "Local delivery", unsure: "Not sure yet" };
+const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Carrier shipping", "local-delivery": "Local delivery", unsure: "Not selected" };
 const assemblySummaryLabels: Record<string, string> = { assembled: "Assembled by Mesh Harbor 3D", disassembled: "Disassembled + assembly guide", unsure: "Not sure yet" };
 const materialSummaryLabels: Record<string, string> = { "no-preference": "No preference", pla: "PLA", petg: "PETG", asa: "ASA", tpu: "TPU / flexible", resin: "Resin", other: "Other / unsure" };
 
@@ -38,7 +38,7 @@ const friendlyMessages: Record<string, string> = {
   phone: "Use a valid phone number format with numbers only plus normal phone symbols.",
   projectType: "Select a project type.",
   modelStatus: "Tell me whether you already have a 3D model.",
-  fulfillmentMethod: "Select pickup, shipping, local delivery, or not sure yet.",
+  fulfillmentMethod: "Select pickup, shipping, or local delivery.",
   assemblyPreference: "Choose assembled, disassembled with an assembly guide, or not sure yet.",
   quantity: "Enter a quantity from 1 to 500.",
   neededBy: "Enter a valid future date, such as 9/2/2026, or choose one from the calendar.",
@@ -58,7 +58,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [createAccount, setCreateAccount] = useState(false);
-  const [emailNotifications, setEmailNotifications] = useState(Boolean(initialCustomer?.emailStatusUpdates));
+  const [emailNotifications, setEmailNotifications] = useState(initialCustomer ? Boolean(initialCustomer.emailStatusUpdates) : true);
   const [accountMessage, setAccountMessage] = useState("");
   const [summary, setSummary] = useState<RequestSummary>({
     name: initialCustomer?.displayName || "",
@@ -359,7 +359,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
               <label className={fieldClass("fulfillmentMethod")}>
                 <span>How would you like to receive it? *</span>
                 <select name="fulfillmentMethod" defaultValue={initialPrefill?.fulfillmentMethod || ""} required aria-invalid={Boolean(fieldErrors.fulfillmentMethod)}>
-                  <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option><option value="local-delivery">Local delivery</option><option value="unsure">Not sure yet</option>
+                  <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option><option value="local-delivery">Local delivery</option>
                 </select>
                 {fieldErrors.fulfillmentMethod && <small className="field-error">{fieldErrors.fulfillmentMethod}</small>}
               </label>
@@ -428,9 +428,9 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
           <label className={`consent-row request-consent-card ${fieldErrors.consent ? "field-invalid" : ""}`}><input name="consent" type="checkbox" required aria-invalid={Boolean(fieldErrors.consent)} /><span>I agree to be contacted by Mesh Harbor 3D about this custom print request, primarily by email. *</span>{fieldErrors.consent && <small className="field-error">{fieldErrors.consent}</small>}</label>
           <section className="request-account-options">
             <div className="request-account-options-heading"><div><strong>Track this request</strong><small>{initialCustomer?"Your signed-in profile will automatically keep this request and its notifications together.":"Optional — create a free account so you can track this request, approve quotes, and see status notifications."}</small></div></div>
-            {!initialCustomer&&<label className="settings-check"><input name="createAccount" type="checkbox" checked={createAccount} onChange={(event)=>{setCreateAccount(event.target.checked);if(!event.target.checked)setEmailNotifications(false);}} /><span><strong>Create an account with this request</strong><small>You will verify the same email used above. After verification, this request will be securely linked to your profile.</small></span></label>}
+            {!initialCustomer&&<label className="settings-check"><input name="createAccount" type="checkbox" checked={createAccount} onChange={(event)=>setCreateAccount(event.target.checked)} /><span><strong>Create an account with this request</strong><small>You will verify the same email used above. After verification, this request will be securely linked to your profile.</small></span></label>}
             {!initialCustomer&&createAccount&&<div className="request-account-passwords"><label><span>Password</span><input name="accountPassword" type="password" minLength={10} maxLength={128} autoComplete="new-password" required={createAccount}/></label><label><span>Confirm password</span><input name="accountPasswordConfirm" type="password" minLength={10} maxLength={128} autoComplete="new-password" required={createAccount}/></label></div>}
-            <label className="settings-check"><input name="emailNotifications" type="checkbox" checked={emailNotifications} disabled={!initialCustomer&&!createAccount} onChange={(event)=>setEmailNotifications(event.target.checked)} /><span><strong>Email me request status updates</strong><small>{initialCustomer?.emailVerified?"Status changes for this request can also be sent to your verified email.":createAccount?"Email status updates begin after the new account email is verified.":"Create an account with this request to enable verified email status updates."}</small></span></label>
+            <label className="settings-check"><input name="emailNotifications" type="checkbox" checked={emailNotifications} onChange={(event)=>setEmailNotifications(event.target.checked)} /><span><strong>Email me request status updates</strong><small>{initialCustomer?.emailVerified?"Status changes for this request will be sent to your verified account email.":"No account is required. Status emails include a secure link that opens only this request. Transactional quote/payment emails are still sent when action is required."}</small></span></label>
           </section>
           <div className="payment-terms-note payment-terms-prominent"><strong>50% deposit before production</strong><p>After the quote, design details, and final price are confirmed, a 50% deposit is required before production begins. The remaining 50% is due before shipment or at the pickup/delivery handoff. If a confirmed project is canceled after materials have been purchased or printing has begun, the deposit may be applied to materials, machine time, and work already completed, subject to the final agreed order terms.</p><p className="policy-inline-links">Review the <Link href="/terms" target="_blank">Custom Order Terms</Link> and <Link href="/fulfillment" target="_blank">Fulfillment Policy</Link>.</p></div>
         </div>
