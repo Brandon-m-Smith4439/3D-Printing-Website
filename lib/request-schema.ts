@@ -37,6 +37,7 @@ export const customRequestSchema = z.object({
   website: z.string().trim().max(200).optional().default(""),
   turnstileToken: z.string().trim().max(2048).optional().default(""),
   emailNotifications: z.boolean().optional().default(false),
+  isAnonymous: z.boolean().optional().default(false),
 });
 
 export type CustomRequest = z.infer<typeof customRequestSchema>;
