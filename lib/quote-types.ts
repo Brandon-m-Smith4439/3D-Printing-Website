@@ -79,6 +79,7 @@ export type QuotePaymentRecord = {
   id: string;
   revision: number;
   amountCents: number;
+  processorAmountCents?: number;
   checkoutSessionId: string;
   paymentIntentId: string;
   paidAt: string;
