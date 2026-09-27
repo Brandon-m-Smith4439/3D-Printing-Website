@@ -1,6 +1,5 @@
 import type { CustomerFollowUpRecord } from "./customer-follow-up-types.ts";
 import type { StoredRequest } from "./request-types.ts";
-import { getSiteContent } from "./site-content-store.ts";
 
 export type FollowUpEmailResult =
   | { ok: true; emailId: string }
@@ -35,10 +34,10 @@ export async function sendFollowUpEmail(input: { request: StoredRequest; record:
   }
 
   const profileUrl = `${siteOrigin()}/profile`;
-  const site = await getSiteContent();
+  const replyTo = (process.env.REQUEST_REPLY_TO_EMAIL || from).trim();
   const payload = {
     from,
-    reply_to: site.contactEmail,
+    reply_to: replyTo,
     to: [account.email],
     subject: input.record.subject,
     text: `${input.record.text}\n\nRequest: ${input.request.requestCode}\n\nOpen your profile: ${profileUrl}`,
