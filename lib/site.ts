@@ -52,6 +52,7 @@ export type SiteContent = {
   logoAlt: string;
   logoLetters: string;
   businessTimeZone: string;
+  contactEmail: string;
   etsyUrl: string;
   whatnotUrl: string;
   shippingOrigin: ShippingOrigin;
@@ -68,6 +69,7 @@ export const defaultSiteContent: SiteContent = {
   logoAlt: "Mesh Harbor 3D lighthouse, mesh, and wave emblem",
   logoLetters: "MH",
   businessTimeZone: "America/New_York",
+  contactEmail: "notifications@meshharbor3d.com",
   etsyUrl: "",
   whatnotUrl: "",
   shippingOrigin: {
