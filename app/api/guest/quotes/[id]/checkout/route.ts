@@ -12,7 +12,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   const guest=await guestRequestFromRequest(request);if(!guest)return NextResponse.json({message:"Open the secure request link from your email again."},{status:401});
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;const quote=await quoteById(id);
-  if(!quote||quote.requestId!==guest.id||quote.customerAccountId)return NextResponse.json({message:"Quote not found."},{status:404});
+  if(!quote||quote.requestId!==guest.id )return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="approved")return NextResponse.json({message:"Approve the quote and terms before paying the deposit."},{status:409});
   if(quote.paymentMethod==="cash")return NextResponse.json({message:"This pickup order uses a local payment method. Follow the private payment instructions from Mesh Harbor 3D instead of opening Stripe Checkout."},{status:409});
   const outstandingCents=quoteDepositOutstandingCents(quote);if(outstandingCents<=0)return NextResponse.json({message:"No additional deposit payment is due for this quote revision."},{status:409});
