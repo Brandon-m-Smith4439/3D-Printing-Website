@@ -42,7 +42,10 @@ export function availablePickupSlots(settings: PickupSettings, appointments: Pic
     const day = new Date(firstDay + offset * 86_400_000);
     if (!settings.weekdays.includes(day.getUTCDay())) continue;
     const date = day.toISOString().slice(0, 10);
-    for (let minute = minutes(settings.startTime); minute + settings.slotMinutes <= minutes(settings.endTime); minute += settings.slotMinutes) {
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6;
+    const startTime = weekend ? (settings.weekendStartTime || settings.startTime) : (settings.weekdayStartTime || settings.startTime);
+    const endTime = weekend ? (settings.weekendEndTime || settings.endTime) : (settings.weekdayEndTime || settings.endTime);
+    for (let minute = minutes(startTime); minute + settings.slotMinutes <= minutes(endTime); minute += settings.slotMinutes) {
       const hour = Math.floor(minute / 60);
       const min = minute % 60;
       const time = `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
