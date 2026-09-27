@@ -4,7 +4,6 @@ import type { CustomerNotification } from "./customer-types.ts";
 import type { StoredRequest } from "./request-types.ts";
 import { findCustomerById } from "./customer-store.ts";
 import { readCollection, writeCollection } from "./database.ts";
-import { guestAccessUrl } from "./guest-access.ts";
 
 let mutationChain = Promise.resolve();
 
@@ -37,7 +36,9 @@ async function maybeEmail(request: StoredRequest, message: string, subject?: str
 
   const replyTo = (process.env.REQUEST_REPLY_TO_EMAIL || from).trim();
   const origin = (process.env.NEXT_PUBLIC_SITE_URL || (process.env.NODE_ENV === "production" ? "https://meshharbor3d.com" : "http://127.0.0.1:3000")).replace(/\/$/, "");
-  const requestUrl = account?.emailVerifiedAt ? `${origin}/profile` : guestAccessUrl(request);
+  const requestUrl = account?.emailVerifiedAt
+    ? `${origin}/profile`
+    : (await import("./guest-access.ts")).guestAccessUrl(request);
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
