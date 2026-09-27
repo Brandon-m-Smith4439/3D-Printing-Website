@@ -138,7 +138,7 @@ export async function getStoredRequest(id: string) {
 
 export async function updateStoredRequest(
   id: string,
-  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId">>,
+  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId" | "emailNotifications" | "fulfillmentMethod">>,
 ) {
   return mutate(async () => {
     const requests = await readRequests();
