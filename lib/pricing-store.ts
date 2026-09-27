@@ -9,7 +9,7 @@ let mutationChain=Promise.resolve();
 function mutate<T>(op:()=>Promise<T>):Promise<T>{const next=mutationChain.then(op,op);mutationChain=next.then(()=>undefined,()=>undefined);return next;}
 
 export const DEFAULT_PRICING_SETTINGS:PricingSettings={
-  targetContributionMarginBasisPoints:0,defaultMachineHourlyCostCents:0,defaultDesignHourlyCostCents:0,defaultLaborHourlyCostCents:0,
+  targetContributionMarginBasisPoints:2000,defaultMachineHourlyCostCents:0,defaultDesignHourlyCostCents:0,defaultLaborHourlyCostCents:0,
   defaultPostProcessingHourlyCostCents:0,defaultPackagingCostCents:0,defaultPaymentFeePercentBasisPoints:0,defaultPaymentFeeFixedCents:0,
   includeInvoiceTaxInMaterialCost:true,includeInvoiceShippingInMaterialCost:true,actualMaterialCostMethod:'weighted-average',updatedAt:'',
 };
@@ -26,7 +26,9 @@ export function validatePricingSettings(input:PricingSettings){
 
 export async function readPricingSettings():Promise<PricingSettings>{
   const saved=await readSingleton<Partial<PricingSettings>>(SETTINGS);
-  return {...DEFAULT_PRICING_SETTINGS,...(saved||{}),actualMaterialCostMethod:'weighted-average'};
+  const merged={...DEFAULT_PRICING_SETTINGS,...(saved||{}),actualMaterialCostMethod:'weighted-average'} as PricingSettings;
+  if(!Number.isFinite(merged.targetContributionMarginBasisPoints)||merged.targetContributionMarginBasisPoints<=0)merged.targetContributionMarginBasisPoints=2000;
+  return merged;
 }
 export function updatePricingSettings(patch:Partial<PricingSettings>){return mutate(async()=>{const current=await readPricingSettings();const next=validatePricingSettings({...current,...patch,updatedAt:new Date().toISOString()});await writeSingleton(SETTINGS,next);return next;});}
 export async function readBambuCatalog(){return (await readCollection<BambuFilamentCatalogItem>(CATALOG)).sort((a,b)=>a.materialClass.localeCompare(b.materialClass)||a.displayName.localeCompare(b.displayName));}
