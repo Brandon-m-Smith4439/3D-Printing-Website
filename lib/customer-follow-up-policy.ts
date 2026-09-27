@@ -56,10 +56,15 @@ export function followUpRecordId(input: Pick<FollowUpCandidate, "requestId" | "t
 export function effectiveFollowUpEmailAllowed(request: StoredRequest, account: CustomerAccount | null, control?: RequestFollowUpControl) {
   if (["completed", "declined"].includes(request.status)) return { allowed: false, reason: "Request is closed." };
   if (control?.paused) return { allowed: false, reason: "Automated reminders are paused for this request." };
-  if (!request.customerAccountId) return { allowed: false, reason: "Request is not linked to a customer account." };
-  if (!account) return { allowed: false, reason: "Linked customer account was not found." };
-  if (!account.emailVerifiedAt) return { allowed: false, reason: "Customer email is not verified." };
-  const wantsEmail = request.emailNotifications ?? account.preferences?.emailStatusUpdates ?? false;
+  if (request.customerAccountId) {
+    if (!account) return { allowed: false, reason: "Linked customer account was not found." };
+    if (!account.emailVerifiedAt) return { allowed: false, reason: "Customer email is not verified." };
+  } else if (!request.email.trim()) {
+    return { allowed: false, reason: "Guest request has no email address." };
+  }
+  const wantsEmail = request.customerAccountId
+    ? (request.emailNotifications ?? account?.preferences?.emailStatusUpdates ?? false)
+    : Boolean(request.emailNotifications);
   if (!wantsEmail) return { allowed: false, reason: "Customer email updates are disabled." };
   return { allowed: true, reason: "" };
 }
@@ -67,19 +72,19 @@ export function effectiveFollowUpEmailAllowed(request: StoredRequest, account: C
 function messageFor(type: FollowUpType, requestCode: string, amountCents = 0) {
   if (type === "quote") return {
     subject: `${requestCode} — your Mesh Harbor 3D quote is ready`,
-    text: `Your Mesh Harbor 3D quote for ${requestCode} is ready for review. Sign in to your profile to approve it, decline it, or send a counter offer.`,
+    text: `Your Mesh Harbor 3D quote for ${requestCode} is ready for review. Use the secure link in this email to approve it, decline it, or send a counter offer.`,
   };
   if (type === "deposit") return {
     subject: `${requestCode} — deposit needed to start your print`,
-    text: `Your quote for ${requestCode} is approved. The remaining deposit due before production is ${currency(amountCents)}. Sign in to your Mesh Harbor 3D profile to complete the deposit.`,
+    text: `Your quote for ${requestCode} is approved. The remaining deposit due before production is ${currency(amountCents)}. Use the secure request link in this email to complete the deposit.`,
   };
   if (type === "final-invoice") return {
     subject: `${requestCode} — final balance reminder`,
-    text: `The final balance for ${requestCode} is ${currency(amountCents)}. Sign in to your Mesh Harbor 3D profile to review the invoice and payment link.`,
+    text: `The final balance for ${requestCode} is ${currency(amountCents)}. Use the secure request link in this email to review the invoice and payment link.`,
   };
   return {
     subject: `${requestCode} — we’re waiting on your reply`,
-    text: `Mesh Harbor 3D is waiting on your reply for ${requestCode}. Sign in to your profile to review your request, or reply to the latest Mesh Harbor 3D message if you need help.`,
+    text: `Mesh Harbor 3D is waiting on your reply for ${requestCode}. Use the secure request link in this email to review your request, or reply to the latest Mesh Harbor 3D message if you need help.`,
   };
 }
 
