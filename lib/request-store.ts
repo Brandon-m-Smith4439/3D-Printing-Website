@@ -63,6 +63,7 @@ export async function createStoredRequest(
       riskFlags: metadata.riskFlags || [],
       source: "customer",
       emailNotifications: values.emailNotifications,
+      isAnonymous: values.isAnonymous,
     };
     requests.push(stored);
     await writeRequestsNow(requests);
@@ -122,6 +123,7 @@ export async function createOwnerStoredRequest(values: {
       riskFlags: [],
       source: "owner",
       emailNotifications: false,
+      isAnonymous: false,
     };
     requests.push(stored);
     await writeRequestsNow(requests);
