@@ -2,8 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { quoteNetDepositPaidCents, type QuotePaymentRecord, type StoredQuote } from "@/lib/quote-types";
 import { findCustomerById } from "@/lib/customer-store";
-import { stripeKeyMode } from "@/lib/stripe-client";
-import { assertStripeNewCommerceAllowed, stripeLiveEnabled, stripeOperationalMode } from "@/lib/stripe-client";
+import { assertStripeNewCommerceAllowed, stripeKeyMode, stripeLiveEnabled, stripeOperationalMode } from "@/lib/stripe-client";
 import { stripeBusinessCallsAllowed } from "@/lib/stripe-mode";
 
 export function siteOrigin() {
