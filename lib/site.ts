@@ -38,6 +38,10 @@ export type PickupSettings = {
   weekdays: number[];
   startTime: string;
   endTime: string;
+  weekdayStartTime: string;
+  weekdayEndTime: string;
+  weekendStartTime: string;
+  weekendEndTime: string;
   slotMinutes: number;
   bookingWindowDays: number;
   minimumLeadHours: number;
@@ -74,27 +78,31 @@ export const defaultSiteContent: SiteContent = {
   whatnotUrl: "",
   shippingOrigin: {
     name: "Mesh Harbor 3D",
-    street1: "",
-    street2: "",
-    city: "",
-    state: "",
-    zip: "",
-    country: "US",
-  },
-  pickup: {
-    enabled: false,
-    locationName: "Mesh Harbor 3D Local Pickup",
-    publicArea: "Monroe, NC",
-    street1: "",
+    street1: "764 W Franklin St",
     street2: "",
     city: "Monroe",
     state: "NC",
-    zip: "",
+    zip: "28112",
     country: "US",
-    instructions: "Exact pickup address and arrival instructions are shown after you schedule a pickup time.",
-    weekdays: [1, 2, 3, 4, 5, 6],
+  },
+  pickup: {
+    enabled: true,
+    locationName: "Mesh Harbor 3D Local Pickup",
+    publicArea: "Monroe, NC",
+    street1: "101 S Charlotte Ave",
+    street2: "",
+    city: "Monroe",
+    state: "NC",
+    zip: "28112",
+    country: "US",
+    instructions: "Meet at the Monroe post office pickup location. Exact address is shown after scheduling. Please arrive within your reserved time window and reply to your Mesh Harbor 3D email if plans change.",
+    weekdays: [0, 1, 2, 3, 4, 5, 6],
     startTime: "17:30",
-    endTime: "20:00",
+    endTime: "21:00",
+    weekdayStartTime: "17:30",
+    weekdayEndTime: "21:00",
+    weekendStartTime: "09:00",
+    weekendEndTime: "20:00",
     slotMinutes: 30,
     bookingWindowDays: 14,
     minimumLeadHours: 2,
