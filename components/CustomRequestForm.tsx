@@ -220,6 +220,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
       turnstileToken: data.get("cf-turnstile-response") || "",
       attachments: attachments.map((item) => ({ id: item.id, token: item.token })),
       emailNotifications,
+      isAnonymous: data.get("isAnonymous") === "on",
     };
 
     try {
@@ -422,8 +423,9 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
             <label className={fieldClass("description")}><span>Tell me about the print *</span><textarea name="description" minLength={20} maxLength={2500} rows={8} required defaultValue={initialPrefill?.description || ""} aria-invalid={Boolean(fieldErrors.description)} placeholder="What do you want made? Include how it will be used, important dimensions, finish expectations, tolerances, special features, or anything else I should know." />{fieldErrors.description && <small className="field-error">{fieldErrors.description}</small>}</label>
           </section>
 
+          <label className="request-private-option"><input name="isAnonymous" type="checkbox" /><span><strong>Keep this print private</strong><small>Your project title, image, quantity, notes, request code, and estimated date will not be shown on the public production queue. Only a generic “Private print” placeholder and production status are shown. Mesh Harbor 3D still sees the full request privately so the order can be produced.</small></span></label>
           <label className="honeypot" aria-hidden="true">Company site<input name="website" tabIndex={-1} autoComplete="off" /></label>
-          <label className={`consent-row request-consent-card ${fieldErrors.consent ? "field-invalid" : ""}`}><input name="consent" type="checkbox" required aria-invalid={Boolean(fieldErrors.consent)} /><span>I agree to be contacted about this custom print request. *</span>{fieldErrors.consent && <small className="field-error">{fieldErrors.consent}</small>}</label>
+          <label className={`consent-row request-consent-card ${fieldErrors.consent ? "field-invalid" : ""}`}><input name="consent" type="checkbox" required aria-invalid={Boolean(fieldErrors.consent)} /><span>I agree to be contacted by Mesh Harbor 3D about this custom print request, primarily by email. *</span>{fieldErrors.consent && <small className="field-error">{fieldErrors.consent}</small>}</label>
           <section className="request-account-options">
             <div className="request-account-options-heading"><div><strong>Track this request</strong><small>{initialCustomer?"Your signed-in profile will automatically keep this request and its notifications together.":"Optional — create a free account so you can track this request, approve quotes, and see status notifications."}</small></div></div>
             {!initialCustomer&&<label className="settings-check"><input name="createAccount" type="checkbox" checked={createAccount} onChange={(event)=>{setCreateAccount(event.target.checked);if(!event.target.checked)setEmailNotifications(false);}} /><span><strong>Create an account with this request</strong><small>You will verify the same email used above. After verification, this request will be securely linked to your profile.</small></span></label>}
