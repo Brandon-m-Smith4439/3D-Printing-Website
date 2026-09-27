@@ -102,23 +102,19 @@ export async function ensureFinalInvoiceForRequest(requestId: string) {
     throw new Error("Add a customer email before sending the final Stripe invoice.");
   }
 
+  if (quote.paymentMethod === "cash") {
+    throw new Error("This pickup order uses a local/manual payment method. Record the final payment from the owner dashboard instead of creating a Stripe invoice.");
+  }
+
   const depositCreditCents = quoteNetDepositPaidCents(quote);
   const balanceCents = finalBalanceCents(quote.totalCents, depositCreditCents);
   if (balanceCents <= 0) throw new Error("No remaining balance is due for this request.");
 
+  // The deposit Checkout already taxed the first pre-tax installment. Tax the remaining
+  // pre-tax balance as the second installment so tax is not double-counted.
   const invoiceLines = [
-    { key: "base-print", amountCents: quote.basePriceCents, description: `Custom 3D print — ${request.requestCode}` },
-    ...(quote.assemblyFeeCents > 0 ? [{ key: "assembly", amountCents: quote.assemblyFeeCents, description: "Assembly labor" }] : []),
-    ...(quote.rushFeeCents > 0 ? [{ key: "rush", amountCents: quote.rushFeeCents, description: "Rush scheduling fee" }] : []),
-    ...(quote.localDeliveryFeeCents > 0 ? [{ key: "local-delivery", amountCents: quote.localDeliveryFeeCents, description: "Local delivery" }] : []),
-    ...(quote.shippingSelection?.rateCents ? [{ key: "shipping", amountCents: quote.shippingSelection.rateCents, description: `${quote.shippingSelection.carrier} ${quote.shippingSelection.service} shipping` }] : []),
-    { key: "deposit-credit", amountCents: -depositCreditCents, description: "Deposit credit already paid" },
-  ].filter((line) => line.amountCents !== 0);
-
-  const itemizedBalanceCents = invoiceLines.reduce((sum, line) => sum + line.amountCents, 0);
-  if (itemizedBalanceCents !== balanceCents) {
-    throw new Error("The final invoice line items do not match the stored quote balance. Review the quote before invoicing.");
-  }
+    { key: "final-balance", amountCents: balanceCents, description: `Final 50% balance — custom 3D print ${request.requestCode}` },
+  ];
 
   let existing = await finalInvoiceForRequest(requestId);
   if (existing) {
@@ -191,6 +187,7 @@ export async function ensureFinalInvoiceForRequest(requestId: string) {
       collection_method: "send_invoice",
       days_until_due: dueDays(),
       auto_advance: false,
+      automatic_tax: { enabled: true },
       description: `Final balance for Mesh Harbor 3D request ${request.requestCode}`,
       custom_fields: [{ name: "Request", value: request.requestCode }],
       metadata: {
@@ -234,11 +231,13 @@ export async function ensureFinalInvoiceForRequest(requestId: string) {
         amount: line.amountCents,
         currency: "usd",
         description: line.description,
+        tax_behavior: "exclusive",
+        tax_code: "txcd_99999999",
         metadata: {
           request_id: request.id,
           quote_id: quote.id,
           quote_revision: String(quote.revision),
-          purpose: line.key === "deposit-credit" ? "deposit_credit" : "final_balance_component",
+          purpose: "final_balance_component",
         },
       }, { idempotencyKey: `final-invoice-item-${quote.id}-r${quote.revision}-${line.key}` });
     }
