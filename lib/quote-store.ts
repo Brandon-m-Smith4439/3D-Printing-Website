@@ -87,6 +87,7 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
     id: payment.id || randomUUID(),
     revision: Number(payment.revision || item.revision || 1),
     amountCents: Math.max(0, Number(payment.amountCents || 0)),
+    processorAmountCents: Math.max(0, Number(payment.processorAmountCents || payment.amountCents || 0)),
     checkoutSessionId: payment.checkoutSessionId || "",
     paymentIntentId: payment.paymentIntentId || "",
     paidAt: payment.paidAt || item.depositPaidAt || item.updatedAt || item.createdAt,
@@ -288,7 +289,7 @@ export async function recordCashFinalPayment(id: string, amountCents: number) {
   });
 }
 
-export async function recordQuoteDepositPayment(id: string, input: { sessionId: string; paymentIntentId: string; amountCents: number; revision?: number }) {
+export async function recordQuoteDepositPayment(id: string, input: { sessionId: string; paymentIntentId: string; amountCents: number; processorAmountCents?: number; revision?: number }) {
   return mutate(async () => {
     const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
     const current = normalizeQuote(items[index]);
@@ -299,6 +300,7 @@ export async function recordQuoteDepositPayment(id: string, input: { sessionId: 
       id: randomUUID(),
       revision: input.revision || current.revision,
       amountCents: Math.max(0, Math.round(input.amountCents)),
+      processorAmountCents: Math.max(0, Math.round(input.processorAmountCents ?? input.amountCents)),
       checkoutSessionId: input.sessionId,
       paymentIntentId: input.paymentIntentId,
       paidAt: now,
