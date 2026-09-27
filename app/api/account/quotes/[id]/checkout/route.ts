@@ -18,6 +18,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   const quote=await quoteById(id);
   if(!quote||quote.customerAccountId!==customer.id)return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="approved")return NextResponse.json({message:"Approve the quote and terms before paying the deposit."},{status:409});
+  if(quote.paymentMethod==="cash")return NextResponse.json({message:"This pickup order uses a local payment method. Follow the private payment instructions from Mesh Harbor 3D instead of opening Stripe Checkout."},{status:409});
 
   const source=await getStoredRequest(quote.requestId);
   if(!source)return NextResponse.json({message:"Request not found."},{status:404});
