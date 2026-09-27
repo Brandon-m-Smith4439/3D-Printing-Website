@@ -58,6 +58,7 @@ export const siteContentSchema = z.object({
   logoAlt: z.string().trim().min(1).max(120),
   logoLetters: z.string().trim().min(1).max(4),
   businessTimeZone: z.string().trim().min(1).max(80),
+  contactEmail: z.string().trim().email().max(160).default(defaultSiteContent.contactEmail),
   etsyUrl: externalUrl,
   whatnotUrl: externalUrl,
   shippingOrigin: shippingOriginSchema.default(defaultSiteContent.shippingOrigin),
