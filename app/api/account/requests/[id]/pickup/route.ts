@@ -4,6 +4,7 @@ import { sameOrigin } from "@/lib/owner-api";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { getStoredRequest } from "@/lib/request-store";
 import { quoteForRequest } from "@/lib/quote-store";
+import { quoteCashFinalPaid } from "@/lib/quote-types";
 import { readQueue } from "@/lib/queue-store";
 import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
 import { finalInvoicePaid } from "@/lib/final-invoice-types";
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     timeZone: data.content.businessTimeZone,
     slots: data.slots,
     appointment: data.appointment,
-    finalBalancePaid: finalInvoicePaid(data.invoice),
+    finalBalancePaid: data.quote?.paymentMethod === "cash" ? quoteCashFinalPaid(data.quote) : finalInvoicePaid(data.invoice),
   }, { headers: { "Cache-Control": "no-store" } });
 }
 
