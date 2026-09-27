@@ -25,7 +25,6 @@ export async function Footer() {
           <Link href="/privacy">Privacy</Link>
           <a href={`mailto:${site.contactEmail}`}>Email {site.name}</a>
           {site.etsyUrl && <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer">Etsy Shop</a>}
-          {site.whatnotUrl && <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer">Whatnot Shop</a>}
         </div>
       </div>
       <div className="container footer-bottom">© {new Date().getFullYear()} {site.name}. All rights reserved.</div>
