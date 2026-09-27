@@ -12,7 +12,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   const guest=await guestRequestFromRequest(request);if(!guest)return NextResponse.json({message:"Open the secure request link from your email again."},{status:401});
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   if(limited(guest.id))return NextResponse.json({message:"Too many rate requests. Please wait a minute and try again."},{status:429});
-  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id||quote.customerAccountId)return NextResponse.json({message:"Quote not found."},{status:404});
+  const {id}=await context.params;const quote=await quoteById(id);if(!quote||quote.requestId!==guest.id )return NextResponse.json({message:"Quote not found."},{status:404});
   if(quote.status!=="sent")return NextResponse.json({message:"Live shipping can only be selected while a quote is awaiting your response."},{status:409});
   if(quote.fulfillmentMode!=="shipping")return NextResponse.json({message:"This quote is not configured for carrier shipping."},{status:409});
   let body:unknown;try{const raw=await request.text();if(raw.length>8_000)return NextResponse.json({message:"Shipping address request is too large."},{status:413});body=JSON.parse(raw);}catch{return NextResponse.json({message:"Invalid shipping address."},{status:400});}
