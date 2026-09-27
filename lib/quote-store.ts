@@ -8,6 +8,8 @@ import {
   type AssemblyMode,
   type QuoteFulfillmentMode,
   type QuoteHistoryEntry,
+  type LocalPaymentMethod,
+  type QuotePaymentMethod,
   type QuotePaymentRecord,
   type QuoteRefundRecord,
   type QuoteSnapshot,
@@ -45,12 +47,14 @@ function normalizeSnapshot(snapshot: QuoteSnapshot | null | undefined): QuoteSna
   const assemblyFeeCents = Number.isFinite(raw.assemblyFeeCents) ? Number(raw.assemblyFeeCents) : 0;
   const rushFeeCents = Number.isFinite(raw.rushFeeCents) ? Number(raw.rushFeeCents) : 0;
   const fulfillmentMode: QuoteFulfillmentMode = raw.fulfillmentMode || "pickup";
+  const paymentMethod: QuotePaymentMethod = (raw as QuoteSnapshot & { paymentMethod?: QuotePaymentMethod }).paymentMethod || "stripe";
+  const localPaymentMethod: LocalPaymentMethod | null = (raw as QuoteSnapshot & { localPaymentMethod?: LocalPaymentMethod | null }).localPaymentMethod || (paymentMethod === "cash" ? "cash" : null);
   const localDeliveryFeeCents = Number.isFinite(raw.localDeliveryFeeCents) ? Number(raw.localDeliveryFeeCents) : 0;
   const shippingSelection = normalizeShippingSelection(raw.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
   const basePriceCents = Number.isFinite(raw.basePriceCents) ? Number(raw.basePriceCents) : Math.max(0, raw.totalCents - assemblyFeeCents - rushFeeCents - localDeliveryFeeCents - shippingCents);
   return {
-    ...raw, basePriceCents, assemblyMode, assemblyFeeCents, rushFeeCents, fulfillmentMode, localDeliveryFeeCents,
+    ...raw, basePriceCents, assemblyMode, assemblyFeeCents, rushFeeCents, fulfillmentMode, paymentMethod, localPaymentMethod, localDeliveryFeeCents,
     packageWeightOz: Number(raw.packageWeightOz || 0), packageLengthIn: Number(raw.packageLengthIn || 0), packageWidthIn: Number(raw.packageWidthIn || 0), packageHeightIn: Number(raw.packageHeightIn || 0),
     shippingSelection,
   };
@@ -61,6 +65,8 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
   const assemblyFeeCents = Number.isFinite(item.assemblyFeeCents) ? item.assemblyFeeCents : 0;
   const rushFeeCents = Number.isFinite(item.rushFeeCents) ? item.rushFeeCents : 0;
   const fulfillmentMode: QuoteFulfillmentMode = item.fulfillmentMode || "pickup";
+  const paymentMethod: QuotePaymentMethod = item.paymentMethod || "stripe";
+  const localPaymentMethod: LocalPaymentMethod | null = item.localPaymentMethod || (paymentMethod === "cash" ? "cash" : null);
   const localDeliveryFeeCents = Number.isFinite(item.localDeliveryFeeCents) ? item.localDeliveryFeeCents : 0;
   const shippingSelection = normalizeShippingSelection(item.shippingSelection);
   const shippingCents = shippingSelection?.rateCents || 0;
@@ -81,6 +87,7 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
     id: payment.id || randomUUID(),
     revision: Number(payment.revision || item.revision || 1),
     amountCents: Math.max(0, Number(payment.amountCents || 0)),
+    processorAmountCents: Math.max(0, Number(payment.processorAmountCents || payment.amountCents || 0)),
     checkoutSessionId: payment.checkoutSessionId || "",
     paymentIntentId: payment.paymentIntentId || "",
     paidAt: payment.paidAt || item.depositPaidAt || item.updatedAt || item.createdAt,
@@ -93,7 +100,7 @@ function normalizeQuote(item: StoredQuote): StoredQuote {
     paidAt: item.depositPaidAt,
   }] : [];
   const normalized: StoredQuote = {
-    ...item, assemblyMode, assemblyFeeCents, rushFeeCents, basePriceCents, fulfillmentMode, localDeliveryFeeCents,
+    ...item, assemblyMode, assemblyFeeCents, rushFeeCents, basePriceCents, fulfillmentMode, paymentMethod, localPaymentMethod, localDeliveryFeeCents,
     packageWeightOz:Number(item.packageWeightOz||0), packageLengthIn:Number(item.packageLengthIn||0), packageWidthIn:Number(item.packageWidthIn||0), packageHeightIn:Number(item.packageHeightIn||0), shippingSelection,
     stripeCheckoutAmountCents: Number(item.stripeCheckoutAmountCents || 0), payments, refunds,
   };
@@ -120,6 +127,8 @@ export function quoteSnapshot(quote: Pick<StoredQuote, keyof QuoteSnapshot>): Qu
     assemblyFeeCents: quote.assemblyFeeCents,
     rushFeeCents: quote.rushFeeCents,
     fulfillmentMode: quote.fulfillmentMode,
+    paymentMethod: quote.paymentMethod || "stripe",
+    localPaymentMethod: quote.localPaymentMethod || (quote.paymentMethod === "cash" ? "cash" : null),
     localDeliveryFeeCents: quote.localDeliveryFeeCents,
     packageWeightOz: quote.packageWeightOz,
     packageLengthIn: quote.packageLengthIn,
@@ -144,7 +153,7 @@ export async function quoteById(id: string) { const items = await readQuotes(); 
 
 export async function upsertQuote(input: {
   requestId: string; requestCode: string; customerAccountId: string; basePriceCents: number; assemblyMode: AssemblyMode; assemblyFeeCents: number; rushFeeCents: number;
-  fulfillmentMode: QuoteFulfillmentMode; localDeliveryFeeCents: number; packageWeightOz:number; packageLengthIn:number; packageWidthIn:number; packageHeightIn:number;
+  fulfillmentMode: QuoteFulfillmentMode; paymentMethod: QuotePaymentMethod; localPaymentMethod: LocalPaymentMethod | null; localDeliveryFeeCents: number; packageWeightOz:number; packageLengthIn:number; packageWidthIn:number; packageHeightIn:number;
   totalCents: number; depositCents: number; material: string; dimensions: string; estimatedReadyDate: string; notes: string; terms: string; send: boolean;
 }) {
   return mutate(async () => {
@@ -152,7 +161,7 @@ export async function upsertQuote(input: {
     const index = items.findIndex((item) => item.requestId === input.requestId && item.status !== "void");
     const now = new Date().toISOString();
     const existing = index >= 0 ? normalizeQuote(items[index]) : null;
-    const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","rushFeeCents","fulfillmentMode","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
+    const changedKeys = ["basePriceCents","assemblyMode","assemblyFeeCents","rushFeeCents","fulfillmentMode","paymentMethod","localPaymentMethod","localDeliveryFeeCents","packageWeightOz","packageLengthIn","packageWidthIn","packageHeightIn","material","dimensions","estimatedReadyDate","notes","terms"];
     const changed = !existing || changedKeys.some((key) => String((existing as unknown as Record<string, unknown>)[key]) !== String((input as unknown as Record<string, unknown>)[key]));
     const hadCustomerDecision = Boolean(existing && ["approved","countered","declined","deposit-paid"].includes(existing.status));
     const revision = existing ? existing.revision + (((changed && (existing.sentAt || hadCustomerDecision)) || (input.send && hadCustomerDecision)) ? 1 : 0) : 1;
@@ -166,7 +175,7 @@ export async function upsertQuote(input: {
     const quote: StoredQuote = {
       id: existing?.id || randomUUID(), requestId: input.requestId, requestCode: input.requestCode, customerAccountId: input.customerAccountId,
       revision, basePriceCents: input.basePriceCents, assemblyMode: input.assemblyMode, assemblyFeeCents: input.assemblyFeeCents, rushFeeCents: input.rushFeeCents,
-      fulfillmentMode: input.fulfillmentMode, localDeliveryFeeCents: input.localDeliveryFeeCents, packageWeightOz: input.packageWeightOz,
+      fulfillmentMode: input.fulfillmentMode, paymentMethod: input.paymentMethod, localPaymentMethod: input.localPaymentMethod, localDeliveryFeeCents: input.localDeliveryFeeCents, packageWeightOz: input.packageWeightOz,
       packageLengthIn: input.packageLengthIn, packageWidthIn: input.packageWidthIn, packageHeightIn: input.packageHeightIn, shippingSelection,
       totalCents, depositCents, balanceCents: totalCents - depositCents,
       currency: "usd", material: input.material, dimensions: input.dimensions, estimatedReadyDate: input.estimatedReadyDate,
@@ -179,7 +188,9 @@ export async function upsertQuote(input: {
       stripeCheckoutSessionId: preserveExistingState ? existing!.stripeCheckoutSessionId : "",
       stripeCheckoutAmountCents: preserveExistingState ? existing!.stripeCheckoutAmountCents : 0,
       depositPaidAt: existing?.depositPaidAt || "",
-      paymentProvider: existing?.paymentProvider || "",
+      paymentProvider: preserveExistingState ? (existing?.paymentProvider || "") : "",
+      cashFinalPaidAt: existing?.cashFinalPaidAt || "",
+      cashFinalPaidCents: Math.max(0, Number(existing?.cashFinalPaidCents || 0)),
       payments: [...(existing?.payments || [])],
       refunds: [...(existing?.refunds || [])],
       history: [...(existing?.history || [])],
@@ -246,7 +257,39 @@ export async function markQuoteCheckoutSession(id: string, sessionId: string, am
   });
 }
 
-export async function recordQuoteDepositPayment(id: string, input: { sessionId: string; paymentIntentId: string; amountCents: number; revision?: number }) {
+export async function recordCashDeposit(id: string, amountCents: number) {
+  return mutate(async () => {
+    const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
+    const current = normalizeQuote(items[index]);
+    if (current.paymentMethod !== "cash" || current.fulfillmentMode !== "pickup" || current.status !== "approved") return null;
+    const amount = Math.max(0, Math.round(amountCents));
+    const outstanding = Math.max(0, current.depositCents - quoteNetDepositPaidCents(current));
+    if (!outstanding || amount !== outstanding) return null;
+    const now = new Date().toISOString();
+    const payment: QuotePaymentRecord = { id: randomUUID(), revision: current.revision, amountCents: amount, checkoutSessionId: `cash-${current.id}-r${current.revision}-${now}`, paymentIntentId: "", paidAt: now };
+    const candidate: StoredQuote = { ...current, payments:[...current.payments,payment], paymentProvider:"cash", updatedAt:now };
+    const satisfied = quoteDepositSatisfied(candidate);
+    const next: StoredQuote = { ...candidate, status:satisfied?"deposit-paid":candidate.status, depositPaidAt:satisfied?(current.depositPaidAt||now):current.depositPaidAt,
+      history:[...current.history,event({actor:"owner",event:"deposit-paid",revision:current.revision,summary:`${current.localPaymentMethod || "cash"} deposit of ${(amount/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} recorded by owner.`,snapshot:quoteSnapshot(current)})] };
+    items[index]=next; await writeQuotes(items); return next;
+  });
+}
+
+export async function recordCashFinalPayment(id: string, amountCents: number) {
+  return mutate(async () => {
+    const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
+    const current = normalizeQuote(items[index]);
+    if (current.paymentMethod !== "cash" || current.fulfillmentMode !== "pickup" || current.status !== "deposit-paid") return null;
+    const amount = Math.max(0, Math.round(amountCents));
+    if (!current.balanceCents || amount !== current.balanceCents) return null;
+    const now = new Date().toISOString();
+    const next: StoredQuote = { ...current, paymentProvider:"cash", cashFinalPaidAt:now, cashFinalPaidCents:amount, updatedAt:now,
+      history:[...current.history,event({actor:"owner",event:"deposit-paid",revision:current.revision,summary:`Final ${current.localPaymentMethod || "cash"} balance of ${(amount/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} recorded by owner.`,snapshot:quoteSnapshot(current)})] };
+    items[index]=next; await writeQuotes(items); return next;
+  });
+}
+
+export async function recordQuoteDepositPayment(id: string, input: { sessionId: string; paymentIntentId: string; amountCents: number; processorAmountCents?: number; revision?: number }) {
   return mutate(async () => {
     const items = await readQuotes(); const index = items.findIndex((item) => item.id === id); if (index < 0) return null;
     const current = normalizeQuote(items[index]);
@@ -257,6 +300,7 @@ export async function recordQuoteDepositPayment(id: string, input: { sessionId: 
       id: randomUUID(),
       revision: input.revision || current.revision,
       amountCents: Math.max(0, Math.round(input.amountCents)),
+      processorAmountCents: Math.max(0, Math.round(input.processorAmountCents ?? input.amountCents)),
       checkoutSessionId: input.sessionId,
       paymentIntentId: input.paymentIntentId,
       paidAt: now,

@@ -4,6 +4,7 @@ import { quoteById, recordQuoteDepositPayment, updateQuoteRefundStatus } from "@
 import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
 import { notifyCustomer } from "@/lib/customer-notifications";
 import { writeAudit } from "@/lib/audit-log";
+import { setStripeCustomerId } from "@/lib/customer-store";
 import { updateFinalInvoiceFromStripe } from "@/lib/final-invoice-store";
 import type { FinalInvoiceStatus } from "@/lib/final-invoice-types";
 
@@ -12,6 +13,9 @@ type StripeCheckoutSession = {
   payment_intent?: unknown;
   payment_status?: unknown;
   amount_total?: unknown;
+  amount_subtotal?: unknown;
+  customer?: unknown;
+  livemode?: unknown;
   currency?: unknown;
   metadata?: {
     quote_id?: unknown;
@@ -89,7 +93,9 @@ export async function POST(request: NextRequest) {
         : before.stripeCheckoutSessionId === sessionId
           ? (before.stripeCheckoutAmountCents || before.depositCents)
           : 0;
-      if (expectedAmount <= 0 || Number(session?.amount_total) !== expectedAmount || String(session?.currency || "").toLowerCase() !== before.currency) {
+      const subtotal = Number(session?.amount_subtotal);
+      const grossTotal = Number(session?.amount_total);
+      if (expectedAmount <= 0 || subtotal !== expectedAmount || !Number.isFinite(grossTotal) || grossTotal < expectedAmount || String(session?.currency || "").toLowerCase() !== before.currency) {
         return NextResponse.json({ message: "Payment amount did not match the stored quote payment request." }, { status: 400 });
       }
 
@@ -100,12 +106,17 @@ export async function POST(request: NextRequest) {
         sessionId,
         paymentIntentId,
         amountCents: expectedAmount,
+        processorAmountCents: grossTotal,
         revision,
       });
 
       if (quote) {
         const source = await getStoredRequest(quote.requestId);
         if (source) {
+          const stripeCustomerId = typeof session?.customer === "string" ? session.customer : "";
+          if (stripeCustomerId && source.customerAccountId) {
+            await setStripeCustomerId(source.customerAccountId, session?.livemode === true ? "live" : "test", stripeCustomerId);
+          }
           if (quote.status === "deposit-paid") {
             const updated = await updateStoredRequest(source.id, { status: "deposit-paid" });
             if (updated) await notifyCustomer(updated, "Your deposit requirement is satisfied. Your request is ready for the owner to schedule into production.");

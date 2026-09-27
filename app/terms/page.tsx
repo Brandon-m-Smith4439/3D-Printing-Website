@@ -23,7 +23,8 @@ export default function TermsPage() {
         <p>A quote is accepted only when the customer approves the current quote revision while signed in to a verified customer account. Approval applies to the price, project specifications, fulfillment method, owner notes, quote terms, and the customer policy version shown at the time of approval. A later quote revision replaces the prior unaccepted revision.</p>
 
         <h2>50% deposit and final balance</h2>
-        <p>Unless a written quote says otherwise, 50% of the approved total is required before production begins. The remaining balance is due before carrier shipment and before the completed item is handed over for local pickup or local delivery. Stripe-hosted payment pages handle card information; Mesh Harbor 3D does not store full card numbers on this website.</p>
+        <p>Unless a written quote says otherwise, 50% of the approved pre-tax order amount is required before production begins. The remaining balance is due before carrier shipment and before the completed item is handed over for local pickup or local delivery. Stripe-hosted payment pages handle card information; Mesh Harbor 3D does not store full card numbers on this website.</p>
+        <p>For Stripe payments, applicable tax is calculated by Stripe Automatic Tax during secure Checkout or invoicing and can be added to the quoted pre-tax amount. Local pickup orders may instead be approved for an owner-confirmed local payment method such as Cash, Zelle, Cash App, Apple Cash, Venmo, or PayPal. Local payment instructions are coordinated privately by Mesh Harbor 3D and payment is not considered received until the owner records it.</p>
 
         <h2>Changes after approval</h2>
         <p>Changes to quantity, dimensions, material, color, assembly, turnaround, shipping, delivery, or other scope can require a revised quote. A revised quote may change the total, required deposit, estimated completion date, shipping cost, or other terms. Production should not proceed on changed scope until the revision and any required payment adjustment are resolved.</p>
@@ -33,6 +34,9 @@ export default function TermsPage() {
 
         <h2>3D-print characteristics and tolerances</h2>
         <p>Fused-filament and resin prints can show layer lines, support marks, seams, small color variation, minor surface variation, and dimensional tolerance that differ from injection-molded or machined parts. Functional fit requirements and critical dimensions should be identified before quoting. Unless the accepted quote states a specific tolerance or certification, custom prints are not represented as precision-certified, safety-certified, food-safe, medical, structural, or life-safety components.</p>
+
+        <h2>Private / anonymous print requests</h2>
+        <p>Customers may request that a print remain private. For a private request, project-specific title, image, quantity, notes, request code, and estimated date are withheld from the public production queue. Mesh Harbor 3D still retains the complete request privately as needed to quote, produce, communicate about, and fulfill the order.</p>
 
         <h2>Customer-provided files and rights</h2>
         <p>The customer is responsible for having permission to provide and reproduce any model, image, logo, character, design, trademark, or other protected material submitted with a request. Mesh Harbor 3D may decline a project when ownership, authorization, safety, or lawful use is unclear.</p>

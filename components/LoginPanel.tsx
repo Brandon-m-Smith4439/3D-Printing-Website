@@ -11,6 +11,8 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
   const [adminStep, setAdminStep] = useState<"password" | "second-factor">("password");
   const [adminRecoveryMode, setAdminRecoveryMode] = useState(false);
   const [adminSecondFactorCode, setAdminSecondFactorCode] = useState("");
+  const [customerChallengeId, setCustomerChallengeId] = useState("");
+  const [customerSecondFactorCode, setCustomerSecondFactorCode] = useState("");
 
   async function submitCustomer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -22,10 +24,31 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
       const response = await fetch(`/api/account/${mode === "register" ? "register" : "login"}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
-      const result = await response.json() as { message?: string };
+      const result = await response.json() as { message?: string; requiresSecondFactor?: boolean; challengeId?: string };
       if (!response.ok) throw new Error(result.message || "Could not sign in.");
+      if (mode === "login" && result.requiresSecondFactor && result.challengeId) {
+        setCustomerChallengeId(result.challengeId);
+        setCustomerSecondFactorCode("");
+        setMessage(result.message || "Check your email for the 6-digit sign-in code.");
+        return;
+      }
       router.push("/profile"); router.refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not sign in."); }
+    finally { setBusy(false); }
+  }
+
+  async function submitCustomerSecondFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setMessage("");
+    try {
+      const response = await fetch("/api/account/login/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: customerChallengeId, code: customerSecondFactorCode }),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Could not verify the sign-in code.");
+      router.push("/profile"); router.refresh();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not verify the sign-in code."); }
     finally { setBusy(false); }
   }
 
@@ -120,6 +143,20 @@ export function LoginPanel({ adminMode = false, initialMode = "login" }: { admin
         {message && <div className="form-status error">{message}</div>}
       </div>
     );
+  }
+
+  if (customerChallengeId) {
+    return <div className="account-card">
+      <p className="eyebrow">TWO-FACTOR AUTHENTICATION</p>
+      <h1>Check your email.</h1>
+      <p>Enter the 6-digit Mesh Harbor 3D sign-in code. The code expires after 10 minutes.</p>
+      <form className="account-form" onSubmit={submitCustomerSecondFactor}>
+        <label><span>6-digit code</span><input value={customerSecondFactorCode} onChange={event=>setCustomerSecondFactorCode(event.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required autoFocus /></label>
+        <button className="button" type="submit" disabled={busy||customerSecondFactorCode.length!==6}>{busy?"Verifying…":"Verify & Sign In"}</button>
+        <button className="text-button" type="button" onClick={()=>{setCustomerChallengeId("");setCustomerSecondFactorCode("");setMessage("");}}>Start over</button>
+      </form>
+      {message&&<div className="form-status info">{message}</div>}
+    </div>;
   }
 
   return (

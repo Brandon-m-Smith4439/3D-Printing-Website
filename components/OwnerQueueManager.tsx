@@ -4,7 +4,7 @@ import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 import type { QueueJob, QueueStatus } from "@/lib/queue-types";
 import type { RequestStatus, StoredRequest } from "@/lib/request-types";
-import { quoteDepositOutstandingCents, quoteDepositRefundDueCents, quoteDepositRefundPending, quoteDepositSatisfied, quoteNetDepositPaidCents, type StoredQuote } from "@/lib/quote-types";
+import { quoteCashFinalPaid, quoteDepositOutstandingCents, quoteDepositRefundDueCents, quoteDepositRefundPending, quoteDepositSatisfied, quoteNetDepositPaidCents, type StoredQuote } from "@/lib/quote-types";
 import type { ShipmentRecord } from "@/lib/shipment-types";
 import type { PickupAppointment } from "@/lib/pickup-types";
 import { finalInvoicePaid, type FinalInvoiceRecord } from "@/lib/final-invoice-types";
@@ -27,6 +27,7 @@ const modelLabels: Record<string,string> = { ready:"Yes — print-ready model", 
 const fulfillmentLabels: Record<string,string> = { pickup:"Local pickup", shipping:"Shipping", "local-delivery":"Local delivery", unsure:"Not sure yet" };
 const assemblyPreferenceLabels: Record<string,string> = { assembled:"Assembled by Mesh Harbor 3D", disassembled:"Disassembled + assembly guide", unsure:"Not sure yet" };
 const materialLabels: Record<string,string> = { "no-preference":"No preference", pla:"PLA", petg:"PETG", asa:"ASA", tpu:"TPU / flexible", resin:"Resin", other:"Other / unsure" };
+const localPaymentLabels: Record<string,string> = { cash:"Cash", zelle:"Zelle", "cash-app":"Cash App", "apple-cash":"Apple Cash", venmo:"Venmo", paypal:"PayPal" };
 
 type Notice = { kind:"success"|"error"|"warning"; text:string } | null;
 type OwnerTab = "operations" | "production" | "pricing" | "site" | "security";
@@ -165,7 +166,7 @@ function CombinedRequestCard({request,quote,shipment,finalInvoice,pickup,job,all
   useEffect(()=>setPosition(job&&job.status!=="completed"?job.sortOrder+1:1),[job]);
   useEffect(()=>{if(forceOpen)setOpen(true);},[forceOpen]);
   useEffect(()=>setWaitingNote(followUp?.control.waitingNote||""),[followUp?.control.waitingNote]);
-  const liveStatus=workflowStatus(request,quote,job); const priority=calculateRequestPriority(request); const paidRecord=Boolean(quote&&(quote.payments.length>0||quote.depositPaidAt))||request.status==="completed"; const depositActuallyPaid=Boolean(quote&&quote.status==="deposit-paid"&&quoteDepositSatisfied(quote)); const balancePaid=finalInvoicePaid(finalInvoice);
+  const liveStatus=workflowStatus(request,quote,job); const priority=calculateRequestPriority(request); const paidRecord=Boolean(quote&&(quote.payments.length>0||quote.depositPaidAt))||request.status==="completed"; const depositActuallyPaid=Boolean(quote&&quote.status==="deposit-paid"&&quoteDepositSatisfied(quote)); const balancePaid=Boolean(quote&&(quote.paymentMethod==="cash"?quoteCashFinalPaid(quote):finalInvoicePaid(finalInvoice)));
   const release=evaluateFulfillmentRelease({
     hasQuote:Boolean(quote),
     fulfillmentMode:(quote?.fulfillmentMode||request.fulfillmentMethod||"unsure"),
@@ -211,7 +212,8 @@ function CombinedRequestCard({request,quote,shipment,finalInvoice,pickup,job,all
       </div>
       <section className="owner-quote-launch-card"><div><span className="eyebrow">QUOTE WORKFLOW</span><h3>{quote?liveStatus:"No quote created yet"}</h3><p>{latestQuoteEvent?`${latestQuoteEvent.summary} ${new Date(latestQuoteEvent.createdAt).toLocaleString()}`:"Create the quote in its own workspace so the request overview stays easy to scan."}</p></div><div className="owner-quote-launch-actions"><button className="button" type="button" disabled={!request.id||request.status==="declined"} onClick={()=>setQuoteOpen(true)}>{quote?"Open Quote Workspace":"Create Quote"}</button>{quote?.history?.length?<span>{quote.history.length} history event{quote.history.length===1?"":"s"}</span>:null}</div></section>
       {quote&&pricing&&<OwnerCostCloseout requestId={request.id} quote={quote} settings={pricing.settings} catalog={pricing.catalog} materialCosts={pricing.materialCosts} snapshots={pricing.snapshots} onChanged={onChanged} onNotice={onNotice}/>}
-      {quote&&job&&(["ready","completed"].includes(job.status)||finalInvoice)&&<OwnerFinalInvoicePanel request={request} quote={quote} invoice={finalInvoice} job={job} onChanged={onChanged} onNotice={onNotice}/>}
+      {quote&&quote.paymentMethod!=="cash"&&job&&(["ready","completed"].includes(job.status)||finalInvoice)&&<OwnerFinalInvoicePanel request={request} quote={quote} invoice={finalInvoice} job={job} onChanged={onChanged} onNotice={onNotice}/>}
+      {quote?.paymentMethod==="cash"&&<OwnerLocalPaymentPanel request={request} quote={quote} job={job} onChanged={onChanged} onNotice={onNotice}/>}
       {quote?.fulfillmentMode==="shipping"&&<OwnerShipmentPanel request={request} quote={quote} shipment={shipment} finalInvoice={finalInvoice} job={job} onChanged={onChanged} onNotice={onNotice}/>}
       {quote?.fulfillmentMode==="pickup"&&job&&(["ready","completed"].includes(job.status)||pickup)&&<section className="owner-pickup-appointment">
         <div><span className="eyebrow">LOCAL PICKUP</span><h4>{pickup?"Pickup appointment scheduled":"Waiting for pickup appointment"}</h4></div>
@@ -224,6 +226,37 @@ function CombinedRequestCard({request,quote,shipment,finalInvoice,pickup,job,all
     </div>}
   </article>;
 }
+function OwnerLocalPaymentPanel({request,quote,job,onChanged,onNotice}:{request:StoredRequest;quote:StoredQuote;job:QueueJob|null;onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void}){
+  const [busy,setBusy]=useState(false);
+  const method=localPaymentLabels[quote.localPaymentMethod||""]||"Local payment";
+  const depositOutstanding=quoteDepositOutstandingCents(quote);
+  const finalPaid=quoteCashFinalPaid(quote);
+  async function record(phase:"deposit"|"final"){
+    const amount=phase==="deposit"?depositOutstanding:quote.balanceCents;
+    const confirmed=window.confirm(`Confirm that ${money(amount)} was actually received by ${method} for ${request.requestCode}? This creates an owner audit record and may unlock ${phase==="deposit"?"production":"pickup release"}.`);
+    if(!confirmed)return;
+    setBusy(true);
+    try{
+      const response=await fetch(`/api/owner/requests/${request.id}/manual-payment`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phase})});
+      const result=await response.json() as {message?:string};
+      if(!response.ok)throw new Error(result.message||"Could not record local payment.");
+      onNotice({kind:"success",text:result.message||"Local payment recorded."});await onChanged();
+    }catch(error){onNotice({kind:"error",text:error instanceof Error?error.message:"Could not record local payment."});}
+    finally{setBusy(false);}
+  }
+  return <section className="owner-final-invoice-panel owner-local-payment-panel">
+    <div className="owner-shipment-heading"><div><span className="eyebrow">LOCAL PAYMENT</span><h3>{method} · pickup only</h3></div><span className={finalPaid?"final-invoice-status status-paid":"final-invoice-status status-open"}>{finalPaid?"paid":"manual"}</span></div>
+    <div className="owner-shipment-facts"><span><b>Quoted subtotal</b>{money(quote.totalCents)}</span><span><b>Required deposit</b>{money(quote.depositCents)}</span><span><b>Deposit received</b>{money(quoteNetDepositPaidCents(quote))}</span><span><b>Final balance</b>{money(quote.balanceCents)}</span></div>
+    <div className="shipping-rate-review"><strong>Private payment coordination</strong><span>Use Mesh Harbor 3D email to coordinate the exact {method} instructions. Do not publish personal usernames, phone numbers, or payment handles on the public site.</span></div>
+    <div className="owner-job-actions">
+      {quote.status==="approved"&&depositOutstanding>0&&<button className="button button-small" type="button" disabled={busy} onClick={()=>void record("deposit")}>{busy?"Working…":`Confirm ${method} Deposit Received`}</button>}
+      {quote.status==="deposit-paid"&&!finalPaid&&<button className="button button-small" type="button" disabled={busy||!job||!["ready","completed"].includes(job.status)} onClick={()=>void record("final")}>{busy?"Working…":`Confirm Final ${method} Payment`}</button>}
+      {quote.status==="deposit-paid"&&!finalPaid&&<small>{job?.status==="ready"?"Confirm only after the final payment has actually been received.":"Final payment confirmation unlocks when production is Ready."}</small>}
+      {finalPaid&&<div className="final-invoice-paid-note"><strong>Final local payment confirmed</strong><span>This pickup order has satisfied its payment release check.</span></div>}
+    </div>
+  </section>;
+}
+
 function OwnerFinalInvoicePanel({request,quote,invoice,job,onChanged,onNotice}:{request:StoredRequest;quote:StoredQuote;invoice:FinalInvoiceRecord|null;job:QueueJob;onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void}){
   const [busy,setBusy]=useState(false);
   const remaining=invoice?.amountRemainingCents ?? Math.max(0,quote.totalCents-quoteNetDepositPaidCents(quote));
@@ -373,6 +406,7 @@ function SiteContentPanel({ content, onChanged, onNotice }: { content: SiteConte
           <label><span>Business name</span><input value={draft.name} maxLength={80} onChange={(event) => patch({ name: event.target.value })} /></label>
           <label><span>Tagline</span><input value={draft.tagline} maxLength={140} onChange={(event) => patch({ tagline: event.target.value })} /></label>
           <label><span>Short description</span><textarea rows={3} value={draft.description} maxLength={300} onChange={(event) => patch({ description: event.target.value })} /></label>
+          <label><span>Public customer email</span><input type="email" value={draft.contactEmail} maxLength={160} onChange={(event) => patch({ contactEmail: event.target.value })} /><small>Use a Mesh Harbor 3D address only. This address is shown publicly and used as the preferred customer contact.</small></label>
           <div className="owner-edit-grid">
             <label><span>Hero logo letters</span><input value={draft.logoLetters} maxLength={4} onChange={(event) => patch({ logoLetters: event.target.value })} /></label>
             <label><span>Etsy shop URL</span><input type="url" value={draft.etsyUrl} onChange={(event) => patch({ etsyUrl: event.target.value })} /></label>

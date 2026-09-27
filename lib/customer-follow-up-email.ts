@@ -34,8 +34,10 @@ export async function sendFollowUpEmail(input: { request: StoredRequest; record:
   }
 
   const profileUrl = `${siteOrigin()}/profile`;
+  const replyTo = (process.env.REQUEST_REPLY_TO_EMAIL || from).trim();
   const payload = {
     from,
+    reply_to: replyTo,
     to: [account.email],
     subject: input.record.subject,
     text: `${input.record.text}\n\nRequest: ${input.request.requestCode}\n\nOpen your profile: ${profileUrl}`,

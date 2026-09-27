@@ -23,6 +23,7 @@ export default async function FulfillmentPage() {
         <h2>Local pickup</h2>
         <p>Local pickup is appointment-based when scheduling is enabled. Before a pickup appointment is booked, the public site shows only the general pickup area: <strong>{site.pickup.publicArea || "Monroe, NC"}</strong>. The exact address and arrival instructions are shown privately in the customer profile after a pickup time is reserved.</p>
         <p>Orders should be marked Ready and the final balance should be paid before handoff. Customers can reschedule or cancel an appointment while the order remains eligible for pickup scheduling. Pickup availability is not a promise that production will finish earlier than the quoted or displayed ready estimate.</p>
+        <p>Local pickup can use Stripe or, when selected on the approved quote, an owner-confirmed local payment method: Cash, Zelle, Cash App, Apple Cash, Venmo, or PayPal. These local/manual options are not available for carrier shipping or local delivery. Exact payment usernames, phone numbers, or handles are not published on the website and should be exchanged only through the private Mesh Harbor 3D communication channel.</p>
 
         <h2>Local delivery</h2>
         <p>Local delivery is available only when it is included in the accepted quote. The delivery area, fee, timing, and handoff details are confirmed for the specific order. A quoted delivery fee may be revised if the destination or delivery requirements change before approval.</p>
@@ -43,7 +44,7 @@ export default async function FulfillmentPage() {
         <p>If a package arrives visibly damaged, keep the packaging and item and contact Mesh Harbor 3D promptly with photos. Lost packages, return-to-sender events, address problems, and carrier exceptions are reviewed using the tracking record and carrier process. Replacement, refund, reshipment, or claim handling depends on the circumstances and any carrier coverage applicable to the shipment.</p>
 
         <h2>Final payment before fulfillment</h2>
-        <p>The remaining balance is due before carrier shipment and before local pickup or local delivery handoff. The owner workflow prevents a customer order from being marked Completed while an applicable final-balance invoice remains unpaid.</p>
+        <p>The remaining balance is due before carrier shipment and before local pickup or local delivery handoff. Stripe orders require the Stripe final balance to be paid; approved local-payment pickup orders require the owner to confirm the final payment. The owner workflow blocks completion until the applicable balance requirement is satisfied.</p>
 
         <h2>Related terms</h2>
         <p>These fulfillment rules work together with the <Link href="/terms">Custom Order Terms</Link> and the specific terms shown in your approved quote.</p>

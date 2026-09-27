@@ -14,6 +14,7 @@ function normalizeAccount(raw: CustomerAccount): CustomerAccount {
   return {
     ...raw,
     emailVerifiedAt: raw.emailVerifiedAt || "",
+    emailTwoFactorEnabled: Boolean(raw.emailTwoFactorEnabled),
     stripeCustomerTestId: raw.stripeCustomerTestId || "",
     stripeCustomerLiveId: raw.stripeCustomerLiveId || "",
     sessionVersion: Number.isInteger(raw.sessionVersion) && raw.sessionVersion > 0 ? raw.sessionVersion : 1,
@@ -63,6 +64,7 @@ export async function createCustomerAccount(displayName: string, email: string, 
       passwordSalt: salt,
       passwordHash: await hashPassword(password, salt),
       emailVerifiedAt: "",
+      emailTwoFactorEnabled: false,
       sessionVersion: 1,
       preferences: { ...DEFAULT_PREFERENCES, ...preferences },
       stripeCustomerTestId: "",
@@ -155,6 +157,22 @@ export async function updateCustomerEmail(id: string, email: string) {
     if (accounts.some((account) => account.id !== id && account.email === normalized)) return null;
     const now = new Date().toISOString();
     accounts[index] = { ...accounts[index], email: normalized, emailVerifiedAt: now, sessionVersion: accounts[index].sessionVersion + 1, updatedAt: now };
+    await writeAccounts(accounts);
+    return accounts[index];
+  });
+}
+
+export async function setCustomerEmailTwoFactor(id: string, enabled: boolean) {
+  return mutate(async () => {
+    const accounts = await readAccounts();
+    const index = accounts.findIndex((account) => account.id === id);
+    if (index < 0) return null;
+    accounts[index] = {
+      ...accounts[index],
+      emailTwoFactorEnabled: enabled,
+      sessionVersion: accounts[index].sessionVersion + 1,
+      updatedAt: new Date().toISOString(),
+    };
     await writeAccounts(accounts);
     return accounts[index];
   });

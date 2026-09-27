@@ -5,6 +5,8 @@ import { findCustomerByEmail, verifyCustomerPassword } from "@/lib/customer-stor
 import { sameOrigin } from "@/lib/owner-api";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { claimGuestRequestsByEmail } from "@/lib/request-store";
+import { createCustomerLoginChallenge } from "@/lib/customer-2fa";
+import { sendCustomerLoginCodeEmail } from "@/lib/account-email";
 
 export const runtime = "nodejs";
 const schema = z.object({ email: z.string().trim().toLowerCase().email().max(160), password: z.string().min(1).max(128) });
@@ -24,6 +26,18 @@ export async function POST(request: NextRequest) {
   const account = await findCustomerByEmail(parsed.data.email);
   if (!account || !(await verifyCustomerPassword(account, parsed.data.password))) return NextResponse.json({ message: "Incorrect email or password." }, { status: 401 });
   attempts.delete(ip);
+  if (account.emailTwoFactorEnabled) {
+    if (!account.emailVerifiedAt) return NextResponse.json({ message: "Verify your email before using two-factor authentication." }, { status: 403 });
+    try {
+      const challenge = await createCustomerLoginChallenge(account.id);
+      await sendCustomerLoginCodeEmail({ email: account.email, displayName: account.displayName, code: challenge.code });
+      await writeAudit({actor:"customer",actorId:account.id,action:"login-2fa-challenge",targetType:"customer",targetId:account.id,summary:"Customer password accepted; email two-factor code sent.",ipHash:requestIpHash(request)});
+      return NextResponse.json({ requiresSecondFactor: true, challengeId: challenge.challengeId, message: "Check your email for the 6-digit sign-in code." });
+    } catch (error) {
+      console.error("Customer 2FA email failed", error);
+      return NextResponse.json({ message: "Your password was correct, but the two-factor email could not be sent. Try again shortly." }, { status: 502 });
+    }
+  }
   const claimed = account.emailVerifiedAt ? await claimGuestRequestsByEmail(account.id, account.email) : 0;
   await writeAudit({actor:"customer",actorId:account.id,action:"login",targetType:"customer",targetId:account.id,summary:`Customer signed in${claimed ? `; ${claimed} matching guest request(s) linked to verified account` : ""}.`,ipHash:requestIpHash(request)});
   const response = NextResponse.json({ customer: { id: account.id, email: account.email, displayName: account.displayName } });

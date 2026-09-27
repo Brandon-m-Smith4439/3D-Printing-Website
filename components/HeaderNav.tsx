@@ -131,14 +131,14 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         <Link className={`nav-tab nav-tab-compact ${active("/gallery") ? "nav-active" : ""}`} aria-current={active("/gallery") ? "page" : undefined} href="/gallery">Gallery</Link>
         <Link className={`nav-tab nav-tab-compact ${active("/queue") ? "nav-active" : ""}`} aria-current={active("/queue") ? "page" : undefined} href="/queue">Queue</Link>
         <Link className={`nav-tab nav-request-tab ${active("/custom-request") ? "nav-active" : ""}`} aria-current={active("/custom-request") ? "page" : undefined} href="/custom-request">Custom Request</Link>
-        <div className="nav-shop-links" aria-label="External shops">
-          <a className="shop-icon-image-link whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop">
+        {(site.whatnotUrl || site.etsyUrl) && <div className="nav-shop-links" aria-label="External shops">
+          {site.whatnotUrl && <a className="shop-icon-image-link whatnot" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Whatnot (opens in a new tab)" title="Whatnot shop">
             <Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized />
-          </a>
-          <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop">
+          </a>}
+          {site.etsyUrl && <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop">
             <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
-          </a>
-        </div>
+          </a>}
+        </div>}
         {desktopAccountMenu}
         {!customer && (
           <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login">
@@ -219,19 +219,19 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           </nav>
 
           <div className="mobile-drawer-lower">
-            <section className="mobile-drawer-shop">
+            {(site.whatnotUrl || site.etsyUrl) && <section className="mobile-drawer-shop">
               <span className="mobile-drawer-label">Shop</span>
               <div className="mobile-drawer-shop-grid">
-                <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
+                {site.whatnotUrl && <a href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
                   <Image src="/brand/whatnot-generated-v068.png" alt="" width={30} height={30} unoptimized />
                   <span>Whatnot</span>
-                </a>
-                <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
+                </a>}
+                {site.etsyUrl && <a href={site.etsyUrl} target="_blank" rel="noopener noreferrer" className="mobile-drawer-shop-link" onClick={closeMobileMenu}>
                   <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
                   <span>Etsy</span>
-                </a>
+                </a>}
               </div>
-            </section>
+            </section>}
 
             <Link href="/custom-request" className={`mobile-drawer-link mobile-drawer-primary ${active("/custom-request") ? "is-active" : ""}`} onClick={closeMobileMenu}>Custom Request</Link>
 

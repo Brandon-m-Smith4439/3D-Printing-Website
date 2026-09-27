@@ -9,6 +9,7 @@ type SettingsAccount = {
   email: string;
   emailVerified: boolean;
   emailVerifiedAt: string;
+  emailTwoFactorEnabled: boolean;
   preferences: { emailStatusUpdates: boolean; showQueuePosition: boolean };
   createdAt: string;
 };
@@ -65,6 +66,17 @@ export function AccountSettings() {
     finally { setBusy(false); }
   }
 
+  async function changeTwoFactor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!account) return; setBusy(true); setNotice(null); const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/account/settings/2fa", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: !account.emailTwoFactorEnabled, currentPassword: form.get("currentPassword") }) });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) throw new Error(result.message || "Could not update two-factor authentication.");
+      setNotice({ kind: "success", text: result.message || "Two-factor authentication updated." }); event.currentTarget.reset(); await load(); router.refresh();
+    } catch (error) { setNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not update two-factor authentication." }); }
+    finally { setBusy(false); }
+  }
+
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setNotice(null); const form = new FormData(event.currentTarget);
     const next = String(form.get("newPassword") || ""); const confirm = String(form.get("confirmPassword") || "");
@@ -99,6 +111,8 @@ export function AccountSettings() {
         <label><span>Current password</span><input name="currentPassword" type="password" autoComplete="current-password" disabled={!verified || busy} required /></label>
         <button className="button button-small" disabled={!verified || busy} type="submit">Verify New Email</button>
       </form><small className="settings-help">Your current email stays active until the new address is verified.</small></section>
+
+      <section className="settings-card"><p className="eyebrow">TWO-FACTOR AUTHENTICATION</p><h2>Email sign-in codes</h2><p className="settings-current">Status: <strong>{account.emailTwoFactorEnabled ? "Enabled" : "Optional / off"}</strong></p><p className="settings-help">When enabled, signing in requires your password plus a one-time 6-digit code sent to your verified Mesh Harbor 3D account email. Payment card details remain handled by Stripe.</p><form className="account-form" onSubmit={changeTwoFactor}><label><span>Current password</span><input name="currentPassword" type="password" autoComplete="current-password" disabled={!verified || busy} required /></label><button className={account.emailTwoFactorEnabled ? "button button-secondary button-small" : "button button-small"} disabled={!verified || busy} type="submit">{account.emailTwoFactorEnabled ? "Disable Email 2FA" : "Enable Email 2FA"}</button></form></section>
 
       <section className="settings-card"><p className="eyebrow">PASSWORD</p><h2>Change password</h2><form className="account-form" onSubmit={changePassword}>
         <label><span>Current password</span><input name="currentPassword" type="password" autoComplete="current-password" disabled={!verified || busy} required /></label>

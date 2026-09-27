@@ -1,7 +1,8 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { quoteNetDepositPaidCents, type QuotePaymentRecord, type StoredQuote } from "@/lib/quote-types";
-import { assertStripeNewCommerceAllowed, stripeLiveEnabled, stripeOperationalMode } from "@/lib/stripe-client";
+import { findCustomerById } from "@/lib/customer-store";
+import { assertStripeNewCommerceAllowed, stripeKeyMode, stripeLiveEnabled, stripeOperationalMode } from "@/lib/stripe-client";
 import { stripeBusinessCallsAllowed } from "@/lib/stripe-mode";
 
 export function siteOrigin() {
@@ -52,14 +53,28 @@ export async function createDepositCheckout(input: { quote: StoredQuote; email: 
 
   const params = new URLSearchParams();
   params.set("mode", "payment");
+  params.set("automatic_tax[enabled]", "true");
+  params.set("billing_address_collection", "required");
   params.set("success_url", `${origin}/profile?payment=success`);
   params.set("cancel_url", `${origin}/profile?payment=cancelled`);
   params.set("client_reference_id", input.quote.id);
-  params.set("customer_email", input.email);
+  const account = input.quote.customerAccountId ? await findCustomerById(input.quote.customerAccountId) : null;
+  const stripeCustomerId = stripeKeyMode() === "live" ? account?.stripeCustomerLiveId : account?.stripeCustomerTestId;
+  if (stripeCustomerId) {
+    params.set("customer", stripeCustomerId);
+    params.set("customer_update[address]", "auto");
+    if (input.quote.fulfillmentMode === "shipping") params.set("customer_update[shipping]", "auto");
+  } else {
+    params.set("customer_email", input.email);
+    params.set("customer_creation", "always");
+  }
+  if (input.quote.fulfillmentMode === "shipping") params.set("shipping_address_collection[allowed_countries][0]", "US");
   params.set("line_items[0][price_data][currency]", "usd");
   const priorDepositCents = quoteNetDepositPaidCents(input.quote);
   const adjustment = priorDepositCents > 0;
   params.set("line_items[0][price_data][unit_amount]", String(input.amountCents));
+  params.set("line_items[0][price_data][tax_behavior]", "exclusive");
+  params.set("line_items[0][price_data][product_data][tax_code]", "txcd_99999999");
   params.set("line_items[0][price_data][product_data][name]", adjustment
     ? `Additional deposit — revision ${input.quote.revision} — ${input.requestCode}`
     : `50% custom print deposit — ${input.requestCode}`);
@@ -166,7 +181,12 @@ export async function createStripeRefund(input: {
   const paymentIntentId = await resolveStripePaymentIntent(input.payment);
   const params = new URLSearchParams();
   params.set("payment_intent", paymentIntentId);
-  params.set("amount", String(input.amountCents));
+  const basePaid = Math.max(1, Math.round(input.payment.amountCents || 0));
+  const grossPaid = Math.max(basePaid, Math.round(input.payment.processorAmountCents || basePaid));
+  const processorRefundCents = input.amountCents >= basePaid
+    ? grossPaid
+    : Math.max(1, Math.round((input.amountCents / basePaid) * grossPaid));
+  params.set("amount", String(processorRefundCents));
   params.set("reason", "requested_by_customer");
   params.set("metadata[quote_id]", input.quoteId);
   params.set("metadata[quote_revision]", String(input.revision));
