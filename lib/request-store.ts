@@ -122,7 +122,7 @@ export async function createOwnerStoredRequest(values: {
       riskLevel: "none",
       riskFlags: [],
       source: "owner",
-      emailNotifications: false,
+      emailNotifications: Boolean(values.email?.trim()),
       isAnonymous: false,
     };
     requests.push(stored);
