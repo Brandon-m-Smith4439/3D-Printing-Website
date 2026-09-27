@@ -25,11 +25,12 @@ export type QueueJob = {
   updatedAt: string;
   completedAt: string;
   completionEmailSentAt: string;
+  isAnonymous: boolean;
 };
 
 export type PublicQueueJob = Pick<
   QueueJob,
-  "publicCode" | "publicTitle" | "quantity" | "status" | "estimatedReadyDate" | "imageUrl" | "publicNote" | "sortOrder" | "createdAt"
+  "publicCode" | "publicTitle" | "quantity" | "status" | "estimatedReadyDate" | "imageUrl" | "publicNote" | "sortOrder" | "createdAt" | "isAnonymous"
 >;
 
 const optionalDate = z.string().trim().max(10).refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "Invalid date.");
@@ -50,6 +51,7 @@ export const createQueueJobSchema = z.object({
   imageUrl: localImage.optional().default(""),
   publicNote: z.string().trim().max(180).optional().default(""),
   privateNote: z.string().trim().max(1000).optional().default(""),
+  isAnonymous: z.boolean().optional().default(false),
 });
 
 export const updateQueueJobSchema = z.object({
