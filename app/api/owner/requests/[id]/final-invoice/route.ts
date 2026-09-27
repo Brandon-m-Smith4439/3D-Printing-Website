@@ -14,6 +14,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const { id } = await context.params;
   const source = await getStoredRequest(id);
   if (!source) return NextResponse.json({ message: "Request not found." }, { status: 404 });
+  const quote = await (await import("@/lib/quote-store")).quoteForRequest(id);
+  if (quote?.paymentMethod === "cash") return NextResponse.json({ message: "This pickup order uses a local/manual payment method. Record the final payment from the order card instead of sending a Stripe invoice." }, { status: 409 });
 
   const jobs = await readQueue();
   const job = source.queueJobId ? jobs.find((item) => item.id === source.queueJobId) : null;
