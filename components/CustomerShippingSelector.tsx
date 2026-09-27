@@ -18,7 +18,7 @@ function clientErrors(address:Address):AddressErrors{
   if(!/^\d{5}(?:-\d{4})?$/.test(address.zip))errors.zip="Use a 5-digit ZIP code or ZIP+4.";
   return errors;
 }
-export function CustomerShippingSelector({quoteId,existing,customerName,onChanged,onMessage}:{quoteId:string;existing:ShippingSelection|null;customerName:string;onChanged:()=>Promise<void>;onMessage:(message:string)=>void}){
+export function CustomerShippingSelector({quoteId,existing,customerName,onChanged,onMessage,apiBase="/api/account/quotes"}:{quoteId:string;existing:ShippingSelection|null;customerName:string;onChanged:()=>Promise<void>;onMessage:(message:string)=>void;apiBase?:string}){
   const [open,setOpen]=useState(!existing);const [busy,setBusy]=useState(false);const [rates,setRates]=useState<Rate[]>([]);const [shipmentId,setShipmentId]=useState("");
   const [address,setAddress]=useState<Address>(existing?.address||{name:customerName,street1:"",street2:"",city:"",state:"",zip:"",country:"US"});
   const [fieldErrors,setFieldErrors]=useState<AddressErrors>({});
@@ -33,7 +33,7 @@ export function CustomerShippingSelector({quoteId,existing,customerName,onChange
     if(Object.keys(local).length){onMessage("Please correct the highlighted shipping address fields.");return;}
     setBusy(true);onMessage("");
     try{
-      const r=await jsonFetch(`/api/account/quotes/${quoteId}/shipping-rates`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(address)});
+      const r=await jsonFetch(`${apiBase}/${quoteId}/shipping-rates`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(address)});
       const j=await r.json() as {shipmentId?:string;rates?:Rate[];message?:string;fieldErrors?:Record<string,string[]>};
       if(j.fieldErrors){const next:AddressErrors={};for(const [field,errors] of Object.entries(j.fieldErrors)){if(errors?.[0])next[field as keyof Address]=errors[0];}setFieldErrors(next);}
       if(!r.ok||!j.shipmentId)throw new Error(j.message||"Could not calculate live rates.");
@@ -43,7 +43,7 @@ export function CustomerShippingSelector({quoteId,existing,customerName,onChange
       else onMessage(e instanceof Error?e.message:"Could not calculate live rates.");
     }finally{setBusy(false);}
   }
-  async function select(rate:Rate){setBusy(true);onMessage("");try{const r=await jsonFetch(`/api/account/quotes/${quoteId}/shipping-selection`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selection:{shipmentId,rateId:rate.id},address})});const j=await r.json() as {message?:string};if(!r.ok)throw new Error(j.message||"Could not save shipping choice.");onMessage(j.message||"Shipping selected.");setOpen(false);setRates([]);await onChanged();}catch(e){onMessage(e instanceof Error?e.message:"Could not save shipping choice.");}finally{setBusy(false);}}
+  async function select(rate:Rate){setBusy(true);onMessage("");try{const r=await jsonFetch(`${apiBase}/${quoteId}/shipping-selection`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({selection:{shipmentId,rateId:rate.id},address})});const j=await r.json() as {message?:string};if(!r.ok)throw new Error(j.message||"Could not save shipping choice.");onMessage(j.message||"Shipping selected.");setOpen(false);setRates([]);await onChanged();}catch(e){onMessage(e instanceof Error?e.message:"Could not save shipping choice.");}finally{setBusy(false);}}
   const grouped=rates.reduce<Record<string,Rate[]>>((acc,rate)=>{(acc[rate.carrier]||=[]).push(rate);return acc;},{});
   function cls(key:keyof Address,extra=""){return `${fieldErrors[key]?"shipping-address-field-invalid":""} ${extra}`.trim();}
   return <div className="customer-shipping-selector">
