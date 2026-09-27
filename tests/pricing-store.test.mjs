@@ -7,7 +7,7 @@ await rm(db,{force:true});
 
 const store=await import('../lib/pricing-store.ts');
 const settings=await store.readPricingSettings();
-assert.equal(settings.targetContributionMarginBasisPoints,0);
+assert.equal(settings.targetContributionMarginBasisPoints,2000);
 assert.equal(settings.defaultMachineHourlyCostCents,0);
 assert.equal(settings.defaultLaborHourlyCostCents,0);
 assert.equal(settings.actualMaterialCostMethod,'weighted-average');
