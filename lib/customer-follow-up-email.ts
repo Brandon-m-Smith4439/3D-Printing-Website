@@ -1,5 +1,6 @@
 import type { CustomerFollowUpRecord } from "./customer-follow-up-types.ts";
 import type { StoredRequest } from "./request-types.ts";
+import { guestAccessUrl } from "./guest-access.ts";
 
 export type FollowUpEmailResult =
   | { ok: true; emailId: string }
@@ -22,9 +23,13 @@ function siteOrigin() {
 export async function sendFollowUpEmail(input: { request: StoredRequest; record: CustomerFollowUpRecord }): Promise<FollowUpEmailResult> {
   const { findCustomerById } = await import("./customer-store.ts");
   const account = input.request.customerAccountId ? await findCustomerById(input.request.customerAccountId) : null;
-  if (!account) return { ok: false, retryable: false, reason: "Linked customer account is unavailable." };
-  if (!account.emailVerifiedAt) return { ok: false, retryable: false, reason: "Customer email is not verified." };
-  const wantsEmail = input.request.emailNotifications ?? account.preferences.emailStatusUpdates ?? false;
+  if (input.request.customerAccountId && !account) return { ok: false, retryable: false, reason: "Linked customer account is unavailable." };
+  if (account && !account.emailVerifiedAt) return { ok: false, retryable: false, reason: "Customer email is not verified." };
+  const recipient = account?.emailVerifiedAt ? account.email : input.request.email.trim().toLowerCase();
+  if (!recipient) return { ok: false, retryable: false, reason: "Customer email is unavailable." };
+  const wantsEmail = input.request.customerAccountId
+    ? (input.request.emailNotifications ?? account?.preferences.emailStatusUpdates ?? false)
+    : Boolean(input.request.emailNotifications);
   if (!wantsEmail) return { ok: false, retryable: false, reason: "Customer email updates are disabled." };
 
   const apiKey = (process.env.RESEND_API_KEY || "").trim();
@@ -33,14 +38,14 @@ export async function sendFollowUpEmail(input: { request: StoredRequest; record:
     return { ok: false, retryable: false, reason: "Customer email service is not configured." };
   }
 
-  const profileUrl = `${siteOrigin()}/profile`;
+  const requestUrl = account?.emailVerifiedAt ? `${siteOrigin()}/profile` : guestAccessUrl(input.request);
   const replyTo = (process.env.REQUEST_REPLY_TO_EMAIL || from).trim();
   const payload = {
     from,
     reply_to: replyTo,
-    to: [account.email],
+    to: [recipient],
     subject: input.record.subject,
-    text: `${input.record.text}\n\nRequest: ${input.request.requestCode}\n\nOpen your profile: ${profileUrl}`,
+    text: `${input.record.text}\n\nRequest: ${input.request.requestCode}\n\nView your request securely: ${requestUrl}`,
   };
   const body = JSON.stringify(payload);
 
