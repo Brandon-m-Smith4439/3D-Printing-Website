@@ -4,6 +4,7 @@ import type { CustomerNotification } from "./customer-types.ts";
 import type { StoredRequest } from "./request-types.ts";
 import { findCustomerById } from "./customer-store.ts";
 import { readCollection, writeCollection } from "./database.ts";
+import { getSiteContent } from "./site-content-store.ts";
 
 let mutationChain = Promise.resolve();
 
@@ -32,12 +33,14 @@ async function maybeEmail(request: StoredRequest, message: string, subject?: str
     if (process.env.NODE_ENV !== "production") console.info("Customer status notification (development):", account.email, message);
     return;
   }
+  const site = await getSiteContent();
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       from,
       to: [account.email],
+      reply_to: site.contactEmail,
       subject: subject || `${request.requestCode} status update`,
       text: `Your 3D print request has an update:\n\n${message}\n\nRequest: ${request.requestCode}`,
     }),
