@@ -21,7 +21,7 @@ export type PricingSettings = {
 };
 
 export type QuoteCostMaterialLineInput = { id:string; catalogItemId:string; grams:number };
-export type QuoteCostInput = { materialLines:QuoteCostMaterialLineInput[]; machineHours:number; designHours:number; laborHours:number; postProcessingHours:number; packagingCostCents:number; localDeliveryInternalCostCents:number; miscellaneousCostCents:number };
+export type QuoteCostInput = { materialLines:QuoteCostMaterialLineInput[]; machineHours:number; designHours:number; laborHours:number; postProcessingHours:number; packagingCostCents:number; localDeliveryInternalCostCents:number; miscellaneousCostCents:number; targetMarginBasisPoints:number };
 export type QuoteCostResolvedMaterialLine = QuoteCostMaterialLineInput & { displayName:string; costSource:"actual-average"|"bambu-msrp"|"manual-fallback"|"unpriced"; costPerGramMicros:number; extendedCostCents:number };
 export type QuoteCostSnapshot = {
   id:string; requestId:string; requestCode:string; quoteId:string; quoteRevision:number; status:"estimate"|"actual"|"finalized"; materialLines:QuoteCostResolvedMaterialLine[];
