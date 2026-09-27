@@ -1,6 +1,5 @@
 import type { CustomerFollowUpRecord } from "./customer-follow-up-types.ts";
 import type { StoredRequest } from "./request-types.ts";
-import { guestAccessUrl } from "./guest-access.ts";
 
 export type FollowUpEmailResult =
   | { ok: true; emailId: string }
@@ -36,7 +35,9 @@ export async function sendFollowUpEmail(input: { request: StoredRequest; record:
     return { ok: false, retryable: false, reason: "Customer email service is not configured." };
   }
 
-  const requestUrl = account?.emailVerifiedAt ? `${siteOrigin()}/profile` : guestAccessUrl(input.request);
+  const requestUrl = account?.emailVerifiedAt
+    ? `${siteOrigin()}/profile`
+    : (await import("./guest-access.ts")).guestAccessUrl(input.request);
   const replyTo = (process.env.REQUEST_REPLY_TO_EMAIL || from).trim();
   const payload = {
     from,
