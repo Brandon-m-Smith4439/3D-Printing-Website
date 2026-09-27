@@ -51,8 +51,9 @@ export function resolveQuoteCostSnapshot(input:{
   const shippingCost=shippingInternalCost(input.quote,input.shipment);
   const nonPaymentDirectCostCents=materialTotal+machineCost+designCost+laborCost+postProcessingCost+packagingCostCents+localDeliveryInternalCostCents+miscellaneousCostCents+shippingCost;
   const quotedRevenueCents=Math.max(0,input.quote.totalCents);
-  const metrics=contributionMetrics(quotedRevenueCents,nonPaymentDirectCostCents,input.settings);
-  const suggestedPriceCents=suggestedRevenueCents(nonPaymentDirectCostCents,input.settings);
+  const marginSettings={...input.settings,targetContributionMarginBasisPoints:Math.max(0,Math.min(9500,input.costing.targetMarginBasisPoints||2000))};
+  const metrics=contributionMetrics(quotedRevenueCents,nonPaymentDirectCostCents,marginSettings);
+  const suggestedPriceCents=suggestedRevenueCents(nonPaymentDirectCostCents,marginSettings);
   const sources=[...new Set(materialLines.map(line=>line.costSource))];
   return {
     id:input.status==="estimate"?quoteEstimateId(input.quote.id,input.quote.revision):quoteActualId(input.quote.id,input.quote.revision),
@@ -80,9 +81,9 @@ export function resolveQuoteCostSnapshot(input:{
     quotedRevenueCents,
     contributionProfitCents:metrics.contributionProfitCents,
     contributionMarginBasisPoints:metrics.contributionMarginBasisPoints,
-    targetMarginBasisPoints:input.settings.targetContributionMarginBasisPoints,
+    targetMarginBasisPoints:marginSettings.targetContributionMarginBasisPoints,
     suggestedPriceCents,
-    priceMeetsTarget:metrics.contributionMarginBasisPoints>=input.settings.targetContributionMarginBasisPoints,
+    priceMeetsTarget:metrics.contributionMarginBasisPoints>=marginSettings.targetContributionMarginBasisPoints,
     costingSourceSummary:sources.join(", ")||"unpriced",
     createdAt:input.now,
     updatedAt:input.now,
@@ -100,5 +101,6 @@ export function quoteCostInputFromSnapshot(snapshot:QuoteCostSnapshot):QuoteCost
     packagingCostCents:snapshot.packagingCostCents,
     localDeliveryInternalCostCents:snapshot.localDeliveryInternalCostCents,
     miscellaneousCostCents:snapshot.miscellaneousCostCents,
+    targetMarginBasisPoints:snapshot.targetMarginBasisPoints||2000,
   };
 }
