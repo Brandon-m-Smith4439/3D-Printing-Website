@@ -25,9 +25,9 @@ assert.match(quoteRoute,/Complete Cost & Margin before sending the quote/,"sent 
 assert.match(quoteRoute,/automaticReadyDate/,"ready date must be recomputed server-side");
 assert.match(inPerson,/source\.source!=="owner"/,"in-person quote approval must be limited to owner-created requests");
 
-for(const action of ["approve","counter","decline"]){
-  assert.match(portal,new RegExp(action==="approve"?"approve\(\)":action==="counter"?'respond\("counter"\)':'respond\("decline"\)'),"guest portal missing "+action+" action");
-}
+assert.ok(portal.includes("onClick={()=>void approve()}"),"guest portal missing approve action");
+assert.ok(portal.includes('respond("counter")'),"guest portal missing counter action");
+assert.ok(portal.includes('respond("decline")'),"guest portal missing decline action");
 assert.match(portal,/CustomerShippingSelector/,"guest portal must support shipping rates");
 assert.match(portal,/CustomerPickupScheduler/,"guest portal must support pickup scheduling");
 
