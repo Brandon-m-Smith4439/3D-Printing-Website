@@ -6,6 +6,7 @@ import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
 import { quoteForRequest, recordCashDeposit, recordCashFinalPayment } from "@/lib/quote-store";
 import { quoteDepositOutstandingCents } from "@/lib/quote-types";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import { readQueue } from "@/lib/queue-store";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 
 const schema = z.object({ phase: z.enum(["deposit", "final"]) });
@@ -56,6 +57,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return NextResponse.json({ quote: updatedQuote, message: `${label(quote.localPaymentMethod)} deposit recorded.` });
   }
 
+  const jobs = await readQueue();
+  const job = source.queueJobId ? jobs.find((item) => item.id === source.queueJobId) : null;
+  if (!job || !["ready", "completed"].includes(job.status)) {
+    return NextResponse.json({ message: "Mark production Ready before recording the final local payment." }, { status: 409 });
+  }
   const amount = quote.balanceCents;
   if (quote.status !== "deposit-paid" || quote.cashFinalPaidAt || amount <= 0) {
     return NextResponse.json({ message: "There is no final local balance waiting to be recorded." }, { status: 409 });
