@@ -11,6 +11,8 @@ export const quoteFulfillmentModes = ["pickup", "shipping", "local-delivery"] as
 export type QuoteFulfillmentMode = (typeof quoteFulfillmentModes)[number];
 export const quotePaymentMethods = ["stripe", "cash"] as const;
 export type QuotePaymentMethod = (typeof quotePaymentMethods)[number];
+export const localPaymentMethods = ["cash", "zelle", "cash-app", "apple-cash", "venmo", "paypal"] as const;
+export type LocalPaymentMethod = (typeof localPaymentMethods)[number];
 
 export type ShippingAddress = {
   name: string;
@@ -42,6 +44,7 @@ export type QuoteSnapshot = {
   rushFeeCents: number;
   fulfillmentMode: QuoteFulfillmentMode;
   paymentMethod: QuotePaymentMethod;
+  localPaymentMethod: LocalPaymentMethod | null;
   localDeliveryFeeCents: number;
   packageWeightOz: number;
   packageLengthIn: number;
@@ -157,6 +160,7 @@ export const ownerQuoteSchema = z.object({
   rushFeeCents: feeCents,
   fulfillmentMode: z.enum(quoteFulfillmentModes),
   paymentMethod: z.enum(quotePaymentMethods).default("stripe"),
+  localPaymentMethod: z.enum(localPaymentMethods).nullable().optional().default(null),
   localDeliveryFeeCents: feeCents,
   packageWeightOz: packageWeight,
   packageLengthIn: packageDimension,
@@ -176,6 +180,12 @@ export const ownerQuoteSchema = z.object({
   }
   if (value.assemblyMode !== "assembled" && value.assemblyFeeCents !== 0) {
     ctx.addIssue({ code: "custom", path: ["assemblyFeeCents"], message: "Assembly labor must be $0 when the order is not assembled by Mesh Harbor 3D." });
+  }
+  if (value.paymentMethod === "cash" && !value.localPaymentMethod) {
+    ctx.addIssue({ code: "custom", path: ["localPaymentMethod"], message: "Choose Cash, Zelle, Cash App, Apple Cash, Venmo, or PayPal." });
+  }
+  if (value.paymentMethod === "stripe" && value.localPaymentMethod !== null) {
+    ctx.addIssue({ code: "custom", path: ["localPaymentMethod"], message: "Local payment method must be empty when Stripe is selected." });
   }
   if (value.paymentMethod === "cash" && value.fulfillmentMode !== "pickup") {
     ctx.addIssue({ code: "custom", path: ["fulfillmentMode"], message: "Cash payment is available only for local pickup." });
