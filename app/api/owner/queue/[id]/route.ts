@@ -8,7 +8,7 @@ import { notifyCustomer } from "@/lib/customer-notifications";
 import { updateQueueJobSchema } from "@/lib/queue-types";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { quoteForRequest } from "@/lib/quote-store";
-import { quoteDepositSatisfied } from "@/lib/quote-types";
+import { quoteCashFinalPaid, quoteDepositSatisfied } from "@/lib/quote-types";
 import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
 import { finalInvoicePaid } from "@/lib/final-invoice-types";
 import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
@@ -74,15 +74,15 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         fulfillmentMode: quote.fulfillmentMode,
         depositSatisfied: quote.status === "deposit-paid" && quoteDepositSatisfied(quote),
         jobStatus: existing.status,
-        finalBalancePaid: finalInvoicePaid(finalInvoice),
+        finalBalancePaid: quote.paymentMethod === "cash" ? quoteCashFinalPaid(quote) : finalInvoicePaid(finalInvoice),
         shippingSelected: Boolean(quote.shippingSelection),
         trackingCode: shipment?.trackingCode || "",
         shipmentStatus: shipment?.status || "not_created",
         refundStatus: shipment?.refundStatus || "",
         pickupScheduled: Boolean(pickup),
       });
-      if (!finalInvoicePaid(finalInvoice)) {
-        return NextResponse.json({ message: "The final balance invoice must be paid before this customer request can be marked Completed." }, { status: 409 });
+      if (quote.paymentMethod === "cash" ? !quoteCashFinalPaid(quote) : !finalInvoicePaid(finalInvoice)) {
+        return NextResponse.json({ message: quote.paymentMethod === "cash" ? "Record the final local payment before this pickup order can be marked Completed." : "The final balance invoice must be paid before this customer request can be marked Completed." }, { status: 409 });
       }
       if (!release.canComplete) {
         const message = quote.fulfillmentMode === "shipping"
@@ -109,10 +109,16 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   const job = await updateQueueJob(id, parsed.data, emailSentAt);
   if (job?.sourceRequestId && parsed.data.status === "ready" && parsed.data.status !== existing.status) {
     try {
+      const sourceForInvoice = await getStoredRequest(job.sourceRequestId);
+      const quoteForInvoice = sourceForInvoice ? await quoteForRequest(sourceForInvoice.id) : null;
+      if (quoteForInvoice?.paymentMethod === "cash") {
+        invoiceMessage = "Final local pickup balance is ready to be collected and owner-confirmed.";
+      } else {
       const invoice = await ensureFinalInvoiceForRequest(job.sourceRequestId);
       invoiceMessage = invoice.status === "paid"
         ? "Final balance is already paid."
         : `Final balance invoice ${invoice.stripeInvoiceNumber || invoice.stripeInvoiceId} is ready.`;
+      }
     } catch (error) {
       invoiceWarning = error instanceof Error ? error.message : "The job is Ready, but the final balance invoice could not be created.";
     }
