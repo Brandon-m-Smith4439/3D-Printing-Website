@@ -58,6 +58,7 @@ export async function sendCompletionEmail(job: QueueJob) {
     body: JSON.stringify({
       from,
       to: [job.customerEmail],
+      reply_to: site.contactEmail,
       subject: `Your 3D print is finished — ${job.publicCode}`,
       html,
     }),
