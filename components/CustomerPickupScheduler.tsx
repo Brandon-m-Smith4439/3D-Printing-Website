@@ -34,11 +34,13 @@ export function CustomerPickupScheduler({
   emailVerified,
   onChanged,
   onMessage,
+  apiBase = "/api/account/requests",
 }: {
   requestId: string;
   emailVerified: boolean;
   onChanged: () => Promise<void>;
   onMessage: (message: string) => void;
+  apiBase?: string;
 }) {
   const [data, setData] = useState<PickupPayload | null>(null);
   const [selected, setSelected] = useState("");
@@ -46,7 +48,7 @@ export function CustomerPickupScheduler({
   const [changing, setChanging] = useState(false);
 
   const load = useCallback(async () => {
-    const response = await fetch(`/api/account/requests/${requestId}/pickup`, { cache: "no-store" });
+    const response = await fetch(`${apiBase}/${requestId}/pickup`, { cache: "no-store" });
     const result = await response.json() as PickupPayload & { message?: string };
     if (!response.ok) throw new Error(result.message || "Could not load pickup availability.");
     setData(result);
@@ -75,7 +77,7 @@ export function CustomerPickupScheduler({
     setBusy(true);
     onMessage("");
     try {
-      const response = await fetch(`/api/account/requests/${requestId}/pickup`, {
+      const response = await fetch(`${apiBase}/${requestId}/pickup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slotId: selected }),
@@ -99,7 +101,7 @@ export function CustomerPickupScheduler({
     setBusy(true);
     onMessage("");
     try {
-      const response = await fetch(`/api/account/requests/${requestId}/pickup`, { method: "DELETE" });
+      const response = await fetch(`${apiBase}/${requestId}/pickup`, { method: "DELETE" });
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message || "Could not cancel pickup.");
       onMessage(result.message || "Pickup cancelled.");
@@ -156,7 +158,7 @@ export function CustomerPickupScheduler({
         <button className="button button-small" type="button" disabled={busy || !emailVerified || !selected} onClick={() => void schedule()}>{busy ? "Saving…" : appointment ? "Confirm New Pickup Time" : "Reserve Pickup Time"}</button>
         {appointment && <button className="button button-cancel button-small" type="button" disabled={busy} onClick={() => { setChanging(false); setSelected(""); }}>Keep Current Time</button>}
       </div>}
-      <small className="pickup-private-note">Pickup appointments are private and tied to your customer account. The exact pickup address is not shown on the public Queue.</small>
+      <small className="pickup-private-note">Pickup appointments are private and tied to this secure request. The exact pickup address is not shown on the public Queue.</small>
     </>}
   </section>;
 }
