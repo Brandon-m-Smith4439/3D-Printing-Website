@@ -56,14 +56,9 @@ export function followUpRecordId(input: Pick<FollowUpCandidate, "requestId" | "t
 export function effectiveFollowUpEmailAllowed(request: StoredRequest, account: CustomerAccount | null, control?: RequestFollowUpControl) {
   if (["completed", "declined"].includes(request.status)) return { allowed: false, reason: "Request is closed." };
   if (control?.paused) return { allowed: false, reason: "Automated reminders are paused for this request." };
-  if (request.customerAccountId) {
-    if (!account) return { allowed: false, reason: "Linked customer account was not found." };
-    if (!account.emailVerifiedAt) return { allowed: false, reason: "Customer email is not verified." };
-  } else if (!request.email.trim()) {
-    return { allowed: false, reason: "Guest request has no email address." };
-  }
-  const wantsEmail = request.customerAccountId
-    ? (request.emailNotifications ?? account?.preferences?.emailStatusUpdates ?? false)
+  if (!request.email.trim() && !account?.email) return { allowed: false, reason: "Request has no email address." };
+  const wantsEmail = account?.emailVerifiedAt
+    ? (request.emailNotifications ?? account.preferences?.emailStatusUpdates ?? false)
     : Boolean(request.emailNotifications);
   if (!wantsEmail) return { allowed: false, reason: "Customer email updates are disabled." };
   return { allowed: true, reason: "" };
