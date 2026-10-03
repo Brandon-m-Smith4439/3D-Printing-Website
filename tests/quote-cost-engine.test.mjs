@@ -31,6 +31,14 @@ const incomplete=resolveQuoteCostSnapshot({quote:quote(),costing:{...costing,mat
 assert.equal(incomplete.materialLines[0].costSource,'unpriced');
 assert.equal(quoteCostingIsComplete(incomplete),false);
 
+const powered=resolveQuoteCostSnapshot({quote:quote(),costing:{...costing,printerWatts:250,electricityRatePerKwh:.1059},settings,catalog,lots,shipment:null,now:'2026-10-02T12:00:00.000Z',status:'estimate'});
+assert.equal(powered.electricityKwh,.5);
+assert.equal(powered.electricityCostCents,5);
+assert.equal(powered.nonPaymentDirectCostCents,estimate.nonPaymentDirectCostCents+5);
+assert.equal(quoteCostInputFromSnapshot(powered).electricityRatePerKwh,.1059);
+const manual=resolveQuoteCostSnapshot({quote:{...quote(),paymentMethod:'cash',fulfillmentMode:'pickup'},costing,settings,catalog,lots,shipment:null,now:'2026-10-02T12:00:00.000Z',status:'estimate'});
+assert.equal(manual.paymentFeeCents,0,'manual payments should not include a Stripe fee');
+
 const purchased={id:'ship-1',requestId:'req-1',quoteId:'quote-1',requestCode:'REQ-ONE',easyPostShipmentId:'shp-1',easyPostRateId:'rate-1',trackerId:'',carrier:'UPS',service:'Ground',customerRateCents:800,postageCostCents:650,rateDifferenceCents:-150,trackingCode:'',publicTrackingUrl:'',labelUrl:'',labelPdfUrl:'',labelPngUrl:'',status:'label_created',statusDetail:'',estimatedDeliveryDate:'',reviewReason:'',proposedShipmentId:'',proposedRateId:'',proposedRateCents:0,refundStatus:'',purchasedAt:'2026-09-25T10:00:00.000Z',deliveredAt:'',refundedAt:'',createdAt:'',updatedAt:'',lastWebhookEventId:'',trackingEvents:[]};
 const actual=resolveQuoteCostSnapshot({quote:quote(),costing,settings,catalog,lots,shipment:purchased,now:'2026-09-25T12:00:00.000Z',status:'actual'});
 assert.equal(actual.shippingInternalCostCents,650);

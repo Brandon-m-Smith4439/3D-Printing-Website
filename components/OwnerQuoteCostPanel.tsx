@@ -1,5 +1,6 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, type ReactNode, type CSSProperties } from "react";
+import { printerElectricity, processingHours, processingMinutes, X2D_PLA_WATTS, X2D_PC_WATTS } from "@/lib/printer-electricity";
 import type { BambuFilamentCatalogItem, PricingSettings, QuoteCostInput } from "@/lib/pricing-types";
 import type { ResolvedMaterialCost } from "@/lib/material-cost-resolver";
 import { contributionMetrics, materialCostCents, suggestedRevenueCents } from "@/lib/pricing-math";
@@ -11,6 +12,7 @@ function sourceLabel(source:ResolvedMaterialCost["source"]){return source==="act
 function cleanFamilyName(name:string){return name.replace(/\s+—\s+(Refill|With Spool)$/i,"").replace(/\s+-\s+(Refill|With Spool)$/i,"");}
 
 export type OwnerQuoteCostPanelProps={
+  children?:ReactNode;
   settings:PricingSettings;
   catalog:BambuFilamentCatalogItem[];
   materialCosts:Record<string,ResolvedMaterialCost>;
@@ -22,7 +24,7 @@ export type OwnerQuoteCostPanelProps={
   onUseSuggestedPrice:(suggestedTotalCents:number)=>void;
 };
 
-export function OwnerQuoteCostPanel({settings,catalog,materialCosts,value,customerTotalCents,shippingInternalCostCents,disabled,onChange,onUseSuggestedPrice}:OwnerQuoteCostPanelProps){
+export function OwnerQuoteCostPanel({settings,catalog,materialCosts,value,customerTotalCents,shippingInternalCostCents,disabled,onChange,onUseSuggestedPrice,children}:OwnerQuoteCostPanelProps){
   const families=useMemo(()=>{
     const map=new Map<string,BambuFilamentCatalogItem[]>();
     for(const item of catalog.filter(item=>item.active)){const rows=map.get(item.familyKey)||[];rows.push(item);map.set(item.familyKey,rows);}
@@ -41,7 +43,7 @@ export function OwnerQuoteCostPanel({settings,catalog,materialCosts,value,custom
     const preprocessing=Math.round(next.designHours*settings.defaultDesignHourlyCostCents);
     const legacyLabor=Math.round(next.laborHours*settings.defaultLaborHourlyCostCents);
     const post=Math.round(next.postProcessingHours*settings.defaultPostProcessingHourlyCostCents);
-    return materialTotal+machine+preprocessing+legacyLabor+post+next.packagingCostCents+next.localDeliveryInternalCostCents+next.miscellaneousCostCents+shippingInternalCostCents;
+    return materialTotal+machine+printerElectricity(next).costCents+preprocessing+legacyLabor+post+next.packagingCostCents+next.localDeliveryInternalCostCents+next.miscellaneousCostCents+shippingInternalCostCents;
   }
   function suggestedFor(next:QuoteCostInput){
     const target=next.targetMarginBasisPoints??settings.targetContributionMarginBasisPoints??2000;
@@ -69,22 +71,24 @@ export function OwnerQuoteCostPanel({settings,catalog,materialCosts,value,custom
     const preprocessingCost=Math.round(value.designHours*settings.defaultDesignHourlyCostCents);
     const legacyLaborCost=Math.round(value.laborHours*settings.defaultLaborHourlyCostCents);
     const postProcessingCost=Math.round(value.postProcessingHours*settings.defaultPostProcessingHourlyCostCents);
-    const nonPayment=materialTotal+machineCost+preprocessingCost+legacyLaborCost+postProcessingCost+value.packagingCostCents+value.localDeliveryInternalCostCents+value.miscellaneousCostCents+shippingInternalCostCents;
+    const electricity=printerElectricity(value);
+    const nonPayment=materialTotal+electricity.costCents+machineCost+preprocessingCost+legacyLaborCost+postProcessingCost+value.packagingCostCents+value.localDeliveryInternalCostCents+value.miscellaneousCostCents+shippingInternalCostCents;
     const target=value.targetMarginBasisPoints??settings.targetContributionMarginBasisPoints??2000;
     const marginSettings={...settings,targetContributionMarginBasisPoints:target};
     const metrics=contributionMetrics(customerTotalCents,nonPayment,marginSettings);
     let suggested=0;let suggestionError="";try{suggested=suggestedRevenueCents(nonPayment,marginSettings);}catch(error){suggestionError=error instanceof Error?error.message:"Pricing target is invalid.";}
     const unpriced=materials.some(row=>row.line.grams>0&&(!row.cost||row.cost.source==="unpriced"));
-    return{materials,materialTotal,machineCost,preprocessingCost,legacyLaborCost,postProcessingCost,nonPayment,metrics,suggested,suggestionError,unpriced,target};
+    return{electricity,materials,materialTotal,machineCost,preprocessingCost,legacyLaborCost,postProcessingCost,nonPayment,metrics,suggested,suggestionError,unpriced,target};
   },[value,catalog,materialCosts,settings,customerTotalCents,shippingInternalCostCents]);
+
 
   const grouped=Array.from(new Set(families.map(item=>item.materialClass)));
   return <section className="quote-cost-panel quote-cost-panel-primary">
     <div className="quote-cost-heading"><div><span>QUOTE BUILDER · COST &amp; MARGIN</span><strong>Build the quote from actual production inputs.</strong><p>Material, print time, prep, finishing, machine/electricity cost, and payment fees feed the target selling price automatically.</p></div><em>Owner only</em></div>
 
     <div className="quote-margin-control">
-      <div><span>Target contribution margin</span><strong>{(calc.target/100).toFixed(0)}%</strong><small>Base target is 20%. Moving the slider immediately updates the suggested quote price.</small></div>
-      <input aria-label="Target contribution margin" type="range" min="5" max="70" step="1" disabled={disabled} value={Math.round(calc.target/100)} onChange={e=>patch({targetMarginBasisPoints:Number(e.target.value)*100})}/>
+      <div><span>Target contribution margin</span><strong>{(calc.target/100).toFixed(0)}%</strong><small>Moving the slider updates the quote price automatically. Margin is the share of revenue left after direct costs.</small></div>
+      <input style={{"--range-fill":`${Math.max(0,Math.min(100,(calc.target/100-5)/65*100))}%`} as CSSProperties} aria-label="Target contribution margin" type="range" min="5" max="70" step="1" disabled={disabled} value={Math.round(calc.target/100)} onChange={e=>patch({targetMarginBasisPoints:Number(e.target.value)*100})}/>
     </div>
 
     <div className="quote-cost-materials">
@@ -102,17 +106,24 @@ export function OwnerQuoteCostPanel({settings,catalog,materialCosts,value,custom
     </div>
 
     <div className="quote-production-inputs">
-      <label><span>Print time / machine hours</span><input type="number" min="0" step="0.1" disabled={disabled} value={value.machineHours||""} onChange={e=>patch({machineHours:number(e.target.value)})}/><small>Includes the configured printer + electricity cost per machine hour.</small></label>
-      <label><span>Pre-processing hours</span><input type="number" min="0" step="0.1" disabled={disabled} value={value.designHours||""} onChange={e=>patch({designHours:number(e.target.value)})}/><small>Designing, model repair, painting in the slicer, slicing, setup, and preparation.</small></label>
-      <label><span>Post-processing hours</span><input type="number" min="0" step="0.1" disabled={disabled} value={value.postProcessingHours||""} onChange={e=>patch({postProcessingHours:number(e.target.value)})}/><small>Support removal, cleanup, assembly, finishing, and final preparation.</small></label>
+      <label><span>Print time (hours)</span><input type="number" min="0" step="0.1" disabled={disabled} placeholder="Hours" value={value.machineHours||""} onChange={e=>patch({machineHours:number(e.target.value)})}/><small>Enter the full slicer duration in hours. Example: 2.5 = 2 hours 30 minutes.</small></label>
+      <label><span>Pre-processing (minutes)</span><input type="number" min="0" step="1" disabled={disabled} placeholder="Minutes" value={processingMinutes(value.designHours)||""} onChange={e=>patch({designHours:processingHours(number(e.target.value))})}/><small>Designing, model repair, painting in the slicer, slicing, setup, and preparation.</small></label>
+      <label><span>Post-processing (minutes)</span><input type="number" min="0" step="1" disabled={disabled} placeholder="Minutes" value={processingMinutes(value.postProcessingHours)||""} onChange={e=>patch({postProcessingHours:processingHours(number(e.target.value))})}/><small>Support removal, cleanup, finishing, and assembly when requested. For disassembled shipping, enter only the finishing and packing work you will perform.</small></label>
     </div>
 
+    <div className="quote-electricity-panel"><div><strong>X2D electricity estimate</strong><small>Separate from printer wear / overhead. Adjust the rate to match your utility bill.</small></div><div className="quote-production-inputs">
+      <label><span>Average printing power (watts)</span><input type="number" min="0" max="1600" step="1" disabled={disabled} value={value.printerWatts??0} onChange={e=>patch({printerWatts:number(e.target.value)})}/><small>Bambu reference: PLA 250 W · PC 550 W at 25°C.</small></label>
+      <label><span>Electricity rate ($ / kWh)</span><input type="number" min="0" max="10" step="0.0001" disabled={disabled} value={value.electricityRatePerKwh??0} onChange={e=>patch({electricityRatePerKwh:number(e.target.value)})}/><small>Monroe base estimate; excludes tax, riders and fixed household charges.</small></label>
+      <div className="quote-energy-result"><span>{calc.electricity.kwh.toFixed(3)} kWh estimated</span><strong>{money(calc.electricity.costCents)}</strong><small>Print hours × watts ÷ 1,000 × $/kWh</small></div></div>
+      <div className="quote-energy-presets"><button type="button" className="text-button" disabled={disabled} onClick={()=>patch({printerWatts:X2D_PLA_WATTS})}>PLA · 250 W</button><button type="button" className="text-button" disabled={disabled} onClick={()=>patch({printerWatts:X2D_PC_WATTS})}>PC · 550 W</button><a href="https://wiki.bambulab.com/en/x2d/manual/x2d-faq" target="_blank" rel="noreferrer">Bambu power reference ↗</a><a href="https://www.monroenc.org/DocumentCenter/View/2619/City-of-Monroe---Fee-Schedule---Chapter-VI---Electric-PDF" target="_blank" rel="noreferrer">Monroe rates ↗</a></div>
+      <small>Material, temperatures, warm-up, AMS drying and room conditions change consumption. Use measured average watts for the closest estimate. Review any older bundled printer/electricity rate in Pricing Settings to avoid counting electricity twice.</small></div>
     <details className="quote-cost-advanced"><summary>Additional internal costs</summary><div className="quote-cost-input-grid"><label><span>Packaging ($)</span><input inputMode="decimal" disabled={disabled} value={dollars(value.packagingCostCents)} onChange={e=>patch({packagingCostCents:Math.round(number(e.target.value)*100)})}/></label><label><span>Internal delivery cost ($)</span><input inputMode="decimal" disabled={disabled} value={dollars(value.localDeliveryInternalCostCents)} onChange={e=>patch({localDeliveryInternalCostCents:Math.round(number(e.target.value)*100)})}/></label><label><span>Miscellaneous cost ($)</span><input inputMode="decimal" disabled={disabled} value={dollars(value.miscellaneousCostCents)} onChange={e=>patch({miscellaneousCostCents:Math.round(number(e.target.value)*100)})}/></label>{value.laborHours>0&&<label><span>Legacy labor hours</span><input type="number" min="0" step="0.1" disabled={disabled} value={value.laborHours} onChange={e=>patch({laborHours:number(e.target.value)})}/></label>}</div></details>
 
     {calc.unpriced&&<div className="quote-cost-warning">One or more selected filaments have no cost basis. Margin is incomplete until an invoice, Bambu MSRP, or manual fallback cost is available.</div>}
     <div className="quote-cost-summary quote-cost-summary-primary">
       <div><span>Material</span><strong>{money(calc.materialTotal)}</strong></div>
-      <div><span>Printer + electricity</span><strong>{money(calc.machineCost)}</strong></div>
+      <div><span>Printer wear / overhead</span><strong>{money(calc.machineCost)}</strong></div>
+      <div><span>Electricity</span><strong>{money(calc.electricity.costCents)}</strong></div>
       <div><span>Pre-processing</span><strong>{money(calc.preprocessingCost)}</strong></div>
       <div><span>Post-processing</span><strong>{money(calc.postProcessingCost)}</strong></div>
       <div><span>Direct cost before payment fee</span><strong>{money(calc.nonPayment)}</strong></div>
@@ -122,6 +133,6 @@ export function OwnerQuoteCostPanel({settings,catalog,materialCosts,value,custom
       <div><span>Current contribution margin</span><strong>{calc.unpriced?"Incomplete":`${(calc.metrics.contributionMarginBasisPoints/100).toFixed(1)}%`}</strong></div>
     </div>
     {calc.suggestionError&&<div className="quote-cost-warning">{calc.suggestionError}</div>}
-    {!calc.unpriced&&!calc.suggestionError&&<button className="button button-small quote-apply-price" type="button" disabled={disabled} onClick={()=>onUseSuggestedPrice(calc.suggested)}>Apply {money(calc.suggested)} Target Price</button>}
+    {children}
   </section>;
 }

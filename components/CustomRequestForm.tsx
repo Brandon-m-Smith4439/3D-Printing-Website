@@ -206,6 +206,7 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
       projectType: data.get("projectType"),
       modelStatus: data.get("modelStatus"),
       fulfillmentMethod: data.get("fulfillmentMethod"),
+      paymentPreference: data.get("paymentPreference"),
       assemblyPreference: data.get("assemblyPreference"),
       quantity: Number(data.get("quantity") || 1),
       dimensions: data.get("dimensions") || "",
@@ -314,6 +315,11 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
         syncSummary(event.currentTarget);
       }}
       onChange={(event) => {
+        const target=event.target;
+        if(target instanceof HTMLSelectElement&&target.name==="fulfillmentMethod"&&target.value!=="pickup"){
+          const payment=event.currentTarget.elements.namedItem("paymentPreference");
+          if(payment instanceof HTMLSelectElement)payment.value="stripe";
+        }
         refreshField(event.target);
         syncSummary(event.currentTarget);
       }}
@@ -363,15 +369,16 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
                 </select>
                 {fieldErrors.fulfillmentMethod && <small className="field-error">{fieldErrors.fulfillmentMethod}</small>}
               </label>
+              <label className={fieldClass("paymentPreference")}><span>Preferred payment *</span><select name="paymentPreference" defaultValue={initialPrefill?.paymentPreference||"stripe"} required aria-invalid={Boolean(fieldErrors.paymentPreference)}><option value="stripe">Card — secure Stripe checkout</option>{summary.fulfillmentMethod==="pickup"&&<><option value="cash">Cash</option><option value="zelle">Zelle</option><option value="cash-app">Cash App</option><option value="apple-cash">Apple Cash</option><option value="venmo">Venmo</option><option value="paypal">PayPal</option></>}</select><small>Local / manual payments are available for pickup only. No payment is collected with this request.</small>{fieldErrors.paymentPreference&&<small className="field-error">{fieldErrors.paymentPreference}</small>}</label>
               <label className={fieldClass("assemblyPreference")}>
                 <span>How would you like multi-part prints delivered? *</span>
                 <select name="assemblyPreference" defaultValue={initialPrefill?.assemblyPreference || ""} required aria-invalid={Boolean(fieldErrors.assemblyPreference)}>
                   <option value="" disabled>Select one</option>
                   <option value="assembled">Assembled for me</option>
                   <option value="disassembled">Disassembled — I will assemble it</option>
-                  <option value="unsure">Not sure yet</option>
+
                 </select>
-                <small>Disassembled orders include an assembly guide. Final assembly may require super glue. Assembled orders may include an assembly labor charge in the quote.</small>
+                <small>Disassembled orders include an assembly guide. Final assembly may require super glue. Disassembled shipping can reduce assembly labor and package size. Assembly labor is included in post-processing when needed.</small>
                 {fieldErrors.assemblyPreference && <small className="field-error">{fieldErrors.assemblyPreference}</small>}
               </label>
             </div>

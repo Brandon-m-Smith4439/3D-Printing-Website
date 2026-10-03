@@ -60,6 +60,7 @@ const ownerRequestSchema = z.object({
   projectType: z.enum(["display","functional","replacement","prototype","other"]).optional().default("other"),
   modelStatus: z.enum(["ready","needs-adjustment","reference-only","idea-only"]).optional().default("idea-only"),
   fulfillmentMethod: z.enum(["pickup","shipping","local-delivery","unsure"]).optional().default("unsure"),
+  paymentPreference: z.enum(["stripe","cash","zelle","cash-app","apple-cash","venmo","paypal"]).optional().default("stripe"),
   assemblyPreference: z.enum(["assembled","disassembled","unsure"]).optional().default("unsure"),
   quantity: z.coerce.number().int().min(1).max(500).optional().default(1),
   dimensions: z.string().trim().max(120).optional().default(""),
@@ -69,7 +70,7 @@ const ownerRequestSchema = z.object({
   neededBy: z.string().trim().max(24).optional().default(""),
   description: z.string().trim().max(2500).optional().default(""),
   internalNote: z.string().trim().max(2000).optional().default(""),
-});
+}).superRefine((value,ctx)=>{if(value.paymentPreference!=="stripe"&&value.fulfillmentMethod!=="pickup")ctx.addIssue({code:"custom",path:["paymentPreference"],message:"Local / manual payment is pickup-only."});});
 
 export async function POST(request: NextRequest) {
   if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });

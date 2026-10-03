@@ -10,7 +10,7 @@ import type {
 type Notice = { kind: "success" | "error" | "warning"; text: string } | null;
 
 function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 function percent(basisPoints: number) {
@@ -118,6 +118,9 @@ export function OwnerOperationsCenter({
   ];
 
   const health = [
+    ...(snapshot.integrations.email?[{key:"email",title:"Customer email",...snapshot.integrations.email}]:[]),
+    ...(snapshot.integrations.uploads?[{key:"uploads",title:"Upload scanner",...snapshot.integrations.uploads}]:[]),
+    ...(snapshot.integrations.botProtection?[{key:"bot",title:"Bot protection",...snapshot.integrations.botProtection}]:[]),
     { key: "stripe", title: "Stripe", ...snapshot.integrations.stripe },
     { key: "easyPost", title: "EasyPost", ...snapshot.integrations.easyPost },
     { key: "backups", title: "Backups", ...snapshot.integrations.backups },
@@ -128,14 +131,16 @@ export function OwnerOperationsCenter({
     <section className="operations-hero">
       <div>
         <p className="eyebrow">OPERATIONS CENTER</p>
-        <h2>Everything that needs your attention.</h2>
-        <p>Start here each day. Mesh Harbor is watching requests, quotes, deposits, production, final balances, shipping, backups, and integration health for you.</p>
+        <h2>Daily overview</h2>
+        <p>Quotes, production, payments, and service health in one place.</p>
       </div>
       <div className="operations-hero-actions">
         <span>Updated {new Date(snapshot.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
         <button className="button button-secondary button-small" type="button" onClick={() => void load()} disabled={loading}>{loading ? "Refreshing…" : "Refresh Dashboard"}</button>
       </div>
     </section>
+
+    <section className="owner-panel operations-financials"><div className="operations-section-heading"><div><p className="eyebrow">PROFIT VS COST</p><h3>Your business at a glance</h3></div><button className="button button-secondary button-small" type="button" onClick={onOpenPricing}>Pricing details →</button></div><div className="operations-financial-grid">{([{label:"Active quotes · expected",value:snapshot.profitability.active},{label:"Completed · last 30 days",value:snapshot.profitability.completed}]).map(group=><article key={group.label}><strong>{group.label}</strong><div><span>Revenue<b>{money(group.value.revenueCents)}</b></span><span>Direct costs<b>{money(group.value.directCostCents)}</b></span><span className={group.value.contributionProfitCents<0?"is-negative":"profit-value"}>Contribution profit<b>{money(group.value.contributionProfitCents)}</b></span></div><small>{percent(group.value.contributionMarginBasisPoints)} margin · {group.value.uncostedCount} missing complete costing</small><div className="operations-cost-bar" aria-label="Direct cost share of revenue"><i style={{width:`${group.value.revenueCents?Math.max(0,Math.min(100,group.value.directCostCents/group.value.revenueCents*100)):0}%`}}/></div></article>)}</div><p>Active figures are estimates. Completed figures require actual cost closeout. Contribution excludes taxes and business expenses outside the entered direct costs.</p></section>
 
     <section className="operations-kpi-grid" aria-label="Business summary">
       {kpis.map((item) => <article className={`operations-kpi-card tone-${item.tone}`} key={item.key}>
@@ -145,7 +150,7 @@ export function OwnerOperationsCenter({
       </article>)}
     </section>
 
-    {snapshot.launchReadiness&&<section className="owner-panel launch-readiness-panel">
+    {snapshot.launchReadiness&&<details className="owner-panel launch-readiness-panel"><summary>Launch checklist · {snapshot.launchReadiness.blockedCount} blocked · {snapshot.launchReadiness.attentionCount} need attention</summary>
       <div className="launch-readiness-heading">
         <div><p className="eyebrow">LAUNCH READINESS</p><h3>{snapshot.launchReadiness.operatingMode==="live-ready"?"Production commerce checks are green.":"Guarded launch checklist"}</h3><p>{snapshot.launchReadiness.operatingMode==="live-ready"?"The configured payment and shipping integrations report production readiness.":"The website can continue operating in its current guarded/test posture while remaining live-commerce items are resolved deliberately."}</p></div>
         <div className={`launch-readiness-score mode-${snapshot.launchReadiness.operatingMode}`}><strong>{snapshot.launchReadiness.readyCount}/{snapshot.launchReadiness.items.length}</strong><span>checks ready</span><small>{snapshot.launchReadiness.blockedCount} blocked · {snapshot.launchReadiness.attentionCount} attention</small></div>
@@ -157,7 +162,7 @@ export function OwnerOperationsCenter({
         </article>)}
       </div>
       <div className="launch-readiness-footer"><strong>{snapshot.launchReadiness.liveCommerceReady?"Live-commerce readiness reported":"Live-commerce activation remains intentionally guarded"}</strong><span>No launch checklist item changes Stripe or EasyPost live mode by itself.</span></div>
-    </section>}
+    </details>}
 
     <section className="operations-search owner-panel">
       <div className="operations-section-heading">
@@ -221,18 +226,6 @@ export function OwnerOperationsCenter({
             <small>{item.detail}</small>
           </article>)}
         </div>
-        <article className="operations-profitability-card">
-          <div className="operations-profitability-heading">
-            <div><span>PRICING & PROFITABILITY</span><strong>Contribution performance</strong></div>
-            <button className="button button-secondary button-small" type="button" onClick={onOpenPricing}>Open Pricing →</button>
-          </div>
-          <div className="operations-profitability-grid">
-            <div><span>Expected profit</span><strong>{money(snapshot.profitability.active.contributionProfitCents)}</strong><small>{percent(snapshot.profitability.active.contributionMarginBasisPoints)} margin</small></div>
-            <div><span>Completed profit</span><strong>{money(snapshot.profitability.completed.contributionProfitCents)}</strong><small>Last 30 days</small></div>
-            <div><span>Below target</span><strong>{snapshot.profitability.active.belowTargetCount}</strong><small>Active quotes</small></div>
-            <div><span>Not costed</span><strong>{snapshot.profitability.active.uncostedCount + snapshot.profitability.completed.uncostedCount}</strong><small>Active + completed</small></div>
-          </div>
-        </article>
         <article className="operations-followup-card">
           <div className="operations-followup-heading"><div><span>CUSTOMER FOLLOW-UPS</span><strong>{snapshot.followUps.ownerEnabled ? "Automation enabled" : "Automation paused"}</strong></div><em className={snapshot.followUps.deploymentEnabled ? "is-on" : "is-off"}>{snapshot.followUps.deploymentEnabled ? "Deployment gate on" : "Deployment gate off"}</em></div>
           <p>{snapshot.followUps.due} due now • {snapshot.followUps.sentLast7Days} sent in 7 days • {snapshot.followUps.failed} failed</p>

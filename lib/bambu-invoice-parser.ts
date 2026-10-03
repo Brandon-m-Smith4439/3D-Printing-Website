@@ -5,7 +5,8 @@ function cents(value:string|undefined){if(!value)return 0;const n=Number(value.r
 function normalize(value:string){return value.toLowerCase().replace(/[—–-]/g,' ').replace(/[^a-z0-9+]+/g,' ').trim().replace(/\s+/g,' ');}
 function isoDate(raw:string){
   const text=raw.trim();
-  const parsed=new Date(text);
+  // Invoice dates are calendar dates, independent of the server timezone.
+  const parsed=new Date(/^\d{4}-\d{2}-\d{2}$/.test(text)?`${text}T00:00:00Z`:`${text} UTC`);
   if(!Number.isFinite(parsed.getTime()))return '';
   const y=parsed.getUTCFullYear();const m=String(parsed.getUTCMonth()+1).padStart(2,'0');const d=String(parsed.getUTCDate()).padStart(2,'0');
   return `${y}-${m}-${d}`;

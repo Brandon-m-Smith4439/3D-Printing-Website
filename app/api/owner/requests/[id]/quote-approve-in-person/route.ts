@@ -14,6 +14,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;const source=await getStoredRequest(id);if(!source)return NextResponse.json({message:"Request not found."},{status:404});
   if(source.source!=="owner")return NextResponse.json({message:"In-person owner approval is only available for requests created by the owner."},{status:409});
+  if(source.fulfillmentMethod==="unsure"||!source.assemblyPreference||source.assemblyPreference==="unsure")return NextResponse.json({message:"Confirm the customer fulfillment and assembly choices on the request before recording approval."},{status:409});
   let quote=await quoteForRequest(source.id);if(!quote)return NextResponse.json({message:"Save the quote before recording in-person approval."},{status:409});
   quote=await approveQuoteInPerson(quote.id,source.id,CUSTOMER_POLICY_VERSION);if(!quote)return NextResponse.json({message:"This quote is not ready for in-person approval."},{status:409});
 

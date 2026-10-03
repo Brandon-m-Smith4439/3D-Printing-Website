@@ -21,6 +21,7 @@ export const customRequestSchema = z.object({
   projectType: z.enum(["display", "functional", "replacement", "prototype", "other"]),
   modelStatus: z.enum(["ready", "needs-adjustment", "reference-only", "idea-only"]),
   fulfillmentMethod: z.enum(["pickup", "shipping", "local-delivery", "unsure"]),
+  paymentPreference: z.enum(["stripe", "cash", "zelle", "cash-app", "apple-cash", "venmo", "paypal"]).optional().default("stripe"),
   assemblyPreference: z.enum(["assembled", "disassembled", "unsure"]),
   quantity: z.coerce.number().int().min(1).max(500),
   dimensions: z.string().trim().max(120).optional().default(""),
@@ -38,6 +39,8 @@ export const customRequestSchema = z.object({
   turnstileToken: z.string().trim().max(2048).optional().default(""),
   emailNotifications: z.boolean().optional().default(false),
   isAnonymous: z.boolean().optional().default(false),
+}).superRefine((value, ctx) => {
+  if(value.paymentPreference!=="stripe"&&value.fulfillmentMethod!=="pickup")ctx.addIssue({code:"custom",path:["paymentPreference"],message:"Local / manual payment is available only for local pickup."});
 });
 
 export type CustomRequest = z.infer<typeof customRequestSchema>;
