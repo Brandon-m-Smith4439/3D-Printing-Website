@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+const temp=await mkdtemp(path.join(os.tmpdir(),'mh-email-reliability-'));
+process.env.DATABASE_PATH=path.join(temp,'test.sqlite');
+process.env.RESEND_API_KEY='test-only-key';
+process.env.REQUEST_FROM_EMAIL='Mesh Harbor 3D <notifications@example.test>';
+process.env.NEXT_PUBLIC_SITE_URL='https://example.test';
+const {writeCollection}=await import('../lib/database.ts');
+const {notifyCustomer}=await import('../lib/customer-notifications.ts');
+await writeCollection('customers',[{id:'customer-test',email:'recipient@example.test',emailVerifiedAt:'2026-10-01T00:00:00Z',preferences:{emailStatusUpdates:true}}]);
+const request={id:'request-test',requestCode:'REQ-TEST',customerAccountId:'customer-test',email:'recipient@example.test'};
+const originalFetch=globalThis.fetch;
+try{
+ let attempts=0;const calls=[];
+ globalThis.fetch=async(url,options)=>{calls.push(options);if(++attempts===1)throw new TypeError('Transient transport failure');return new Response('{}',{status:200});};
+ const result=await notifyCustomer(request,'Quote ready',{forceEmail:true,notificationId:'quote-test-r1',emailIdempotencyKey:'send-operation-test'});
+ assert.equal(result.emailStatus,'sent');
+ assert.equal(attempts,2);
+ assert.equal(calls[0].headers['Idempotency-Key'],calls[1].headers['Idempotency-Key']);
+ assert.equal(calls[0].body,calls[1].body);
+ let defaultKey='';globalThis.fetch=async(url,options)=>{defaultKey=options.headers['Idempotency-Key'];return new Response('{}',{status:200});};
+ await notifyCustomer(request,'Ordinary status update',{forceEmail:true});
+ assert.ok(defaultKey,'Ordinary retries need a per-send idempotency key');
+ globalThis.fetch=async()=>new Response('{}',{status:400});
+ assert.equal((await notifyCustomer(request,'Quote ready',{forceEmail:true})).emailStatus,'failed');
+ delete process.env.RESEND_API_KEY;
+ assert.equal((await notifyCustomer(request,'Quote ready',{forceEmail:true})).emailStatus,'unconfigured');
+ console.log('Notification transport retry, stable payload, and failure reporting checks passed.');
+}finally{globalThis.fetch=originalFetch;await rm(temp,{recursive:true,force:true});}

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ownerQuoteSchema, quoteDepositOutstandingCents, quoteDepositRefundDueCents, quoteNetDepositPaidCents } from "@/lib/quote-types";
 import { quoteForRequest, upsertQuote } from "@/lib/quote-store";
@@ -14,6 +15,8 @@ import { ensureBambuCatalogSeeded, readBambuCatalog, readPricingSettings } from 
 import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { readShipments } from "@/lib/shipment-store";
 import { resolveQuoteCostSnapshot } from "@/lib/quote-cost-engine";
+import { businessToday, normalizeBusinessDate } from "@/lib/business-date";
+import { resolveMaterialCost } from "@/lib/material-cost-resolver";
 import { automaticReadyDate } from "@/lib/quote-ready-date";
 import { saveCostSnapshot } from "@/lib/quote-cost-store";
 
@@ -35,7 +38,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   }
 
   const parsed=ownerQuoteSchema.safeParse(body);
-  if(!parsed.success)return NextResponse.json({message:"Please check the quote fields.",fieldErrors:parsed.error.flatten().fieldErrors},{status:400});
+  if(!parsed.success)return NextResponse.json({message:Object.values(parsed.error.flatten().fieldErrors).flat()[0]||"Please check the quote fields.",fieldErrors:parsed.error.flatten().fieldErrors},{status:400});
   const root=body&&typeof body==="object"&&!Array.isArray(body)?body as Record<string,unknown>:{};
   let costing=null;
   if(Object.prototype.hasOwnProperty.call(root,"costing")){
@@ -44,19 +47,31 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   if(parsed.data.action==="send"&&!costing)return NextResponse.json({message:"Complete Cost & Margin before sending the quote."},{status:400});
   const pricingSettingsForValidation=costing?await readPricingSettings():null;
   if(costing&&pricingSettingsForValidation){
-    if(costing.machineHours>0&&pricingSettingsForValidation.defaultMachineHourlyCostCents<=0)return NextResponse.json({message:"Configure Printer + electricity / machine hour under Pricing Settings before sending a costed quote."},{status:409});
+    if(costing.machineHours>0&&pricingSettingsForValidation.defaultMachineHourlyCostCents<=0)return NextResponse.json({message:"Configure printer wear / overhead per hour under Pricing Settings before sending a costed quote."},{status:409});
     if(costing.designHours>0&&pricingSettingsForValidation.defaultDesignHourlyCostCents<=0)return NextResponse.json({message:"Configure the pre-processing labor rate under Pricing Settings before sending a costed quote."},{status:409});
     if(costing.postProcessingHours>0&&pricingSettingsForValidation.defaultPostProcessingHourlyCostCents<=0)return NextResponse.json({message:"Configure the post-processing labor rate under Pricing Settings before sending a costed quote."},{status:409});
   }
+  if(costing&&parsed.data.action==="send"){
+    await ensureBambuCatalogSeeded();
+    const [catalog,lots]=await Promise.all([readBambuCatalog(),readFilamentPurchaseLots()]);
+    if(costing.materialLines.some(line=>{const item=catalog.find(item=>item.id===line.catalogItemId);return line.grams>0&&(!item||resolveMaterialCost(item,lots).source==="unpriced");}))return NextResponse.json({message:"Every selected filament needs a valid cost basis before the quote can be sent."},{status:409});
+  }
+  if(parsed.data.action==="send"&&(source.fulfillmentMethod==="unsure"||(!source.assemblyPreference||source.assemblyPreference==="unsure")))return NextResponse.json({message:"Confirm the customer fulfillment and assembly choices on the request before sending a quote."},{status:409});
   if(source.queueJobId||source.status==="completed")return NextResponse.json({message:"This request is already in production or completed. Remove it from production before revising its quote."},{status:409});
-  if(source.source!=="owner"&&source.fulfillmentMethod!=="unsure"&&parsed.data.fulfillmentMode!==source.fulfillmentMethod){
+  if(source.fulfillmentMethod!=="unsure"&&parsed.data.fulfillmentMode!==source.fulfillmentMethod){
     return NextResponse.json({message:"Customer-submitted fulfillment cannot be changed by the owner. Ask the customer to submit or confirm a different fulfillment choice before quoting."},{status:409});
+  }
+  if(source.assemblyPreference&&source.assemblyPreference!=="unsure"&&parsed.data.assemblyMode!==source.assemblyPreference)return NextResponse.json({message:"Assembly must match the customer request."},{status:409});
+  if(source.paymentPreference){
+    const method=source.paymentPreference==="stripe"?"stripe":"cash";
+    if(parsed.data.paymentMethod!==method||(method==="cash"&&parsed.data.localPaymentMethod!==source.paymentPreference))return NextResponse.json({message:"Payment must match the customer's request preference."},{status:409});
   }
   if(parsed.data.action==="send"&&!source.customerAccountId&&!source.email.trim())return NextResponse.json({message:"Add a customer email before sending this quote, or save it and use Customer Approved In Person for an owner-created request."},{status:409});
 
   const jobs=await readQueue();
   const scheduleBoundary=queueScheduleBoundary(jobs,source.id);
-  const effectiveReadyDate=costing?automaticReadyDate(costing.machineHours,scheduleBoundary.latestDate):parsed.data.estimatedReadyDate;
+  const effectiveReadyDate=parsed.data.estimatedReadyDate||(costing?automaticReadyDate(costing.machineHours,scheduleBoundary.latestDate):"");
+  if(!effectiveReadyDate||normalizeBusinessDate(effectiveReadyDate)!==effectiveReadyDate||effectiveReadyDate<businessToday())return NextResponse.json({message:"Choose a ready date today or later."},{status:400});
   const skipsQueue=quoteWouldSkipQueue(jobs,effectiveReadyDate,source.id);
   if(skipsQueue&&parsed.data.rushFeeCents<50){
     return NextResponse.json({
@@ -112,6 +127,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     costSnapshot=await saveCostSnapshot(resolved);
   }
 
+  let emailStatus="not-requested";
   if(parsed.data.action==="send"){
     const updated=await updateStoredRequest(source.id,{status:"quoted"});
     if(updated){
@@ -122,7 +138,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
       if(quote.fulfillmentMode==="shipping"&&!quote.shippingSelection){
         message=paidCents>0
           ? `Revised quote revision ${quote.revision} is ready for review. Your existing ${(paidCents/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} deposit credit carries forward. Choose a live USPS, UPS, or FedEx rate before approving the final total.`
-          : `A quote is ready for review. Production subtotal: $${(quote.totalCents/100).toFixed(2)}. Choose a live USPS, UPS, or FedEx rate in your profile before approving the final total.`;
+          : `A quote is ready for review. Production subtotal: $${(quote.totalCents/100).toFixed(2)}. Choose a live USPS, UPS, or FedEx rate in your secure request before approving the final total.`;
       }else if(refundDueCents>0){
         message=`Revised quote revision ${quote.revision} is ready for approval. You have ${(paidCents/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} in deposit credit; approving this revision will refund ${(refundDueCents/100).toLocaleString("en-US",{style:"currency",currency:"USD"})} to the original payment method.`;
       }else if(paidCents>0&&outstandingCents>0){
@@ -132,7 +148,9 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
       }else{
         message=`A quote is ready for review. Total: $${(quote.totalCents/100).toFixed(2)}. Deposit due after approval: $${(quote.depositCents/100).toFixed(2)}.`;
       }
-      await notifyCustomer(updated,message,{forceEmail:true,subject:`${updated.requestCode} quote ready for review`});
+      const delivery=await notifyCustomer(updated,message,{forceEmail:true,notificationId:`quote-${quote.id}-r${quote.revision}`,emailIdempotencyKey:`quote-send-${randomUUID()}`,subject:`${updated.requestCode} quote ready for review`});
+      emailStatus=delivery.emailStatus;
+      if(emailStatus!=="sent")await writeAudit({actor:"system",actorId:"email",action:"quote-email-failed",targetType:"request",targetId:source.id,summary:`Quote ${source.requestCode} saved but email ${emailStatus}. Retry quote email from the request.`,ipHash:""});
     }
   }else if(quote.status==="draft"&&["quoted","accepted","deposit-paid"].includes(source.status)){
     await updateStoredRequest(source.id,{status:"reviewing"});
@@ -151,8 +169,10 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
   return NextResponse.json({
     quote,
     costing:costSnapshot,
+    emailStatus,
     queueDateFloor:scheduleBoundary.latestDate,
-    message:parsed.data.action==="send"
+    message:parsed.data.action==="send"&&(emailStatus!=="sent")?"Quote saved and available for review, but the email was not sent. Check the email service and use Retry Quote Email."
+      :parsed.data.action==="send"
       ? quote.revision>1?"Revised quote sent to the customer for fresh approval.":source.customerAccountId?"Quote sent to the customer profile and email.":"Quote sent to the customer email with a secure request link."
       : "Quote draft saved.",
   });

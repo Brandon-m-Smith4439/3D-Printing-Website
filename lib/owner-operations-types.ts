@@ -54,6 +54,9 @@ export type OwnerIntegrationHealthItem = {
 };
 
 export type OwnerIntegrationHealth = {
+  email?:OwnerIntegrationHealthItem;
+  uploads?:OwnerIntegrationHealthItem;
+  botProtection?:OwnerIntegrationHealthItem;
   stripe: OwnerIntegrationHealthItem;
   easyPost: OwnerIntegrationHealthItem;
   backups: OwnerIntegrationHealthItem & { latestAt: string };

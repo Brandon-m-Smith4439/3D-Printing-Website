@@ -41,6 +41,7 @@ export async function createStoredRequest(
       projectType: values.projectType,
       modelStatus: values.modelStatus,
       fulfillmentMethod: values.fulfillmentMethod,
+      paymentPreference: values.paymentPreference,
       assemblyPreference: values.assemblyPreference,
       quantity: values.quantity,
       dimensions: values.dimensions,
@@ -78,6 +79,7 @@ export async function createOwnerStoredRequest(values: {
   projectType?: string;
   modelStatus?: string;
   fulfillmentMethod?: StoredRequest["fulfillmentMethod"];
+  paymentPreference?: StoredRequest["paymentPreference"];
   assemblyPreference?: StoredRequest["assemblyPreference"];
   quantity?: number;
   dimensions?: string;
@@ -101,6 +103,7 @@ export async function createOwnerStoredRequest(values: {
       projectType: values.projectType || "other",
       modelStatus: values.modelStatus || "idea-only",
       fulfillmentMethod: values.fulfillmentMethod || "unsure",
+      paymentPreference: values.paymentPreference || "stripe",
       assemblyPreference: values.assemblyPreference || "unsure",
       quantity: Math.max(1, Math.min(500, Math.round(values.quantity || 1))),
       dimensions: values.dimensions?.trim() || "",
@@ -138,7 +141,7 @@ export async function getStoredRequest(id: string) {
 
 export async function updateStoredRequest(
   id: string,
-  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId" | "emailNotifications" | "fulfillmentMethod">>,
+  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId" | "emailNotifications" | "fulfillmentMethod" | "assemblyPreference">>,
 ) {
   return mutate(async () => {
     const requests = await readRequests();

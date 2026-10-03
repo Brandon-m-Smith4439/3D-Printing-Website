@@ -10,7 +10,7 @@ export default function OwnerPage() {
         <div className="section-heading page-heading owner-page-heading">
           <p className="eyebrow">PRIVATE MANAGEMENT</p>
           <h1>Owner Dashboard.</h1>
-          <p>Manage customer requests and their production positions together, then update branding, images, and public site content from the same dashboard.</p>
+          <p>Quote requests, manage production, and keep an eye on profit and service health.</p>
         </div>
         <OwnerQueueManager />
       </div>

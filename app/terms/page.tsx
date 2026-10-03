@@ -20,7 +20,7 @@ export default function TermsPage() {
         <p>Submitting a custom request starts a review. It does not obligate Mesh Harbor 3D to produce the item and does not create a payment obligation. Feasibility, scope, material, timing, fulfillment, and price are confirmed in a formal quote.</p>
 
         <h2>Quote approval</h2>
-        <p>A quote is accepted only when the customer approves the current quote revision while signed in to a verified customer account. Approval applies to the price, project specifications, fulfillment method, owner notes, quote terms, and the customer policy version shown at the time of approval. A later quote revision replaces the prior unaccepted revision.</p>
+        <p>A quote is accepted only when the customer approves the current quote revision through a verified customer account or the secure request link sent to their email, or when the owner records their in-person approval. Approval applies to the price, project specifications, fulfillment method, owner notes, quote terms, and the customer policy version shown at the time of approval. A later quote revision replaces the prior unaccepted revision.</p>
 
         <h2>50% deposit and final balance</h2>
         <p>Unless a written quote says otherwise, 50% of the approved pre-tax order amount is required before production begins. The remaining balance is due before carrier shipment and before the completed item is handed over for local pickup or local delivery. Stripe-hosted payment pages handle card information; Mesh Harbor 3D does not store full card numbers on this website.</p>

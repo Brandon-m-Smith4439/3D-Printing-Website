@@ -9,6 +9,7 @@ export type RequestPrefill = {
   projectType: "display" | "functional" | "replacement" | "prototype" | "other";
   modelStatus: "ready" | "needs-adjustment" | "reference-only" | "idea-only";
   fulfillmentMethod: "pickup" | "shipping" | "local-delivery" | "unsure";
+  paymentPreference?: StoredRequest["paymentPreference"];
   assemblyPreference: "assembled" | "disassembled" | "unsure";
   quantity: number;
   dimensions: string;
@@ -50,6 +51,7 @@ export function prefillFromRequest(request: StoredRequest): RequestPrefill {
     projectType: enumValue(request.projectType, projectTypes, "other"),
     modelStatus: enumValue(request.modelStatus, modelStatuses, "idea-only"),
     fulfillmentMethod: enumValue(request.fulfillmentMethod, fulfillmentMethods, "unsure"),
+    ...(request.paymentPreference?{paymentPreference:request.paymentPreference}:{}),
     assemblyPreference: enumValue(request.assemblyPreference, assemblyPreferences, "unsure"),
     quantity: Math.max(1, Math.min(500, Math.round(request.quantity || 1))),
     dimensions: request.dimensions || "",

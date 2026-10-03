@@ -1,3 +1,4 @@
+import { printerElectricity } from './printer-electricity.ts';
 import type { StoredQuote } from './quote-types.ts';
 import type { ShipmentRecord } from './shipment-types.ts';
 import type { BambuFilamentCatalogItem, FilamentPurchaseLot, PricingSettings, QuoteCostInput, QuoteCostSnapshot } from './pricing-types.ts';
@@ -41,6 +42,7 @@ export function resolveQuoteCostSnapshot(input:{
     return {...line,displayName:catalogItem.displayName,costSource:resolved.source,costPerGramMicros:resolved.costPerGramMicros,extendedCostCents:materialCostCents(line.grams,resolved.costPerGramMicros)};
   });
   const materialTotal=materialLines.reduce((sum,line)=>sum+line.extendedCostCents,0);
+  const electricity=printerElectricity(input.costing);
   const machineCost=hoursCost(input.costing.machineHours,input.settings.defaultMachineHourlyCostCents);
   const designCost=hoursCost(input.costing.designHours,input.settings.defaultDesignHourlyCostCents);
   const laborCost=hoursCost(input.costing.laborHours,input.settings.defaultLaborHourlyCostCents);
@@ -49,9 +51,9 @@ export function resolveQuoteCostSnapshot(input:{
   const localDeliveryInternalCostCents=Math.max(0,Math.round(input.costing.localDeliveryInternalCostCents));
   const miscellaneousCostCents=Math.max(0,Math.round(input.costing.miscellaneousCostCents));
   const shippingCost=shippingInternalCost(input.quote,input.shipment);
-  const nonPaymentDirectCostCents=materialTotal+machineCost+designCost+laborCost+postProcessingCost+packagingCostCents+localDeliveryInternalCostCents+miscellaneousCostCents+shippingCost;
+  const nonPaymentDirectCostCents=materialTotal+machineCost+electricity.costCents+designCost+laborCost+postProcessingCost+packagingCostCents+localDeliveryInternalCostCents+miscellaneousCostCents+shippingCost;
   const quotedRevenueCents=Math.max(0,input.quote.totalCents);
-  const marginSettings={...input.settings,targetContributionMarginBasisPoints:Math.max(0,Math.min(9500,input.costing.targetMarginBasisPoints||2000))};
+  const marginSettings={...input.settings,...(input.quote.paymentMethod==="cash"?{defaultPaymentFeePercentBasisPoints:0,defaultPaymentFeeFixedCents:0}:{}),targetContributionMarginBasisPoints:Math.max(0,Math.min(9500,input.costing.targetMarginBasisPoints??2000))};
   const metrics=contributionMetrics(quotedRevenueCents,nonPaymentDirectCostCents,marginSettings);
   const suggestedPriceCents=suggestedRevenueCents(nonPaymentDirectCostCents,marginSettings);
   const sources=[...new Set(materialLines.map(line=>line.costSource))];
@@ -63,6 +65,7 @@ export function resolveQuoteCostSnapshot(input:{
     quoteRevision:input.quote.revision,
     status:input.status,
     materialLines,
+    ...(input.costing.printerWatts!==undefined?{printerWatts:input.costing.printerWatts,electricityRatePerKwh:input.costing.electricityRatePerKwh,electricityKwh:electricity.kwh,electricityCostCents:electricity.costCents}:{}),
     machineHours:input.costing.machineHours,
     machineHourlyCostCents:input.settings.defaultMachineHourlyCostCents,
     designHours:input.costing.designHours,
@@ -93,6 +96,7 @@ export function resolveQuoteCostSnapshot(input:{
 
 export function quoteCostInputFromSnapshot(snapshot:QuoteCostSnapshot):QuoteCostInput{
   return {
+    ...(snapshot.printerWatts!==undefined?{printerWatts:snapshot.printerWatts,electricityRatePerKwh:snapshot.electricityRatePerKwh}:{}),
     materialLines:snapshot.materialLines.map(line=>({id:line.id,catalogItemId:line.catalogItemId,grams:line.grams})),
     machineHours:snapshot.machineHours,
     designHours:snapshot.designHours,

@@ -21,10 +21,11 @@ export type PricingSettings = {
 };
 
 export type QuoteCostMaterialLineInput = { id:string; catalogItemId:string; grams:number };
-export type QuoteCostInput = { materialLines:QuoteCostMaterialLineInput[]; machineHours:number; designHours:number; laborHours:number; postProcessingHours:number; packagingCostCents:number; localDeliveryInternalCostCents:number; miscellaneousCostCents:number; targetMarginBasisPoints?:number };
+export type QuoteCostInput = { materialLines:QuoteCostMaterialLineInput[]; machineHours:number; designHours:number; laborHours:number; postProcessingHours:number; packagingCostCents:number; localDeliveryInternalCostCents:number; miscellaneousCostCents:number; targetMarginBasisPoints?:number; printerWatts?:number; electricityRatePerKwh?:number };
 export type QuoteCostResolvedMaterialLine = QuoteCostMaterialLineInput & { displayName:string; costSource:"actual-average"|"bambu-msrp"|"manual-fallback"|"unpriced"; costPerGramMicros:number; extendedCostCents:number };
 export type QuoteCostSnapshot = {
   id:string; requestId:string; requestCode:string; quoteId:string; quoteRevision:number; status:"estimate"|"actual"|"finalized"; materialLines:QuoteCostResolvedMaterialLine[];
+  printerWatts?:number; electricityRatePerKwh?:number; electricityKwh?:number; electricityCostCents?:number;
   machineHours:number; machineHourlyCostCents:number; designHours:number; designHourlyCostCents:number; laborHours:number; laborHourlyCostCents:number;
   postProcessingHours:number; postProcessingHourlyCostCents:number; packagingCostCents:number; localDeliveryInternalCostCents:number; miscellaneousCostCents:number;
   paymentFeeCents:number; shippingInternalCostCents:number; nonPaymentDirectCostCents:number; directCostCents:number; quotedRevenueCents:number;

@@ -21,6 +21,7 @@ export type StoredRequest = {
   projectType: string;
   modelStatus: string;
   fulfillmentMethod: "pickup" | "shipping" | "local-delivery" | "unsure";
+  paymentPreference?: "stripe" | "cash" | "zelle" | "cash-app" | "apple-cash" | "venmo" | "paypal";
   assemblyPreference?: "assembled" | "disassembled" | "unsure";
   quantity: number;
   dimensions: string;

@@ -69,6 +69,11 @@ export async function GET(request: NextRequest) {
     profitabilityAttention: profitability.attention,
   }, now);
 
+  const emailConfigured=Boolean(process.env.RESEND_API_KEY&&process.env.REQUEST_FROM_EMAIL);
+  const emailFailures=audit.filter(item=>item.action==="quote-email-failed"&&Date.parse(item.createdAt)>=Date.now()-86400000).length;
+  snapshot.integrations.email={tone:!emailConfigured?"error":emailFailures?"warning":"good",label:!emailConfigured?"Not configured":emailFailures?"Recent send failures":"Configured",detail:!emailConfigured?"Set the Resend key and sender address.":emailFailures?`${emailFailures} quote email failure(s) in the last 24 hours. Open the request to retry.`:"Resend sender is configured. Delivery is checked when a quote is sent."};
+  snapshot.integrations.uploads={tone:process.env.CUSTOMER_UPLOAD_SCANNER==="clamav"?"good":"warning",label:process.env.CUSTOMER_UPLOAD_SCANNER==="clamav"?"ClamAV configured":"Review scanner",detail:"Uploaded files must pass the configured scan before they are accepted."};
+  snapshot.integrations.botProtection={tone:process.env.TURNSTILE_SECRET_KEY&&process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?"good":"warning",label:process.env.TURNSTILE_SECRET_KEY&&process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?"Turnstile configured":"Review configuration",detail:"Bot protection for public request submissions."};
   const launchReadiness = buildLaunchReadiness({
     stripe: stripeConfigurationSummary(),
     shipping,

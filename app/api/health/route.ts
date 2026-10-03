@@ -10,7 +10,7 @@ export async function GET() {
     await initializeDatabase();
     const site = await getSiteContent();
     return NextResponse.json(
-      { ok: true, service: "Mesh Harbor 3D", site: site.name, timestamp: new Date().toISOString() },
+      { ok: true, service: "Mesh Harbor 3D", site: site.name, version: "0.97.0", timestamp: new Date().toISOString() },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
