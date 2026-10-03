@@ -1311,3 +1311,18 @@ jobs:
           name: responsive-visual-matrix-v088
           path: visual-smoke/*.png
           retention-days: 7
+
+      - name: Upload focused v0.97 inspection screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: v097-quote-dashboard-inspection
+          path: |
+            visual-smoke/owner-quote-*-320.png
+            visual-smoke/owner-quote-*-390.png
+            visual-smoke/owner-quote-*-721.png
+            visual-smoke/owner-quote-*-1440.png
+            visual-smoke/owner-operations-390.png
+            visual-smoke/owner-operations-1440.png
+            visual-smoke/custom-request-390.png
+            visual-smoke/custom-request-1440.png
+          retention-days: 7
