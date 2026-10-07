@@ -31,10 +31,11 @@ export async function createStoredRequest(
   return mutate(async () => {
     const requests = await readRequests();
     const now = new Date().toISOString();
+    const occurredAt = values.occurredAt?.trim() || now;
     const stored: StoredRequest = {
       id: randomUUID(),
       requestCode: makeRequestCode(),
-      status: "new",
+      status: values.status || "new",
       name: values.name,
       email: values.email,
       phone: values.phone,
@@ -55,8 +56,8 @@ export async function createStoredRequest(
       imageUrl: "",
       attachments: metadata.attachments || [],
       internalNote: "",
-      createdAt: now,
-      updatedAt: now,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
       queuedAt: "",
       queueJobId: "",
       customerAccountId: metadata.customerAccountId || "",
@@ -90,6 +91,8 @@ export async function createOwnerStoredRequest(values: {
   neededBy?: string;
   description?: string;
   internalNote?: string;
+  status?: RequestStatus;
+  occurredAt?: string;
 }) {
   return mutate(async () => {
     const requests = await readRequests();
