@@ -63,7 +63,15 @@ export function OwnerQueueManager(){
 function ProductionPanel({pricing,requests,jobs,quotes,historicalProfits,shipments,finalInvoices,pickups,followUps,focusedRequestId,onFocusedRequestHandled,onChanged,onNotice}:{pricing:OwnerPricingPayload;requests:StoredRequest[];jobs:QueueJob[];quotes:StoredQuote[];historicalProfits:HistoricalProfitRecord[];shipments:ShipmentRecord[];finalInvoices:FinalInvoiceRecord[];pickups:PickupAppointment[];followUps:Record<string,OwnerRequestFollowUpView>;focusedRequestId:string;onFocusedRequestHandled:()=>void;onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void}){
   const [filter,setFilter]=useState<string>("open");
   const [searchQuery,setSearchQuery]=useState("");
-  const [showInPerson,setShowInPerson]=useState(false);
+  const [showOwnerCustomRequest,setShowOwnerCustomRequest]=useState(false);
+  useEffect(()=>{
+    if(!showOwnerCustomRequest)return;
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    const onKeyDown=(event:KeyboardEvent)=>{if(event.key==="Escape")setShowOwnerCustomRequest(false);};
+    window.addEventListener("keydown",onKeyDown);
+    return ()=>{document.body.style.overflow=previousOverflow;window.removeEventListener("keydown",onKeyDown);};
+  },[showOwnerCustomRequest]);
   useEffect(()=>{
     if(!focusedRequestId)return;
     const target=requests.find(item=>item.id===focusedRequestId);
@@ -91,18 +99,18 @@ function ProductionPanel({pricing,requests,jobs,quotes,historicalProfits,shipmen
   });
   const linkedIds=new Set(requests.map(r=>r.queueJobId).filter(Boolean)); const manualJobs=jobs.filter(j=>!linkedIds.has(j.id));
   return <>
-    <section className="owner-panel production-board"><div className="owner-panel-heading"><div><p className="eyebrow">REQUESTS + QUEUE</p><h2>Production board</h2></div><div className="owner-heading-actions"><button className="button button-small" onClick={()=>setShowInPerson(v=>!v)} type="button">{showInPerson?"Close Request Form":"+ New Custom Request"}</button><button className={`text-button ${filter==="open"?"is-selected":""}`} onClick={()=>setFilter("open")} type="button">Open</button><button className={`text-button ${filter==="all"?"is-selected":""}`} onClick={()=>setFilter("all")} type="button">All</button><button className="text-button" onClick={()=>void onChanged()} type="button">Refresh</button></div></div>
-    {showInPerson&&<InPersonRequestForm onChanged={onChanged} onNotice={onNotice} onClose={()=>setShowInPerson(false)}/>} 
+    <section className="owner-panel production-board"><div className="owner-panel-heading"><div><p className="eyebrow">REQUESTS + QUEUE</p><h2>Production board</h2></div><div className="owner-heading-actions"><button className="button button-small" onClick={()=>setShowOwnerCustomRequest(true)} type="button">Owner Custom Request</button><button className={`text-button ${filter==="open"?"is-selected":""}`} onClick={()=>setFilter("open")} type="button">Open</button><button className={`text-button ${filter==="all"?"is-selected":""}`} onClick={()=>setFilter("all")} type="button">All</button><button className="text-button" onClick={()=>void onChanged()} type="button">Refresh</button></div></div>
     <p className="owner-panel-intro">Review requests, send formal quotes, and collect the 50% deposit before production. Deposit-paid requests can then be added to the end of the queue and reordered as needed.</p>
     <div className="production-search-row"><label><span className="sr-only">Search production requests</span><input aria-label="Search production requests" value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} placeholder="Search request code, customer, email, project, material, notes, or queue code…" autoComplete="off"/></label>{searchQuery&&<button className="text-button" type="button" onClick={()=>setSearchQuery("")}>Clear</button>}<span>{normalizedSearch?`${visible.length} match${visible.length===1?"":"es"} across all requests`:"Search across all requests"}</span></div>
     {requests.length>0&&<div className="dashboard-request-filters" aria-label="Filter requests by status">{[{value:"open",label:"Open"},...Object.entries(requestLabels).map(([value,label])=>({value,label})),{value:"countered",label:"Counter offers"},...Object.entries(queueLabels).filter(([value])=>value!=="completed"&&value!=="queued").map(([value,label])=>({value:`job:${value}`,label})),{value:"all",label:"All"}].map(item=>({...item,count:requests.filter(r=>matches(r,item.value)).length})).filter(item=>item.count>0).map(item=><button className={effectiveFilter===item.value?"is-active":""} type="button" key={item.value} onClick={()=>setFilter(item.value)}><span>{item.label}</span><b>{item.count}</b></button>)}</div>}
     <div className="production-request-list">{visible.length===0?<div className="queue-empty compact"><strong>No matching requests.</strong></div>:visible.map(r=><CombinedRequestCard key={r.id} request={r} quote={quotes.find(q=>q.requestId===r.id&&q.status!=="void")||null} historicalProfit={historicalProfits.find(item=>item.requestId===r.id)||null} shipment={shipments.find(s=>s.requestId===r.id)||null} finalInvoice={finalInvoices.filter(i=>i.requestId===r.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0]||null} pickup={pickups.find(p=>p.requestId===r.id&&p.status==="scheduled")||null} job={r.queueJobId?jobs.find(j=>j.id===r.queueJobId)||null:null} allJobs={jobs} activeCount={jobs.filter(j=>j.status!=="completed").length} followUp={followUps[r.id]||null} pricing={{settings:pricing.settings,catalog:pricing.catalog,materialCosts:pricing.materialCosts,snapshots:pricing.costing[r.id]||[]}} forceOpen={focusedRequestId===r.id} onChanged={onChanged} onNotice={onNotice}/>)}</div>
     </section>
     {manualJobs.length>0&&<section className="owner-panel"><div className="owner-panel-heading"><div><p className="eyebrow">EXTERNAL ORDERS</p><h2>Manual queue jobs</h2></div></div><div className="owner-job-list">{manualJobs.map(j=><ManualJobCard key={j.id} job={j} activeCount={jobs.filter(x=>x.status!=="completed").length} onChanged={onChanged} onNotice={onNotice}/>)}</div></section>}
+    {showOwnerCustomRequest&&<div className="owner-custom-request-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setShowOwnerCustomRequest(false);}}><section className="owner-custom-request-modal" role="dialog" aria-modal="true" aria-labelledby="owner-custom-request-title"><OwnerCustomRequestForm onChanged={onChanged} onNotice={onNotice} onClose={()=>setShowOwnerCustomRequest(false)}/></section></div>}
   </>;
 }
 
-function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void;onClose:()=>void}){
+function OwnerCustomRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void;onClose:()=>void}){
   const [busy,setBusy]=useState(false);
   const [fulfillment,setFulfillment]=useState<"pickup"|"shipping">("pickup");
   const [historical,setHistorical]=useState(false);
@@ -125,11 +133,11 @@ function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise
       onNotice({kind:"success",text:result.message||"Custom request added."});form.reset();setFulfillment("pickup");setHistorical(false);setHistoricalRevenue("");setHistoricalCost("");await onChanged();onClose();
     }catch(error){onNotice({kind:"error",text:error instanceof Error?error.message:"Could not add custom request."});}finally{setBusy(false);}
   }
-  return <form className="in-person-request-form" onSubmit={submit}>
-    <div className="in-person-request-heading"><div><strong>Create a custom request</strong><span>Use this for new direct customers or switch on Historical / already completed to backfill past jobs into your request and profitability history.</span></div><button className="text-button" type="button" onClick={onClose}>Close</button></div>
+  return <form className="owner-custom-request-form" onSubmit={submit}>
+    <div className="owner-custom-request-heading"><div><p className="eyebrow">OWNER WORKSPACE</p><h2 id="owner-custom-request-title">Owner Custom Request</h2><span>Create a new direct-customer request or log a historical completed job for tracking and profitability.</span></div><button className="owner-custom-request-close" type="button" onClick={onClose} aria-label="Close Owner Custom Request">×</button></div>
     <label className="historical-request-toggle"><input type="checkbox" checked={historical} onChange={event=>setHistorical(event.target.checked)}/><span><strong>Historical / already completed request</strong><small>Logs a past job for tracking and cost-vs-profit reporting. It will not email the customer or enter the normal quote/deposit workflow.</small></span></label>
     <div className="owner-edit-grid">
-      <label><span>Customer name <small className="optional-label">Optional</small></span><input name="name" maxLength={80} placeholder="Customer name"/></label>
+      <label><span>Customer name <small className="optional-label">Optional</small></span><input name="name" maxLength={80} placeholder="Customer name" autoFocus/></label>
       <label><span>Email <small className="optional-label">Optional</small></span><input name="email" type="email" maxLength={160}/></label>
       <label><span>Phone <small className="optional-label">Optional</small></span><input name="phone" maxLength={30}/></label>
       <label><span>Project type <small className="optional-label">Optional</small></span><select name="projectType" defaultValue="other"><option value="other">Other / custom</option><option value="display">Display / collectible</option><option value="functional">Functional part</option><option value="replacement">Replacement part</option><option value="prototype">Prototype</option></select></label>
@@ -147,7 +155,7 @@ function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise
     {historical&&<section className="historical-profit-entry"><div><strong>Historical cost & profit</strong><span>Enter the actual numbers you want included in profitability reporting.</span></div><div className="historical-profit-grid"><label><span>Completed date</span><input name="completedAt" type="date" max={new Date().toISOString().slice(0,10)} required={historical}/></label><label><span>Amount charged ($)</span><input value={historicalRevenue} onChange={event=>setHistoricalRevenue(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><label><span>Total direct cost ($)</span><input value={historicalCost} onChange={event=>setHistoricalCost(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><div className="historical-profit-preview"><span>Profit</span><strong>{money(profitCents)}</strong><small>{revenueCents?`${(marginBasisPoints/100).toFixed(1)}% margin`:"Enter the amount charged to calculate margin"}</small></div></div></section>}
     <label><span>What they want made <small className="optional-label">Optional</small></span><textarea name="description" rows={3} maxLength={2500}/></label>
     <label><span>Private owner note <small className="optional-label">Optional</small></span><textarea name="internalNote" rows={2} maxLength={2000}/></label>
-    <div className="owner-job-actions"><button className="button" type="submit" disabled={busy}>{busy?"Adding…":"Add Request"}</button><button className="button button-secondary" type="button" onClick={onClose}>Cancel</button></div>
+    <div className="owner-custom-request-actions"><button className="button" type="submit" disabled={busy}>{busy?"Submitting…":"Submit Owner Custom Request"}</button><button className="button button-secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button></div>
   </form>;
 }
 

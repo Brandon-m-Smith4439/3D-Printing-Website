@@ -49,6 +49,8 @@ jobs:
         run: |
           node tests/v099-production-profit-history.test.mjs
           node --experimental-strip-types tests/owner-profitability-operations.test.mjs
+      - name: Verify v1.00 Owner Custom Request workspace
+        run: node tests/v100-owner-custom-request-modal.test.mjs
       - name: Verify quote notification reliability
         run: node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-notification-reliability.test.mjs
       - name: Verify customer follow-up policy
@@ -1026,6 +1028,27 @@ jobs:
             }
             const productionOpened=await send("Runtime.evaluate",{expression:`(()=>{const button=[...document.querySelectorAll(".owner-tabs button")].find(el=>(el.textContent||"").trim().startsWith("Production"));if(!button)return false;button.click();return true;})()`,returnByValue:true});
             if(!productionOpened.result.value)throw new Error("Production tab was not available for quote visual fixture.");
+            await wait(250);
+            const ownerRequestOpened=await send("Runtime.evaluate",{expression:`(()=>{const button=[...document.querySelectorAll("button")].find(el=>(el.textContent||"").trim()==="Owner Custom Request");if(!button)return false;button.click();return true;})()`,returnByValue:true});
+            if(!ownerRequestOpened.result.value)throw new Error("Owner Custom Request button did not open the dedicated workspace.");
+            await wait(200);
+            const ownerRequestDialog=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector(".owner-custom-request-modal[role=dialog]"))&&Boolean([...document.querySelectorAll(".owner-custom-request-actions button")].find(el=>(el.textContent||"").includes("Submit Owner Custom Request")))`,returnByValue:true});
+            if(!ownerRequestDialog.result.value)throw new Error("Owner Custom Request dialog or submit action is missing.");
+            for(const width of [320,390,430,650,720,721,1440]){
+              await send("Emulation.setDeviceMetricsOverride",{width,height:1200,deviceScaleFactor:1,mobile:width<=720});
+              await wait(150);
+              const modalMetrics=await send("Runtime.evaluate",{expression:`(()=>{const el=document.querySelector(".owner-custom-request-modal");return {pageScroll:document.documentElement.scrollWidth,pageClient:document.documentElement.clientWidth,scroll:el?.scrollWidth||0,client:el?.clientWidth||0};})()`,returnByValue:true});
+              const mm=modalMetrics.result.value;
+              if(mm.pageScroll>mm.pageClient+1||mm.scroll>mm.client+1){
+                const modalOffenders=await send("Runtime.evaluate",{expression:`(()=>{const root=document.querySelector(".owner-custom-request-modal");const rr=root.getBoundingClientRect();return [...root.querySelectorAll("*")].map(el=>{const r=el.getBoundingClientRect();return {tag:el.tagName,className:typeof el.className==="string"?el.className:"",left:Math.round(r.left*10)/10,right:Math.round(r.right*10)/10,width:Math.round(r.width*10)/10,scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,text:(el.innerText||"").trim().replace(/\\s+/g," ").slice(0,100)};}).filter(x=>x.left<rr.left-.5||x.right>rr.right+.5||x.scrollWidth>x.clientWidth+1).slice(0,20);})()`,returnByValue:true});
+                throw new Error("Owner Custom Request workspace horizontal overflow at "+width+": "+JSON.stringify(mm)+" offenders="+JSON.stringify(modalOffenders.result.value));
+              }
+              const ownerRequestShot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
+              fs.writeFileSync(`visual-smoke/owner-custom-request-${width}.png`,Buffer.from(ownerRequestShot.data,"base64"));
+            }
+            await send("Runtime.evaluate",{expression:`document.querySelector(".owner-custom-request-close")?.click()`});
+            await send("Emulation.setDeviceMetricsOverride",{width:1440,height:1200,deviceScaleFactor:1,mobile:false});
+            await wait(150);
             for(let i=0;i<40;i++){
               const ready=await send("Runtime.evaluate",{expression:`Boolean(document.getElementById("owner-request-${requestId}"))`,returnByValue:true});
               if(ready.result.value)break;

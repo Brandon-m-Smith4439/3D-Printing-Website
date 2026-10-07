@@ -86,14 +86,14 @@ export async function POST(request: NextRequest) {
   let body: unknown;
   try {
     const raw = await request.text();
-    if (raw.length > 20_000) return NextResponse.json({ message: "In-person request is too large." }, { status: 413 });
+    if (raw.length > 20_000) return NextResponse.json({ message: "Owner custom request is too large." }, { status: 413 });
     body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
   }
 
   const parsed = ownerRequestSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ message: "Please check the in-person request fields.", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 });
+  if (!parsed.success) return NextResponse.json({ message: "Please check the Owner Custom Request fields.", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 });
 
   const matchingAccount = parsed.data.email ? await findCustomerByEmail(parsed.data.email) : null;
   const historicalCompleted = parsed.data.historicalCompleted;
