@@ -4927,11 +4927,26 @@ button.operations-attention-item:focus-visible {
 .owner-custom-request-form > label {
   min-width:0;
 }
+.owner-custom-request-form > *,
+.owner-custom-request-form .owner-edit-grid,
+.owner-custom-request-form .owner-edit-grid > *,
+.owner-custom-request-form .historical-request-toggle,
+.owner-custom-request-form .historical-profit-entry,
+.owner-custom-request-form .historical-profit-grid {
+  min-width:0;
+  max-width:100%;
+}
 .owner-custom-request-form input,
 .owner-custom-request-form select,
 .owner-custom-request-form textarea {
   width:100%;
   min-width:0;
+  max-width:100%;
+}
+.owner-custom-request-heading span,
+.owner-custom-request-form label,
+.owner-custom-request-form small {
+  overflow-wrap:anywhere;
 }
 .owner-custom-request-actions {
   position:sticky;
