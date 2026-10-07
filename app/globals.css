@@ -4982,16 +4982,16 @@ button.operations-attention-item:focus-visible {
   }
   .owner-custom-request-heading {
     top:-18px;
-    margin:-18px -18px 0;
-    padding:18px;
+    margin:-18px 0 0;
+    padding:18px 0 14px;
   }
   .owner-custom-request-form .owner-edit-grid {
     grid-template-columns:1fr;
   }
   .owner-custom-request-actions {
     bottom:-18px;
-    margin:0 -18px -18px;
-    padding:14px 18px calc(18px + env(safe-area-inset-bottom));
+    margin:0 0 -18px;
+    padding:14px 0 calc(18px + env(safe-area-inset-bottom));
   }
 }
 @media(max-width:430px) {
