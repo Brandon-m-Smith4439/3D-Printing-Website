@@ -4976,6 +4976,7 @@ button.operations-attention-item:focus-visible {
     min-height:100dvh;
     border:0;
     border-radius:0;
+    scrollbar-gutter:auto;
   }
   .owner-custom-request-form {
     padding:18px;
