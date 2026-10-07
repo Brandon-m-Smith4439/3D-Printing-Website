@@ -4271,6 +4271,10 @@ button.operations-attention-item:focus-visible {
 .pricing-tabs button { min-height:40px; padding:0 13px; border:1px solid transparent; border-radius:10px; background:transparent; color:var(--muted); font-weight:800; cursor:pointer; }
 .pricing-tabs button:hover { color:var(--text); border-color:rgba(124,239,231,.16); }
 .pricing-tabs button.is-active { color:#07171d; background:linear-gradient(135deg,#45d8cf,#8af1eb); border-color:rgba(124,239,231,.46); }
+.pricing-range-tabs { display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+.pricing-range-tabs button { min-height:34px; padding:0 11px; border:1px solid #294f58; border-radius:9px; background:#081e27; color:#9db8bc; font:inherit; font-size:.73rem; font-weight:800; cursor:pointer; }
+.pricing-range-tabs button:hover { color:#eafafa; border-color:#3f737c; }
+.pricing-range-tabs button.is-active { color:#baf6ec; border-color:#50bbb8; background:#123c45; }
 .pricing-kpi-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
 .pricing-kpi-grid article { display:grid; gap:5px; min-width:0; padding:15px; border:1px solid var(--line); border-radius:14px; background:rgba(255,255,255,.022); }
 .pricing-kpi-grid span { color:var(--muted); font-size:.72rem; }
