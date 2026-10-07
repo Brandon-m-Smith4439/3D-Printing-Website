@@ -43,6 +43,8 @@ jobs:
           node --experimental-strip-types tests/printer-electricity.test.mjs
           node --experimental-strip-types tests/quote-ready-date.test.mjs
           node tests/v096-guest-quote.test.mjs
+      - name: Verify v0.98 fulfillment and owner request cleanup
+        run: node tests/v098-owner-request-fulfillment.test.mjs
       - name: Verify quote notification reliability
         run: node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-notification-reliability.test.mjs
       - name: Verify customer follow-up policy
