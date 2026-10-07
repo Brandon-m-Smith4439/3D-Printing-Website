@@ -23,7 +23,7 @@ export default function TermsPage() {
         <p>A quote is accepted only when the customer approves the current quote revision through a verified customer account or the secure request link sent to their email, or when the owner records their in-person approval. Approval applies to the price, project specifications, fulfillment method, owner notes, quote terms, and the customer policy version shown at the time of approval. A later quote revision replaces the prior unaccepted revision.</p>
 
         <h2>50% deposit and final balance</h2>
-        <p>Unless a written quote says otherwise, 50% of the approved pre-tax order amount is required before production begins. The remaining balance is due before carrier shipment and before the completed item is handed over for local pickup or local delivery. Stripe-hosted payment pages handle card information; Mesh Harbor 3D does not store full card numbers on this website.</p>
+        <p>Unless a written quote says otherwise, 50% of the approved pre-tax order amount is required before production begins. The remaining balance is due before carrier shipment and before the completed item is handed over for local pickup. Stripe-hosted payment pages handle card information; Mesh Harbor 3D does not store full card numbers on this website.</p>
         <p>For Stripe payments, applicable tax is calculated by Stripe Automatic Tax during secure Checkout or invoicing and can be added to the quoted pre-tax amount. Local pickup orders may instead be approved for an owner-confirmed local payment method such as Cash, Zelle, Cash App, Apple Cash, Venmo, or PayPal. Local payment instructions are coordinated privately by Mesh Harbor 3D and payment is not considered received until the owner records it.</p>
 
         <h2>Changes after approval</h2>
@@ -48,7 +48,7 @@ export default function TermsPage() {
         <p>Estimated-ready dates are targets rather than guarantees unless the accepted quote expressly states otherwise. Printer failures, material availability, reprints, customer changes, shipping delays, weather, and other conditions can affect timing. Rush fees reserve scheduling priority but do not override safety, quality, or events outside Mesh Harbor 3D&apos;s control.</p>
 
         <h2>Fulfillment</h2>
-        <p>Pickup, local delivery, and carrier shipping each have separate operational rules. Review the <Link href="/fulfillment">Fulfillment Policy</Link> before approving a quote. Shipping charges can change when the packed dimensions, weight, destination, or carrier service changes before quote approval.</p>
+        <p>Pickup and carrier shipping each have separate operational rules. Review the <Link href="/fulfillment">Fulfillment Policy</Link> before approving a quote. Shipping charges can change when the packed dimensions, weight, destination, or carrier service changes before quote approval.</p>
 
         <h2>Completed orders and unclaimed pickup</h2>
         <p>Customers should arrange pickup or delivery promptly after an order is marked Ready and the final balance is paid. If an order remains unclaimed for an extended period, Mesh Harbor 3D may contact the customer to arrange a new handoff. Any special storage deadline or fee must be disclosed before it is applied.</p>
