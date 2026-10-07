@@ -105,6 +105,10 @@ function ProductionPanel({pricing,requests,jobs,quotes,historicalProfits,shipmen
 function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void;onClose:()=>void}){
   const [busy,setBusy]=useState(false);
   const [fulfillment,setFulfillment]=useState<"pickup"|"shipping">("pickup");
+  const [historical,setHistorical]=useState(false);
+  const [historicalRevenue,setHistoricalRevenue]=useState("");
+  const [historicalCost,setHistoricalCost]=useState("");
+  const revenueCents=Math.max(0,Math.round(Number(historicalRevenue||0)*100)||0); const costCents=Math.max(0,Math.round(Number(historicalCost||0)*100)||0); const profitCents=revenueCents-costCents; const marginBasisPoints=revenueCents?Math.round(profitCents/revenueCents*10000):0;
   async function submit(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setBusy(true);
     const form=event.currentTarget;const data=new FormData(form);
@@ -113,16 +117,17 @@ function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise
       modelStatus:data.get("modelStatus"),fulfillmentMethod:data.get("fulfillmentMethod"),assemblyPreference:data.get("assemblyPreference"),paymentPreference:data.get("paymentPreference"),
       quantity:Number(data.get("quantity")||1),dimensions:data.get("dimensions"),materialPreference:data.get("materialPreference"),
       colorPreference:data.get("colorPreference"),budget:data.get("budget"),neededBy:data.get("neededBy"),
-      description:data.get("description"),internalNote:data.get("internalNote"),
+      description:data.get("description"),internalNote:data.get("internalNote"),historicalCompleted:historical,completedAt:String(data.get("completedAt")||""),historicalRevenueCents:revenueCents,historicalDirectCostCents:costCents,
     };
     try{
       const response=await fetch("/api/owner/requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const result=await response.json() as {message?:string};if(!response.ok)throw new Error(result.message||"Could not add custom request.");
-      onNotice({kind:"success",text:result.message||"Custom request added."});form.reset();setFulfillment("pickup");await onChanged();onClose();
+      onNotice({kind:"success",text:result.message||"Custom request added."});form.reset();setFulfillment("pickup");setHistorical(false);setHistoricalRevenue("");setHistoricalCost("");await onChanged();onClose();
     }catch(error){onNotice({kind:"error",text:error instanceof Error?error.message:"Could not add custom request."});}finally{setBusy(false);}
   }
   return <form className="in-person-request-form" onSubmit={submit}>
-    <div className="in-person-request-heading"><div><strong>Create a custom request</strong><span>Use this for in-person, phone, repeat, or other direct customers. Add an email when available so the request can be tracked by secure link and linked to their verified account.</span></div><button className="text-button" type="button" onClick={onClose}>Close</button></div>
+    <div className="in-person-request-heading"><div><strong>Create a custom request</strong><span>Use this for new direct customers or switch on Historical / already completed to backfill past jobs into your request and profitability history.</span></div><button className="text-button" type="button" onClick={onClose}>Close</button></div>
+    <label className="historical-request-toggle"><input type="checkbox" checked={historical} onChange={event=>setHistorical(event.target.checked)}/><span><strong>Historical / already completed request</strong><small>Logs a past job for tracking and cost-vs-profit reporting. It will not email the customer or enter the normal quote/deposit workflow.</small></span></label>
     <div className="owner-edit-grid">
       <label><span>Customer name <small className="optional-label">Optional</small></span><input name="name" maxLength={80} placeholder="Customer name"/></label>
       <label><span>Email <small className="optional-label">Optional</small></span><input name="email" type="email" maxLength={160}/></label>
@@ -130,7 +135,7 @@ function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise
       <label><span>Project type <small className="optional-label">Optional</small></span><select name="projectType" defaultValue="other"><option value="other">Other / custom</option><option value="display">Display / collectible</option><option value="functional">Functional part</option><option value="replacement">Replacement part</option><option value="prototype">Prototype</option></select></label>
       <label><span>3D model status <small className="optional-label">Optional</small></span><select name="modelStatus" defaultValue="idea-only"><option value="idea-only">Idea only / unknown</option><option value="ready">Print-ready model</option><option value="needs-adjustment">Model may need changes</option><option value="reference-only">Photos / references</option></select></label>
       <label><span>Fulfillment <small className="optional-label">Optional</small></span><select name="fulfillmentMethod" value={fulfillment} onChange={event=>setFulfillment(event.target.value as "pickup"|"shipping")}><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option></select></label>
-      <label><span>Customer payment preference</span><select name="paymentPreference" defaultValue="stripe"><option value="stripe">Card via Stripe</option><option value="cash" disabled={fulfillment!=="pickup"}>Cash (Local pickup only)</option><option value="zelle" disabled={fulfillment!=="pickup"}>Zelle (Local pickup only)</option><option value="cash-app" disabled={fulfillment!=="pickup"}>Cash App (Local pickup only)</option><option value="apple-cash" disabled={fulfillment!=="pickup"}>Apple Cash (Local pickup only)</option><option value="venmo" disabled={fulfillment!=="pickup"}>Venmo (Local pickup only)</option><option value="paypal" disabled={fulfillment!=="pickup"}>PayPal (Local pickup only)</option></select></label>
+      <label><span>Customer payment preference</span><select name="paymentPreference" defaultValue="stripe"><option value="stripe">Card via Stripe</option><option value="cash" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Cash":"Cash (Local pickup only)"}</option><option value="zelle" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Zelle":"Zelle (Local pickup only)"}</option><option value="cash-app" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Cash App":"Cash App (Local pickup only)"}</option><option value="apple-cash" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Apple Cash":"Apple Cash (Local pickup only)"}</option><option value="venmo" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Venmo":"Venmo (Local pickup only)"}</option><option value="paypal" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"PayPal":"PayPal (Local pickup only)"}</option></select></label>
       <label><span>Assembly <small className="optional-label">Optional</small></span><select name="assemblyPreference" defaultValue="assembled"><option value="assembled">Assembled by Mesh Harbor 3D</option><option value="disassembled">Customer assembles</option></select></label>
       <label><span>Quantity</span><input name="quantity" type="number" min={1} max={500} defaultValue={1}/></label>
       <label><span>Needed by <small className="optional-label">Optional</small></span><input name="neededBy" placeholder="M/D/YYYY"/></label>
@@ -139,6 +144,7 @@ function InPersonRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise
       <label><span>Color <small className="optional-label">Optional</small></span><input name="colorPreference" maxLength={120}/></label>
       <label><span>Budget <small className="optional-label">Optional</small></span><input name="budget" maxLength={80}/></label>
     </div>
+    {historical&&<section className="historical-profit-entry"><div><strong>Historical cost & profit</strong><span>Enter the actual numbers you want included in profitability reporting.</span></div><div className="historical-profit-grid"><label><span>Completed date</span><input name="completedAt" type="date" max={new Date().toISOString().slice(0,10)} required={historical}/></label><label><span>Amount charged ($)</span><input value={historicalRevenue} onChange={event=>setHistoricalRevenue(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><label><span>Total direct cost ($)</span><input value={historicalCost} onChange={event=>setHistoricalCost(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><div className="historical-profit-preview"><span>Profit</span><strong>{money(profitCents)}</strong><small>{revenueCents?`${(marginBasisPoints/100).toFixed(1)}% margin`:"Enter the amount charged to calculate margin"}</small></div></div></section>}
     <label><span>What they want made <small className="optional-label">Optional</small></span><textarea name="description" rows={3} maxLength={2500}/></label>
     <label><span>Private owner note <small className="optional-label">Optional</small></span><textarea name="internalNote" rows={2} maxLength={2000}/></label>
     <div className="owner-job-actions"><button className="button" type="submit" disabled={busy}>{busy?"Adding…":"Add Request"}</button><button className="button button-secondary" type="button" onClick={onClose}>Cancel</button></div>
