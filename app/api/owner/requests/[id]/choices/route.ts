@@ -6,7 +6,7 @@ import { getStoredRequest, updateStoredRequest } from "@/lib/request-store";
 import { quoteForRequest } from "@/lib/quote-store";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 
-const schema=z.object({fulfillmentMethod:z.enum(["pickup","shipping","local-delivery"]),assemblyPreference:z.enum(["assembled","disassembled"]),customerConfirmed:z.literal(true)}).strict();
+const schema=z.object({fulfillmentMethod:z.enum(["pickup","shipping"]),assemblyPreference:z.enum(["assembled","disassembled"]),customerConfirmed:z.literal(true)}).strict();
 // This records a customer's missing choices, never changes a submitted choice.
 export async function POST(request:NextRequest,context:{params:Promise<{id:string}>}){
   if(!await requestIsOwner(request))return NextResponse.json({message:"Sign in required."},{status:401});

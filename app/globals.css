@@ -3527,7 +3527,7 @@ main { min-height: 65vh; }
 
 .operations-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 .operations-kpi-card {
@@ -3679,6 +3679,7 @@ main { min-height: 65vh; }
   align-items: start;
   min-width: 0;
 }
+.operations-layout-single { grid-template-columns: minmax(0, 1fr); }
 .operations-attention-panel,
 .operations-health-panel {
   min-width: 0;

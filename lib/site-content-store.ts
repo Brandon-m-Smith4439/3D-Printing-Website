@@ -83,8 +83,8 @@ function migrateLegacyBrand(content: SiteContent): SiteContent {
   if (next.logoAlt === "LayerCraft 3D logo") next.logoAlt = defaultSiteContent.logoAlt;
   if (next.logoLetters === "L3") next.logoLetters = defaultSiteContent.logoLetters;
   if (!next.shippingOrigin.street1) next.shippingOrigin = { ...defaultSiteContent.shippingOrigin };
-  const defaultPickupIdentity = next.pickup.locationName === "Mesh Harbor 3D Local Pickup" && next.pickup.publicArea === "Monroe, NC";
-  if (!next.pickup.street1 || defaultPickupIdentity) {
+  const legacyPickupDefault = next.pickup.street1 === "101 S Charlotte Ave" && next.pickup.city === "Monroe" && next.pickup.state === "NC";
+  if (!next.pickup.street1 || legacyPickupDefault) {
     next.pickup = {
       ...next.pickup,
       ...defaultSiteContent.pickup,

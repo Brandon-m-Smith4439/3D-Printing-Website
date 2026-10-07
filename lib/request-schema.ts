@@ -20,7 +20,7 @@ export const customRequestSchema = z.object({
   phone: optionalPhone,
   projectType: z.enum(["display", "functional", "replacement", "prototype", "other"]),
   modelStatus: z.enum(["ready", "needs-adjustment", "reference-only", "idea-only"]),
-  fulfillmentMethod: z.enum(["pickup", "shipping", "local-delivery", "unsure"]),
+  fulfillmentMethod: z.enum(["pickup", "shipping", "unsure"]),
   paymentPreference: z.enum(["stripe", "cash", "zelle", "cash-app", "apple-cash", "venmo", "paypal"]).optional().default("stripe"),
   assemblyPreference: z.enum(["assembled", "disassembled", "unsure"]),
   quantity: z.coerce.number().int().min(1).max(500),

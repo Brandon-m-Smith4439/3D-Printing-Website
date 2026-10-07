@@ -76,6 +76,7 @@ export async function createOwnerStoredRequest(values: {
   name?: string;
   email?: string;
   phone?: string;
+  customerAccountId?: string;
   projectType?: string;
   modelStatus?: string;
   fulfillmentMethod?: StoredRequest["fulfillmentMethod"];
@@ -121,7 +122,7 @@ export async function createOwnerStoredRequest(values: {
       updatedAt: now,
       queuedAt: "",
       queueJobId: "",
-      customerAccountId: "",
+      customerAccountId: values.customerAccountId?.trim() || "",
       riskLevel: "none",
       riskFlags: [],
       source: "owner",
