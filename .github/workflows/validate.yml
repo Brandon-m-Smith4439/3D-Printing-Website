@@ -1039,7 +1039,10 @@ jobs:
               await wait(150);
               const modalMetrics=await send("Runtime.evaluate",{expression:`(()=>{const el=document.querySelector(".owner-custom-request-modal");return {pageScroll:document.documentElement.scrollWidth,pageClient:document.documentElement.clientWidth,scroll:el?.scrollWidth||0,client:el?.clientWidth||0};})()`,returnByValue:true});
               const mm=modalMetrics.result.value;
-              if(mm.pageScroll>mm.pageClient+1||mm.scroll>mm.client+1)throw new Error("Owner Custom Request workspace horizontal overflow at "+width+": "+JSON.stringify(mm));
+              if(mm.pageScroll>mm.pageClient+1||mm.scroll>mm.client+1){
+                const modalOffenders=await send("Runtime.evaluate",{expression:`(()=>{const root=document.querySelector(".owner-custom-request-modal");const rr=root.getBoundingClientRect();return [...root.querySelectorAll("*")].map(el=>{const r=el.getBoundingClientRect();return {tag:el.tagName,className:typeof el.className==="string"?el.className:"",left:Math.round(r.left*10)/10,right:Math.round(r.right*10)/10,width:Math.round(r.width*10)/10,scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,text:(el.innerText||"").trim().replace(/\\s+/g," ").slice(0,100)};}).filter(x=>x.left<rr.left-.5||x.right>rr.right+.5||x.scrollWidth>x.clientWidth+1).slice(0,20);})()`,returnByValue:true});
+                throw new Error("Owner Custom Request workspace horizontal overflow at "+width+": "+JSON.stringify(mm)+" offenders="+JSON.stringify(modalOffenders.result.value));
+              }
               const ownerRequestShot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true,fromSurface:true});
               fs.writeFileSync(`visual-smoke/owner-custom-request-${width}.png`,Buffer.from(ownerRequestShot.data,"base64"));
             }
