@@ -20,6 +20,7 @@ import { readPricingPresets } from "@/lib/pricing-preset-store";
 import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { resolveMaterialCost } from "@/lib/material-cost-resolver";
 import { readPickupAppointments } from "@/lib/pickup-store";
+import { readHistoricalProfitRecords, saveHistoricalProfitRecord } from "@/lib/historical-profit-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
   if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   void ensureDailyBackup().catch((error) => console.error("Daily backup failed", error));
   await ensureBambuCatalogSeeded();
-  const [requests, quotes, shipments, finalInvoices, pickups, accounts, controls, followUpRecords, pricingSettings, pricingCatalog, costSnapshots, pricingPresets, purchaseLots] = await Promise.all([readRequests(), readQuotes(), readShipments(), readFinalInvoices(), readPickupAppointments(), readCollection<CustomerAccount>("customers"), readFollowUpControls(), readFollowUps(), readPricingSettings(), readBambuCatalog(), readCostSnapshots(), readPricingPresets(), readFilamentPurchaseLots()]);
+  const [requests, quotes, shipments, finalInvoices, pickups, accounts, controls, followUpRecords, pricingSettings, pricingCatalog, costSnapshots, pricingPresets, purchaseLots, historicalProfits] = await Promise.all([readRequests(), readQuotes(), readShipments(), readFinalInvoices(), readPickupAppointments(), readCollection<CustomerAccount>("customers"), readFollowUpControls(), readFollowUps(), readPricingSettings(), readBambuCatalog(), readCostSnapshots(), readPricingPresets(), readFilamentPurchaseLots(), readHistoricalProfitRecords()]);
   requests.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const accountById = new Map(accounts.map((item) => [item.id, item]));
   const controlByRequest = new Map(controls.map((item) => [item.requestId, item]));
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
   }));
   const costing=Object.fromEntries(requests.map((item)=>[item.id,costSnapshots.filter((snapshot)=>snapshot.requestId===item.id).sort((a,b)=>b.quoteRevision-a.quoteRevision||b.updatedAt.localeCompare(a.updatedAt))]));
   const materialCosts=Object.fromEntries(pricingCatalog.map((item)=>[item.id,resolveMaterialCost(item,purchaseLots)]));
-  return NextResponse.json({ requests, quotes, shipments, finalInvoices, pickups, followUps, pricing:{settings:pricingSettings,catalog:pricingCatalog,materialCosts,costing,presets:pricingPresets} }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ requests, quotes, shipments, finalInvoices, pickups, followUps, historicalProfits, pricing:{settings:pricingSettings,catalog:pricingCatalog,materialCosts,costing,presets:pricingPresets} }, { headers: { "Cache-Control": "no-store" } });
 }
 
 
@@ -72,7 +73,11 @@ const ownerRequestSchema = z.object({
   neededBy: z.string().trim().max(24).optional().default(""),
   description: z.string().trim().max(2500).optional().default(""),
   internalNote: z.string().trim().max(2000).optional().default(""),
-}).superRefine((value,ctx)=>{if(value.paymentPreference!=="stripe"&&value.fulfillmentMethod!=="pickup")ctx.addIssue({code:"custom",path:["paymentPreference"],message:"Local / manual payment is pickup-only."});});
+  historicalCompleted: z.boolean().optional().default(false),
+  completedAt: z.string().trim().max(10).refine((value)=>value===""||/^\\d{4}-\\d{2}-\\d{2}$/.test(value),"Use a valid completion date.").optional().default(""),
+  historicalRevenueCents: z.coerce.number().int().min(0).max(100_000_000).optional().default(0),
+  historicalDirectCostCents: z.coerce.number().int().min(0).max(100_000_000).optional().default(0),
+}).superRefine((value,ctx)=>{if(value.paymentPreference!=="stripe"&&value.fulfillmentMethod!=="pickup")ctx.addIssue({code:"custom",path:["paymentPreference"],message:"Local / manual payment is pickup-only."});if(value.historicalCompleted&&!value.completedAt)ctx.addIssue({code:"custom",path:["completedAt"],message:"Enter the date this historical request was completed."});});
 
 export async function POST(request: NextRequest) {
   if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
@@ -91,11 +96,25 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ message: "Please check the in-person request fields.", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 });
 
   const matchingAccount = parsed.data.email ? await findCustomerByEmail(parsed.data.email) : null;
+  const historicalCompleted = parsed.data.historicalCompleted;
+  const occurredAt = historicalCompleted ? new Date(`${parsed.data.completedAt}T12:00:00.000Z`).toISOString() : undefined;
   const stored = await createOwnerStoredRequest({
     ...parsed.data,
     customerAccountId: matchingAccount?.emailVerifiedAt ? matchingAccount.id : "",
+    status: historicalCompleted ? "completed" : "new",
+    occurredAt,
   });
-  if (stored.email) {
+  if (historicalCompleted) {
+    await saveHistoricalProfitRecord({
+      requestId: stored.id,
+      requestCode: stored.requestCode,
+      completedAt: occurredAt || stored.updatedAt,
+      revenueCents: parsed.data.historicalRevenueCents,
+      directCostCents: parsed.data.historicalDirectCostCents,
+      note: parsed.data.internalNote || "Historical custom request logged by owner.",
+    });
+  }
+  if (stored.email && !historicalCompleted) {
     await notifyCustomer(
       stored,
       "Mesh Harbor 3D created a custom request for you. Use the secure request link in this email to follow updates. If you already have a verified account with this email, the request is linked to your profile; otherwise it will link automatically after you create and verify an account with the same email.",
@@ -105,13 +124,15 @@ export async function POST(request: NextRequest) {
   await writeAudit({
     actor: "owner",
     actorId: "owner",
-    action: "in-person-request-created",
+    action: historicalCompleted ? "historical-request-created" : "in-person-request-created",
     targetType: "request",
     targetId: stored.id,
-    summary: `${stored.requestCode} created by owner${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
+    summary: historicalCompleted ? `${stored.requestCode} logged as a completed historical custom request.` : `${stored.requestCode} created by owner${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
     ipHash: requestIpHash(request),
   });
-  const message = stored.customerAccountId
+  const message = historicalCompleted
+    ? `${stored.requestCode} logged as a completed historical request with cost and profit data.`
+    : stored.customerAccountId
     ? `${stored.requestCode} added and linked to the customer account.`
     : stored.email
       ? `${stored.requestCode} added. The customer can track it by secure email link and it will link automatically after account verification with the same email.`
