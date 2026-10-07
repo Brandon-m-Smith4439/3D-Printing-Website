@@ -20,7 +20,7 @@ export function buildOwnerProfitabilityOperations(input:{
       snapshots: input.snapshots,
       historicalRecords: input.historicalRecords,
       now: input.now,
-      range: '30d',
+      range: 'all',
     }),
     attention: buildProfitabilityAttention({
       requests: input.requests,
