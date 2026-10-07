@@ -10,6 +10,8 @@ import { sameOrigin } from "@/lib/owner-api";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
 import { readCollection } from "@/lib/database";
 import type { CustomerAccount } from "@/lib/customer-types";
+import { findCustomerByEmail } from "@/lib/customer-store";
+import { notifyCustomer } from "@/lib/customer-notifications";
 import { effectiveFollowUpEmailAllowed } from "@/lib/customer-follow-up-policy";
 import { readFollowUpControls, readFollowUps } from "@/lib/customer-follow-up-store";
 import { ensureBambuCatalogSeeded, readBambuCatalog, readPricingSettings } from "@/lib/pricing-store";
@@ -59,7 +61,7 @@ const ownerRequestSchema = z.object({
   phone: z.string().trim().max(30).optional().default(""),
   projectType: z.enum(["display","functional","replacement","prototype","other"]).optional().default("other"),
   modelStatus: z.enum(["ready","needs-adjustment","reference-only","idea-only"]).optional().default("idea-only"),
-  fulfillmentMethod: z.enum(["pickup","shipping","local-delivery","unsure"]).optional().default("unsure"),
+  fulfillmentMethod: z.enum(["pickup","shipping","unsure"]).optional().default("unsure"),
   paymentPreference: z.enum(["stripe","cash","zelle","cash-app","apple-cash","venmo","paypal"]).optional().default("stripe"),
   assemblyPreference: z.enum(["assembled","disassembled","unsure"]).optional().default("unsure"),
   quantity: z.coerce.number().int().min(1).max(500).optional().default(1),
@@ -88,15 +90,31 @@ export async function POST(request: NextRequest) {
   const parsed = ownerRequestSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ message: "Please check the in-person request fields.", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-  const stored = await createOwnerStoredRequest(parsed.data);
+  const matchingAccount = parsed.data.email ? await findCustomerByEmail(parsed.data.email) : null;
+  const stored = await createOwnerStoredRequest({
+    ...parsed.data,
+    customerAccountId: matchingAccount?.emailVerifiedAt ? matchingAccount.id : "",
+  });
+  if (stored.email) {
+    await notifyCustomer(
+      stored,
+      "Mesh Harbor 3D created a custom request for you. Use the secure request link in this email to follow updates. If you already have a verified account with this email, the request is linked to your profile; otherwise it will link automatically after you create and verify an account with the same email.",
+      { subject: `${stored.requestCode} created by Mesh Harbor 3D`, forceEmail: true, notificationId: `owner-request-created:${stored.id}` },
+    ).catch((error) => console.error("Owner-created request notification failed", error));
+  }
   await writeAudit({
     actor: "owner",
     actorId: "owner",
     action: "in-person-request-created",
     targetType: "request",
     targetId: stored.id,
-    summary: `${stored.requestCode} created by owner for an in-person/offline request.`,
+    summary: `${stored.requestCode} created by owner${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
     ipHash: requestIpHash(request),
   });
-  return NextResponse.json({ request: stored, message: `${stored.requestCode} added to the request board.` }, { status: 201 });
+  const message = stored.customerAccountId
+    ? `${stored.requestCode} added and linked to the customer account.`
+    : stored.email
+      ? `${stored.requestCode} added. The customer can track it by secure email link and it will link automatically after account verification with the same email.`
+      : `${stored.requestCode} added to the request board.`;
+  return NextResponse.json({ request: stored, message }, { status: 201 });
 }
