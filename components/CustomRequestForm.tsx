@@ -28,7 +28,7 @@ type RequestSummary = {
 
 const projectSummaryLabels: Record<string, string> = { display: "Display / collectible", functional: "Functional part", replacement: "Replacement part", prototype: "Prototype", other: "Other" };
 const modelSummaryLabels: Record<string, string> = { ready: "Print-ready model", "needs-adjustment": "Model may need changes", "reference-only": "Photos / references", "idea-only": "Idea only" };
-const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Carrier shipping", "local-delivery": "Local delivery", unsure: "Not selected" };
+const fulfillmentSummaryLabels: Record<string, string> = { pickup: "Local pickup", shipping: "Carrier shipping", unsure: "Not selected" };
 const assemblySummaryLabels: Record<string, string> = { assembled: "Assembled by Mesh Harbor 3D", disassembled: "Disassembled + assembly guide", unsure: "Not sure yet" };
 const materialSummaryLabels: Record<string, string> = { "no-preference": "No preference", pla: "PLA", petg: "PETG", asa: "ASA", tpu: "TPU / flexible", resin: "Resin", other: "Other / unsure" };
 
@@ -38,7 +38,7 @@ const friendlyMessages: Record<string, string> = {
   phone: "Use a valid phone number format with numbers only plus normal phone symbols.",
   projectType: "Select a project type.",
   modelStatus: "Tell me whether you already have a 3D model.",
-  fulfillmentMethod: "Select pickup, shipping, or local delivery.",
+  fulfillmentMethod: "Select local pickup or carrier shipping.",
   assemblyPreference: "Choose assembled, disassembled with an assembly guide, or not sure yet.",
   quantity: "Enter a quantity from 1 to 500.",
   neededBy: "Enter a valid future date, such as 9/2/2026, or choose one from the calendar.",
@@ -365,11 +365,11 @@ export function CustomRequestForm({ minNeededBy, initialCustomer, initialPrefill
               <label className={fieldClass("fulfillmentMethod")}>
                 <span>How would you like to receive it? *</span>
                 <select name="fulfillmentMethod" defaultValue={initialPrefill?.fulfillmentMethod || ""} required aria-invalid={Boolean(fieldErrors.fulfillmentMethod)}>
-                  <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option><option value="local-delivery">Local delivery</option>
+                  <option value="" disabled>Select one</option><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option>
                 </select>
                 {fieldErrors.fulfillmentMethod && <small className="field-error">{fieldErrors.fulfillmentMethod}</small>}
               </label>
-              <label className={fieldClass("paymentPreference")}><span>Preferred payment *</span><select name="paymentPreference" defaultValue={initialPrefill?.paymentPreference||"stripe"} required aria-invalid={Boolean(fieldErrors.paymentPreference)}><option value="stripe">Card — secure Stripe checkout</option>{summary.fulfillmentMethod==="pickup"&&<><option value="cash">Cash</option><option value="zelle">Zelle</option><option value="cash-app">Cash App</option><option value="apple-cash">Apple Cash</option><option value="venmo">Venmo</option><option value="paypal">PayPal</option></>}</select><small>Local / manual payments are available for pickup only. No payment is collected with this request.</small>{fieldErrors.paymentPreference&&<small className="field-error">{fieldErrors.paymentPreference}</small>}</label>
+              <label className={fieldClass("paymentPreference")}><span>Preferred payment *</span><select name="paymentPreference" defaultValue={initialPrefill?.paymentPreference||"stripe"} required aria-invalid={Boolean(fieldErrors.paymentPreference)}><option value="stripe">Card — secure Stripe checkout</option><option value="cash" disabled={summary.fulfillmentMethod!=="pickup"}>Cash (Local pickup only)</option><option value="zelle" disabled={summary.fulfillmentMethod!=="pickup"}>Zelle (Local pickup only)</option><option value="cash-app" disabled={summary.fulfillmentMethod!=="pickup"}>Cash App (Local pickup only)</option><option value="apple-cash" disabled={summary.fulfillmentMethod!=="pickup"}>Apple Cash (Local pickup only)</option><option value="venmo" disabled={summary.fulfillmentMethod!=="pickup"}>Venmo (Local pickup only)</option><option value="paypal" disabled={summary.fulfillmentMethod!=="pickup"}>PayPal (Local pickup only)</option></select><small>Pickup-only payment methods stay visible for reference and are disabled when carrier shipping is selected. No payment is collected with this request.</small>{fieldErrors.paymentPreference&&<small className="field-error">{fieldErrors.paymentPreference}</small>}</label>
               <label className={fieldClass("assemblyPreference")}>
                 <span>How would you like multi-part prints delivered? *</span>
                 <select name="assemblyPreference" defaultValue={initialPrefill?.assemblyPreference || ""} required aria-invalid={Boolean(fieldErrors.assemblyPreference)}>
