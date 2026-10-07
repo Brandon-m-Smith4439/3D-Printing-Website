@@ -45,6 +45,10 @@ jobs:
           node tests/v096-guest-quote.test.mjs
       - name: Verify v0.98 fulfillment and owner request cleanup
         run: node tests/v098-owner-request-fulfillment.test.mjs
+      - name: Verify v0.99 production search and profitability history
+        run: |
+          node tests/v099-production-profit-history.test.mjs
+          node --experimental-strip-types tests/owner-profitability-operations.test.mjs
       - name: Verify quote notification reliability
         run: node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-notification-reliability.test.mjs
       - name: Verify customer follow-up policy

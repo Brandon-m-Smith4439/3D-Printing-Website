@@ -18,6 +18,7 @@ import { getSiteContent } from "@/lib/site-content-store";
 import { ownerSecurityStatus } from "@/lib/owner-security";
 import { buildLaunchReadiness } from "@/lib/launch-readiness";
 import { CUSTOMER_POLICY_VERSION } from "@/lib/customer-policies";
+import { readHistoricalProfitRecords } from "@/lib/historical-profit-store";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Sign in required." }, { status: 401 });
   }
 
-  const [requests, quotes, queue, invoices, shipments, audit, backups, shipping, followUpSettings, followUpRecords, followUpPreview, costSnapshots, content, security] = await Promise.all([
+  const [requests, quotes, queue, invoices, shipments, audit, backups, shipping, followUpSettings, followUpRecords, followUpPreview, costSnapshots, content, security, historicalRecords] = await Promise.all([
     readRequests(),
     readQuotes(),
     readQueue(),
@@ -41,10 +42,11 @@ export async function GET(request: NextRequest) {
     readCostSnapshots(),
     getSiteContent(),
     ownerSecurityStatus(),
+    readHistoricalProfitRecords(),
   ]);
 
   const now = new Date();
-  const profitability = buildOwnerProfitabilityOperations({ requests, quotes, snapshots: costSnapshots, now });
+  const profitability = buildOwnerProfitabilityOperations({ requests, quotes, snapshots: costSnapshots, historicalRecords, now });
 
   const snapshot = buildOwnerOperationsSnapshot({
     requests,

@@ -35,7 +35,7 @@ assert.match(siteStore, /101 S Charlotte Ave/, "legacy pickup address should be 
 assert.match(siteStore, /legacyPickupDefault/, "pickup migration should target the known old default only");
 
 assert.doesNotMatch(fulfillment, /<h2>Local delivery<\/h2>/, "fulfillment policy must not advertise local delivery");
-assert.equal(pkg.version, "0.98.0");
+assert.equal(pkg.version, "0.99.0");
 assert.match(operations, /label: "Needs attention"/);
 assert.match(operations, /label: "New requests"/);
 assert.match(operations, /label: "Active production"/);
