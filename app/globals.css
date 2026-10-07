@@ -4948,6 +4948,13 @@ button.operations-attention-item:focus-visible {
 .owner-custom-request-form small {
   overflow-wrap:anywhere;
 }
+.owner-custom-request-form .historical-request-toggle input[type="checkbox"] {
+  flex:0 0 18px;
+  width:18px;
+  min-width:18px;
+  max-width:18px;
+  height:18px;
+}
 .owner-custom-request-actions {
   position:sticky;
   bottom:-22px;
