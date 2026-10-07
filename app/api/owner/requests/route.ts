@@ -77,7 +77,7 @@ const ownerRequestSchema = z.object({
   completedAt: z.string().trim().max(10).refine((value)=>value===""||/^\d{4}-\d{2}-\d{2}$/.test(value),"Use a valid completion date.").optional().default(""),
   historicalRevenueCents: z.coerce.number().int().min(0).max(100_000_000).optional().default(0),
   historicalDirectCostCents: z.coerce.number().int().min(0).max(100_000_000).optional().default(0),
-}).superRefine((value,ctx)=>{if(value.paymentPreference!=="stripe"&&value.fulfillmentMethod!=="pickup")ctx.addIssue({code:"custom",path:["paymentPreference"],message:"Local / manual payment is pickup-only."});if(value.historicalCompleted&&!value.completedAt)ctx.addIssue({code:"custom",path:["completedAt"],message:"Enter the date this historical request was completed."});});
+}).superRefine((value,ctx)=>{if(value.paymentPreference!=="stripe"&&value.fulfillmentMethod!=="pickup")ctx.addIssue({code:"custom",path:["paymentPreference"],message:"Local / manual payment is pickup-only."});if(value.historicalCompleted&&!value.completedAt)ctx.addIssue({code:"custom",path:["completedAt"],message:"Enter the date this historical request was completed."});if(value.historicalCompleted&&value.completedAt&&Date.parse(`${value.completedAt}T00:00:00.000Z`)>Date.now())ctx.addIssue({code:"custom",path:["completedAt"],message:"Historical completion date cannot be in the future."});});
 
 export async function POST(request: NextRequest) {
   if (!await requestIsOwner(request)) return NextResponse.json({ message: "Sign in required." }, { status: 401 });
