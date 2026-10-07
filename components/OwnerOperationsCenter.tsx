@@ -9,13 +9,6 @@ import type {
 
 type Notice = { kind: "success" | "error" | "warning"; text: string } | null;
 
-function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
-}
-
-function percent(basisPoints: number) {
-  return `${(basisPoints / 100).toFixed(1)}%`;
-}
 
 function ageLabel(hours: number) {
   if (hours < 1) return "Just now";
@@ -39,18 +32,14 @@ function searchMeta(item: OwnerSearchRecord) {
 
 export function OwnerOperationsCenter({
   onOpenRequest,
-  onOpenPricing,
   onNotice,
 }: {
   onOpenRequest: (requestId: string) => void;
-  onOpenPricing: () => void;
   onNotice: (notice: Notice) => void;
 }) {
   const [snapshot, setSnapshot] = useState<OwnerOperationsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [followUpBusy, setFollowUpBusy] = useState("");
-  const [followUpPreview, setFollowUpPreview] = useState<{due:Array<{id:string;requestCode:string;type:string;blockedReason:string}>;upcoming:Array<{id:string;requestCode:string;type:string;blockedReason:string}>;blocked:Array<{id:string;requestCode:string;type:string;blockedReason:string}>}|null>(null);
 
   async function load() {
     setLoading(true);
@@ -66,28 +55,6 @@ export function OwnerOperationsCenter({
     }
   }
 
-  async function previewFollowUps() {
-    setFollowUpBusy("preview");
-    try {
-      const response = await fetch("/api/owner/follow-ups/preview", { method: "POST" });
-      const result = await response.json() as { preview?: typeof followUpPreview; message?: string };
-      if (!response.ok || !result.preview) throw new Error(result.message || "Could not preview customer follow-ups.");
-      setFollowUpPreview(result.preview);
-    } catch (error) { onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not preview customer follow-ups." }); }
-    finally { setFollowUpBusy(""); }
-  }
-
-  async function setFollowUpEnabled(enabled: boolean) {
-    setFollowUpBusy("settings");
-    try {
-      const response = await fetch("/api/owner/follow-ups/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) });
-      const result = await response.json() as { message?: string };
-      if (!response.ok) throw new Error(result.message || "Could not update customer follow-up automation.");
-      onNotice({ kind: "success", text: result.message || "Customer follow-up automation updated." });
-      await load();
-    } catch (error) { onNotice({ kind: "error", text: error instanceof Error ? error.message : "Could not update customer follow-up automation." }); }
-    finally { setFollowUpBusy(""); }
-  }
 
   useEffect(() => { void load(); }, []);
 
