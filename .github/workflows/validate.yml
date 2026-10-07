@@ -49,6 +49,8 @@ jobs:
         run: |
           node tests/v099-production-profit-history.test.mjs
           node --experimental-strip-types tests/owner-profitability-operations.test.mjs
+      - name: Verify v1.00 Owner Custom Request workspace
+        run: node tests/v100-owner-custom-request-modal.test.mjs
       - name: Verify quote notification reliability
         run: node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-notification-reliability.test.mjs
       - name: Verify customer follow-up policy
