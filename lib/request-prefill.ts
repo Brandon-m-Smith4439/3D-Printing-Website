@@ -8,7 +8,7 @@ export type RequestPrefill = {
   phone: string;
   projectType: "display" | "functional" | "replacement" | "prototype" | "other";
   modelStatus: "ready" | "needs-adjustment" | "reference-only" | "idea-only";
-  fulfillmentMethod: "pickup" | "shipping" | "local-delivery" | "unsure";
+  fulfillmentMethod: "pickup" | "shipping" | "unsure";
   paymentPreference?: StoredRequest["paymentPreference"];
   assemblyPreference: "assembled" | "disassembled" | "unsure";
   quantity: number;
@@ -21,7 +21,7 @@ export type RequestPrefill = {
 
 const projectTypes = new Set(["display","functional","replacement","prototype","other"]);
 const modelStatuses = new Set(["ready","needs-adjustment","reference-only","idea-only"]);
-const fulfillmentMethods = new Set(["pickup","shipping","local-delivery","unsure"]);
+const fulfillmentMethods = new Set(["pickup","shipping","unsure"]);
 const assemblyPreferences = new Set(["assembled","disassembled","unsure"]);
 const materials = new Set(["no-preference","pla","petg","asa","tpu","resin","other"]);
 
