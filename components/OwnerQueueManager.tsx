@@ -10,7 +10,6 @@ import type { PickupAppointment } from "@/lib/pickup-types";
 import { finalInvoicePaid, type FinalInvoiceRecord } from "@/lib/final-invoice-types";
 import { OwnerQuoteEditor } from "@/components/OwnerQuoteEditor";
 import { OwnerSecurityPanel } from "@/components/OwnerSecurityPanel";
-import { OwnerDashboardQueue } from "@/components/OwnerDashboardQueue";
 import { OwnerOperationsCenter } from "@/components/OwnerOperationsCenter";
 import { OwnerPricingPanel } from "@/components/OwnerPricingPanel";
 import { OwnerCostCloseout } from "@/components/OwnerCostCloseout";
@@ -53,8 +52,7 @@ export function OwnerQueueManager(){
     <div className="owner-toolbar"><div className="owner-tabs"><button className={tab==="operations"?"is-active":""} onClick={()=>setTab("operations")} type="button">Dashboard</button><button className={tab==="production"?"is-active":""} onClick={()=>setTab("production")} type="button">Production {newCount>0&&<b>{newCount}</b>}</button><button className={tab==="pricing"?"is-active":""} onClick={()=>setTab("pricing")} type="button">Pricing & Profitability</button><button className={tab==="site"?"is-active":""} onClick={()=>setTab("site")} type="button">Site Content</button><button className={tab==="security"?"is-active":""} onClick={()=>setTab("security")} type="button">Security & Backups</button></div><button className="button button-secondary button-small" onClick={logout} type="button">Sign out</button></div>
     {notice&&<div className={`owner-notice ${notice.kind}`}>{notice.text}</div>}
     {tab==="operations"&&<OwnerOperationsCenter key={requests.map(r=>r.updatedAt).join()+jobs.map(j=>j.updatedAt).join()} onNotice={setNotice} onOpenRequest={(requestId)=>{setFocusedRequestId(requestId);}}/>}
-    {tab==="operations"&&<OwnerDashboardQueue jobs={jobs} onChanged={loadAll} onNotice={setNotice} onOpenRequest={setFocusedRequestId}/>}
-    {(tab==="production"||tab==="operations")&&pricing&&<ProductionPanel pricing={pricing} requests={requests} jobs={jobs} quotes={quotes} shipments={shipments} finalInvoices={finalInvoices} pickups={pickups} followUps={followUps} focusedRequestId={focusedRequestId} onFocusedRequestHandled={()=>setFocusedRequestId("")} onChanged={loadAll} onNotice={setNotice}/>}
+    {tab==="production"&&pricing&&<ProductionPanel pricing={pricing} requests={requests} jobs={jobs} quotes={quotes} shipments={shipments} finalInvoices={finalInvoices} pickups={pickups} followUps={followUps} focusedRequestId={focusedRequestId} onFocusedRequestHandled={()=>setFocusedRequestId("")} onChanged={loadAll} onNotice={setNotice}/>}
     {tab==="pricing"&&<OwnerPricingPanel onNotice={setNotice}/>}
     {tab==="site"&&siteContent&&<SiteContentPanel content={siteContent} onChanged={loadAll} onNotice={setNotice}/>}
     {tab==="security"&&<OwnerSecurityPanel onNotice={setNotice}/>}
