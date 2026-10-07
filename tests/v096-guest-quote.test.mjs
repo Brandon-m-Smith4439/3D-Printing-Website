@@ -44,6 +44,6 @@ assert.match(editor,/request\.fulfillmentMethod!=="unsure"/,"customer fulfillmen
 
 assert.doesNotMatch(header,/Whatnot shop/,"public header must not show Whatnot");
 assert.doesNotMatch(footer,/Whatnot Shop/,"public footer must not show Whatnot");
-assert.match(site,/101 S Charlotte Ave/,"designated pickup address must be configured");
+assert.match(site,/316 W Jefferson St/,"designated pickup address must be configured");
 assert.match(site,/764 W Franklin St/,"private shipping origin default must be configured");
 console.log("V0.96 guest quote and pricing source checks passed.");
