@@ -25,6 +25,7 @@ const COLLECTIONS = [
   "filament-purchase-lots",
   "quote-cost-snapshots",
   "pricing-presets",
+  "historical-profit-records",
 ] as const;
 
 let initialized = false;
