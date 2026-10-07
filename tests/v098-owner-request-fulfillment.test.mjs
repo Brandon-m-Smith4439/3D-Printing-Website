@@ -18,7 +18,7 @@ assert.match(requestForm, /disabled=\{summary\.fulfillmentMethod!=="pickup"\}/, 
 assert.doesNotMatch(requestSchema, /z\.enum\(\["pickup", "shipping", "local-delivery"/, "new customer requests must reject local delivery");
 assert.doesNotMatch(choiceRoute, /local-delivery/, "owner choice confirmation must not create local delivery");
 
-assert.match(owner, /\+ New Custom Request/, "owner must have a dedicated custom request action");
+assert.match(owner, />Owner Custom Request<\/button>/, "owner must have a dedicated Owner Custom Request action");
 assert.doesNotMatch(owner, /Add Etsy, Whatnot, repeat, or in-person job/, "legacy Etsy/manual queue creator must be removed");
 assert.doesNotMatch(owner, /function ManualQueueForm/, "manual queue creation should no longer be a second request system");
 assert.match(owner, /filter\(item=>item\.count>0\)/, "zero-count production filters must be hidden");
