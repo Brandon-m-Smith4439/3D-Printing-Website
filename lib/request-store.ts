@@ -31,11 +31,10 @@ export async function createStoredRequest(
   return mutate(async () => {
     const requests = await readRequests();
     const now = new Date().toISOString();
-    const occurredAt = values.occurredAt?.trim() || now;
     const stored: StoredRequest = {
       id: randomUUID(),
       requestCode: makeRequestCode(),
-      status: values.status || "new",
+      status: "new",
       name: values.name,
       email: values.email,
       phone: values.phone,
@@ -56,8 +55,8 @@ export async function createStoredRequest(
       imageUrl: "",
       attachments: metadata.attachments || [],
       internalNote: "",
-      createdAt: occurredAt,
-      updatedAt: occurredAt,
+      createdAt: now,
+      updatedAt: now,
       queuedAt: "",
       queueJobId: "",
       customerAccountId: metadata.customerAccountId || "",
@@ -97,10 +96,11 @@ export async function createOwnerStoredRequest(values: {
   return mutate(async () => {
     const requests = await readRequests();
     const now = new Date().toISOString();
+    const occurredAt = values.occurredAt?.trim() || now;
     const stored: StoredRequest = {
       id: randomUUID(),
       requestCode: makeRequestCode(),
-      status: "new",
+      status: values.status || "new",
       name: values.name?.trim() || "In-person customer",
       email: values.email?.trim().toLowerCase() || "",
       phone: values.phone?.trim() || "",
@@ -121,8 +121,8 @@ export async function createOwnerStoredRequest(values: {
       imageUrl: "",
       attachments: [],
       internalNote: values.internalNote?.trim() || "",
-      createdAt: now,
-      updatedAt: now,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
       queuedAt: "",
       queueJobId: "",
       customerAccountId: values.customerAccountId?.trim() || "",
