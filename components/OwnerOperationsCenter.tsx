@@ -9,6 +9,9 @@ import type {
 
 type Notice = { kind: "success" | "error" | "warning"; text: string } | null;
 
+function money(cents: number) { return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(cents/100); }
+function percent(basisPoints: number) { return `${(basisPoints/100).toFixed(1)}%`; }
+
 
 function ageLabel(hours: number) {
   if (hours < 1) return "Just now";
@@ -73,6 +76,7 @@ export function OwnerOperationsCenter({
     return <section className="owner-panel operations-loading"><strong>Operations Center is temporarily unavailable.</strong><button className="button button-small" type="button" onClick={() => void load()}>Try Again</button></section>;
   }
 
+  const actionableAttention = snapshot.attention.filter((item) => item.severity === "urgent" || item.severity === "action");
   const kpis = [
     { key: "attention", label: "Needs attention", value: snapshot.counts.urgent + snapshot.counts.action, detail: "Owner action requested", tone: snapshot.counts.urgent ? "urgent" : snapshot.counts.action ? "action" : "good" },
     { key: "new", label: "New requests", value: snapshot.counts.newRequests, detail: "Waiting for review", tone: snapshot.counts.newRequests ? "action" : "good" },
@@ -101,6 +105,14 @@ export function OwnerOperationsCenter({
         <strong>{item.value}</strong>
         <small>{item.detail}</small>
       </article>)}
+    </section>
+
+    <section className="owner-panel operations-financials">
+      <div className="operations-section-heading"><div><p className="eyebrow">COST VS PROFIT</p><h3>Current profitability</h3></div><span>Active work + completed last 30 days</span></div>
+      <div className="operations-financial-grid">
+        <article><strong>Active / quoted work</strong><div><span>Revenue<b>{money(snapshot.profitability.active.revenueCents)}</b></span><span>Current cost<b>{money(snapshot.profitability.active.directCostCents)}</b></span><span className={snapshot.profitability.active.contributionProfitCents<0?"is-negative":"profit-value"}>Projected profit<b>{money(snapshot.profitability.active.contributionProfitCents)}</b></span><span>Margin<b>{percent(snapshot.profitability.active.contributionMarginBasisPoints)}</b></span></div><small>{snapshot.profitability.active.uncostedCount} active request{snapshot.profitability.active.uncostedCount===1?"":"s"} still need costing.</small></article>
+        <article><strong>Completed · 30 days</strong><div><span>Revenue<b>{money(snapshot.profitability.completed.revenueCents)}</b></span><span>Direct cost<b>{money(snapshot.profitability.completed.directCostCents)}</b></span><span className={snapshot.profitability.completed.contributionProfitCents<0?"is-negative":"profit-value"}>Profit<b>{money(snapshot.profitability.completed.contributionProfitCents)}</b></span><span>Margin<b>{percent(snapshot.profitability.completed.contributionMarginBasisPoints)}</b></span></div><small>{snapshot.profitability.completed.completedCount} completed request{snapshot.profitability.completed.completedCount===1?"":"s"} in this 30-day view.</small></article>
+      </div>
     </section>
 
     <section className="operations-search owner-panel">
@@ -134,13 +146,13 @@ export function OwnerOperationsCenter({
     <div className="operations-layout operations-layout-single">
       <section className="owner-panel operations-attention-panel">
         <div className="operations-section-heading">
-          <div><p className="eyebrow">NEEDS ATTENTION</p><h3>What to work on next</h3></div>
-          <span>{snapshot.attention.length} item{snapshot.attention.length === 1 ? "" : "s"}</span>
+          <div><p className="eyebrow">NEEDS ATTENTION</p><h3>Orders and actions to handle</h3></div>
+          <span>{actionableAttention.length} item{actionableAttention.length === 1 ? "" : "s"}</span>
         </div>
         <div className="operations-attention-list">
-          {snapshot.attention.length === 0
-            ? <div className="operations-clear-state"><strong>Nothing needs attention right now.</strong><span>New requests, payment issues, overdue work, shipping exceptions, and stale backups will appear here automatically.</span></div>
-            : snapshot.attention.map((item) => item.requestId
+          {actionableAttention.length === 0
+            ? <div className="operations-clear-state"><strong>No owner action is required right now.</strong><span>New requests, counter offers, deposits, overdue production, final balances, and shipping problems will appear here when you need to act.</span></div>
+            : actionableAttention.map((item) => item.requestId
               ? <button className={`operations-attention-item severity-${item.severity}`} type="button" key={item.id} onClick={() => onOpenRequest(item.requestId)}>
                   <span className="operations-attention-marker" aria-hidden="true"/>
                   <span className="operations-attention-copy"><span><b>{attentionLabel(item)}</b><em>{item.category}</em></span><strong>{item.title}</strong><small>{item.requestCode ? `${item.requestCode} • ` : ""}{item.detail}</small></span>
