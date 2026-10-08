@@ -27,7 +27,7 @@ export default async function GuestRequestPage({params}:{params:Promise<{code:st
   const position=job&&job.status!=="completed"?active.findIndex(item=>item.id===job.id)+1:null;
 
   return <section className="section page-hero"><GuestRequestPortal
-    request={{id:request.id,requestCode:request.requestCode,status:request.status,name:request.name,email:request.email,projectType:request.projectType,quantity:request.quantity,description:request.description,createdAt:request.createdAt,emailNotifications:Boolean(request.emailNotifications)}}
+    request={{id:request.id,requestCode:request.requestCode,status:request.status,ownerTrackingStatus:request.ownerTrackingStatus||null,name:request.name,email:request.email,projectType:request.projectType,quantity:request.quantity,description:request.description,createdAt:request.createdAt,emailNotifications:Boolean(request.emailNotifications)}}
     quote={quote?{
       id:quote.id,revision:quote.revision,status:quote.status,basePriceCents:quote.basePriceCents,assemblyFeeCents:quote.assemblyFeeCents,rushFeeCents:quote.rushFeeCents,localDeliveryFeeCents:quote.localDeliveryFeeCents,
       fulfillmentMode:quote.fulfillmentMode,paymentMethod:quote.paymentMethod,localPaymentMethod:quote.localPaymentMethod,shippingSelection:quote.shippingSelection,totalCents:quote.totalCents,depositCents:quote.depositCents,balanceCents:quote.balanceCents,
