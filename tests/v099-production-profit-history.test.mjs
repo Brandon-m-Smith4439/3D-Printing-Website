@@ -41,6 +41,6 @@ assert.match(owner, /fulfillment==="pickup"\?"Cash":"Cash \(Local pickup only\)"
 
 assert.match(pricing, /\["7d","30d","90d","all"\]/, "Pricing profitability needs selectable time ranges");
 assert.match(pricing, /All time/, "Pricing profitability must expose an all-time range");
-assert.equal(pkg.version, "1.1.0");
+assert.equal(pkg.version, "1.2.0");
 
 console.log("V0.99 production search, actionable dashboard, historical profitability, and payment-label checks passed.");
