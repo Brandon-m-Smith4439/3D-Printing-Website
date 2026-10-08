@@ -15,6 +15,7 @@ import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
 import { activePickupForRequest, completePickup } from "@/lib/pickup-store";
 import { shipmentForRequest } from "@/lib/shipment-store";
 import { evaluateFulfillmentRelease } from "@/lib/fulfillment-release";
+import type { OwnerTrackingStatus } from "@/lib/owner-tracking-status";
 
 export const runtime = "nodejs";
 
@@ -173,8 +174,8 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
           ? "quoted"
           : "reviewing";
     const sourceBefore = await getStoredRequest(existing.sourceRequestId);
-    const restoredTracking = satisfiedDeposit ? "deposit-paid" : quote?.status === "approved" ? "accepted" : quote?.status === "sent" ? "quoted" : "reviewing";
-    const source = await updateStoredRequest(existing.sourceRequestId, { status: restoredStatus, queueJobId: "", queuedAt: "", ...(sourceBefore?.source==="owner"?{ownerTrackingStatus:restoredTracking as const}:{}) });
+    const restoredTracking: OwnerTrackingStatus = satisfiedDeposit ? "deposit-paid" : quote?.status === "approved" ? "accepted" : quote?.status === "sent" ? "quoted" : "reviewing";
+    const source = await updateStoredRequest(existing.sourceRequestId, { status: restoredStatus, queueJobId: "", queuedAt: "", ...(sourceBefore?.source==="owner"?{ownerTrackingStatus:restoredTracking}:{}) });
     if (source) {
       await notifyCustomer(
         source,
