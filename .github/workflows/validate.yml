@@ -53,6 +53,8 @@ jobs:
         run: node tests/v100-owner-custom-request-modal.test.mjs
       - name: Verify v1.01 Owner Custom Request polish
         run: node tests/v101-owner-custom-request-polish.test.mjs
+      - name: Verify v1.02 Owner Custom Request tracking
+        run: node tests/v102-owner-tracking-status.test.mjs
       - name: Verify quote notification reliability
         run: node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-notification-reliability.test.mjs
       - name: Verify customer follow-up policy
