@@ -129,7 +129,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
 
   let emailStatus="not-requested";
   if(parsed.data.action==="send"){
-    const updated=await updateStoredRequest(source.id,{status:"quoted"});
+    const updated=await updateStoredRequest(source.id,{status:"quoted",...(source.source==="owner"?{ownerTrackingStatus:"quoted" as const}:{})});
     if(updated){
       const paidCents=quoteNetDepositPaidCents(quote);
       const outstandingCents=quoteDepositOutstandingCents(quote);
@@ -153,7 +153,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
       if(emailStatus!=="sent")await writeAudit({actor:"system",actorId:"email",action:"quote-email-failed",targetType:"request",targetId:source.id,summary:`Quote ${source.requestCode} saved but email ${emailStatus}. Retry quote email from the request.`,ipHash:""});
     }
   }else if(quote.status==="draft"&&["quoted","accepted","deposit-paid"].includes(source.status)){
-    await updateStoredRequest(source.id,{status:"reviewing"});
+    await updateStoredRequest(source.id,{status:"reviewing",...(source.source==="owner"?{ownerTrackingStatus:"reviewing" as const}:{})});
   }
 
   await writeAudit({

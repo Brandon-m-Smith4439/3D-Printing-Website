@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
             await setStripeCustomerId(source.customerAccountId, session?.livemode === true ? "live" : "test", stripeCustomerId);
           }
           if (quote.status === "deposit-paid") {
-            const updated = await updateStoredRequest(source.id, { status: "deposit-paid" });
+            const updated = await updateStoredRequest(source.id, { status: "deposit-paid", ...(source.source==="owner"?{ownerTrackingStatus:"deposit-paid" as const}:{}) });
             if (updated) await notifyCustomer(updated, "Your deposit requirement is satisfied. Your request is ready for the owner to schedule into production.");
           } else {
             await notifyCustomer(source, "Your Stripe payment was received and applied as deposit credit. Please review the latest quote revision in your profile.", { email: false });
@@ -169,9 +169,9 @@ export async function POST(request: NextRequest) {
         const source = await getStoredRequest(quote.requestId);
         if (source) {
           if (quote.status === "deposit-paid") {
-            await updateStoredRequest(source.id, { status: "deposit-paid" });
+            await updateStoredRequest(source.id, { status: "deposit-paid", ...(source.source==="owner"?{ownerTrackingStatus:"deposit-paid" as const}:{}) });
           } else if (eventType === "refund.failed") {
-            await updateStoredRequest(source.id, { status: "accepted" });
+            await updateStoredRequest(source.id, { status: "accepted", ...(source.source==="owner"?{ownerTrackingStatus:"accepted" as const}:{}) });
             await notifyCustomer(source, "Stripe reported that a deposit refund could not be completed. Mesh Harbor 3D will review the refund and follow up.", { email: false });
           }
           await writeAudit({

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { OwnerTrackingStatus } from "@/lib/owner-tracking-status";
 
 export const requestStatuses = ["new", "reviewing", "quoted", "accepted", "deposit-paid", "declined", "queued", "completed"] as const;
 export type RequestStatus = (typeof requestStatuses)[number];
@@ -15,6 +16,7 @@ export type StoredRequest = {
   id: string;
   requestCode: string;
   status: RequestStatus;
+  ownerTrackingStatus?: OwnerTrackingStatus;
   name: string;
   email: string;
   phone: string;

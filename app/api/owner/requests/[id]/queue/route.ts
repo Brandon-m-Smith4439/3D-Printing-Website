@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const quote = await quoteForRequest(source.id);
   if (source.status !== "deposit-paid" || !quote || quote.status !== "deposit-paid" || !quoteDepositSatisfied(quote)) return NextResponse.json({ message: "The current quote's confirmed 50% deposit requirement must be satisfied before adding this custom request to production." }, { status: 409 });
   const job = await createQueueJob({ sourceRequestId:source.id, publicTitle:defaultQueueTitle(source.projectType), customerName:source.name, customerEmail:source.email, fulfillmentMethod:quote.fulfillmentMode, quantity:source.quantity, estimatedReadyDate:quote.estimatedReadyDate || source.neededBy, imageUrl:"", publicNote:"", privateNote:"", isAnonymous:Boolean(source.isAnonymous) });
-  const updated = await updateStoredRequest(source.id,{status:"queued",queuedAt:new Date().toISOString(),queueJobId:job.id});
+  const updated = await updateStoredRequest(source.id,{status:"queued",queuedAt:new Date().toISOString(),queueJobId:job.id,...(source.source==="owner"?{ownerTrackingStatus:"queued" as const}:{})});
   if(updated)await notifyCustomer(updated,"Your deposit is confirmed and your print has been added to the production queue.");
   await writeAudit({actor:"owner",actorId:"owner",action:"request-queued",targetType:"request",targetId:source.id,summary:`${source.requestCode} added to production after deposit confirmation.`,ipHash:requestIpHash(request)});
   return NextResponse.json({job,request:updated},{status:201});

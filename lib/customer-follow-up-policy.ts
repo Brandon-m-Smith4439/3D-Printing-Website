@@ -54,7 +54,7 @@ export function followUpRecordId(input: Pick<FollowUpCandidate, "requestId" | "t
 }
 
 export function effectiveFollowUpEmailAllowed(request: StoredRequest, account: CustomerAccount | null, control?: RequestFollowUpControl) {
-  if (["completed", "declined"].includes(request.status)) return { allowed: false, reason: "Request is closed." };
+  if (["completed", "declined"].includes(request.status) || (request.ownerTrackingStatus && ["completed", "declined"].includes(request.ownerTrackingStatus))) return { allowed: false, reason: "Request is closed." };
   if (control?.paused) return { allowed: false, reason: "Automated reminders are paused for this request." };
   if (!request.email.trim() && !account?.email) return { allowed: false, reason: "Request has no email address." };
   const wantsEmail = account?.emailVerifiedAt

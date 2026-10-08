@@ -23,7 +23,7 @@ export async function POST(request:NextRequest,context:{params:Promise<{id:strin
     try{const result=await reconcileQuoteDepositRefund(quote.id);quote=result.quote;}catch(error){console.error("In-person quote refund reconciliation failed",error);}
   }else if(paidBefore>0&&quoteDepositOutstandingCents(quote)===0){quote=await markQuoteDepositSatisfied(quote.id)||quote;}
   const satisfied=quote.status==="deposit-paid";
-  const updated=await updateStoredRequest(source.id,{status:satisfied?"deposit-paid":"accepted"});
+  const updated=await updateStoredRequest(source.id,{status:satisfied?"deposit-paid":"accepted",ownerTrackingStatus:satisfied?"deposit-paid":"accepted"});
   if(updated&&updated.email.trim())await notifyCustomer(updated,`Mesh Harbor 3D recorded your in-person approval for quote revision ${quote.revision}. ${satisfied?"Your deposit requirement is already satisfied.":"The 50% deposit is required before production begins."}`,{forceEmail:true,subject:`${updated.requestCode} in-person quote approval recorded`});
   await writeAudit({actor:"owner",actorId:"owner",action:"quote-approved-in-person",targetType:"quote",targetId:quote.id,summary:`Owner recorded in-person customer approval for ${source.requestCode}, quote revision ${quote.revision}.`,ipHash:requestIpHash(request)});
   return NextResponse.json({quote,message:satisfied?"In-person approval recorded; deposit requirement is satisfied.":"In-person approval recorded. Deposit is now required before production."});

@@ -15,6 +15,7 @@ import { ensureFinalInvoiceForRequest } from "@/lib/final-invoice-service";
 import { activePickupForRequest, completePickup } from "@/lib/pickup-store";
 import { shipmentForRequest } from "@/lib/shipment-store";
 import { evaluateFulfillmentRelease } from "@/lib/fulfillment-release";
+import type { OwnerTrackingStatus } from "@/lib/owner-tracking-status";
 
 export const runtime = "nodejs";
 
@@ -126,11 +127,12 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   if (job?.sourceRequestId && parsed.data.status && parsed.data.status !== existing.status) {
     const sourceBefore = await getStoredRequest(job.sourceRequestId);
     if (job.status === "completed") {
-      const sourceAfter = await updateStoredRequest(job.sourceRequestId, { status: "completed" });
+      const sourceAfter = await updateStoredRequest(job.sourceRequestId, { status: "completed", ...(sourceBefore?.source==="owner"?{ownerTrackingStatus:"completed" as const}:{}) });
       const pickup = await activePickupForRequest(job.sourceRequestId);
       if (pickup) await completePickup(pickup.id);
       if (sourceAfter) await notifyCustomer(sourceAfter, "Your print is complete.", { email: false });
     } else if (sourceBefore) {
+      const sourceForNotification = sourceBefore.source==="owner" ? await updateStoredRequest(sourceBefore.id,{ownerTrackingStatus:job.status}) || sourceBefore : sourceBefore;
       const labels: Record<string, string> = {
         queued: "Your print is in the production queue.",
         preparing: "Your print is being prepared and sliced for production.",
@@ -143,7 +145,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
             : "Your print is ready for pickup, delivery, or shipping.",
         "on-hold": "Your print is currently on hold. We will update you when production resumes.",
       };
-      await notifyCustomer(sourceBefore, labels[job.status] || `Your print status is now ${job.status}.`);
+      await notifyCustomer(sourceForNotification, labels[job.status] || `Your print status is now ${job.status}.`);
     }
   }
   await writeAudit({actor:"owner",actorId:"owner",action:"queue-job-updated",targetType:"queue",targetId:id,summary:`${existing.publicCode} updated${parsed.data.status ? ` to ${parsed.data.status}` : ""}.`,ipHash:requestIpHash(request)});
@@ -171,7 +173,9 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
         : quote?.status === "sent"
           ? "quoted"
           : "reviewing";
-    const source = await updateStoredRequest(existing.sourceRequestId, { status: restoredStatus, queueJobId: "", queuedAt: "" });
+    const sourceBefore = await getStoredRequest(existing.sourceRequestId);
+    const restoredTracking: OwnerTrackingStatus = satisfiedDeposit ? "deposit-paid" : quote?.status === "approved" ? "accepted" : quote?.status === "sent" ? "quoted" : "reviewing";
+    const source = await updateStoredRequest(existing.sourceRequestId, { status: restoredStatus, queueJobId: "", queuedAt: "", ...(sourceBefore?.source==="owner"?{ownerTrackingStatus:restoredTracking}:{}) });
     if (source) {
       await notifyCustomer(
         source,

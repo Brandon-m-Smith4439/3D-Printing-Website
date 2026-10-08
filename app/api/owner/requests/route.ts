@@ -21,6 +21,7 @@ import { readFilamentPurchaseLots } from "@/lib/bambu-purchase-store";
 import { resolveMaterialCost } from "@/lib/material-cost-resolver";
 import { readPickupAppointments } from "@/lib/pickup-store";
 import { readHistoricalProfitRecords, saveHistoricalProfitRecord } from "@/lib/historical-profit-store";
+import { ownerTrackingStatuses, ownerTrackingStatusLabels } from "@/lib/owner-tracking-status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,6 +75,7 @@ const ownerRequestSchema = z.object({
   description: z.string().trim().max(2500).optional().default(""),
   internalNote: z.string().trim().max(2000).optional().default(""),
   status: z.enum(["new","reviewing"]).optional().default("new"),
+  ownerTrackingStatus: z.enum(ownerTrackingStatuses).optional(),
   historicalCompleted: z.boolean().optional().default(false),
   completedAt: z.string().trim().max(10).refine((value)=>value===""||/^\d{4}-\d{2}-\d{2}$/.test(value),"Use a valid completion date.").optional().default(""),
   historicalRevenueCents: z.coerce.number().int().min(0).max(100_000_000).optional().default(0),
@@ -98,11 +100,20 @@ export async function POST(request: NextRequest) {
 
   const matchingAccount = parsed.data.email ? await findCustomerByEmail(parsed.data.email) : null;
   const historicalCompleted = parsed.data.historicalCompleted;
+  const ownerTrackingStatus = historicalCompleted ? "completed" : (parsed.data.ownerTrackingStatus || parsed.data.status);
+  const storedStatus = historicalCompleted || ownerTrackingStatus === "completed"
+    ? "completed"
+    : ownerTrackingStatus === "declined"
+      ? "declined"
+      : ownerTrackingStatus === "new"
+        ? "new"
+        : "reviewing";
   const occurredAt = historicalCompleted ? new Date(`${parsed.data.completedAt}T12:00:00.000Z`).toISOString() : undefined;
   const stored = await createOwnerStoredRequest({
     ...parsed.data,
     customerAccountId: matchingAccount?.emailVerifiedAt ? matchingAccount.id : "",
-    status: historicalCompleted ? "completed" : parsed.data.status,
+    status: storedStatus,
+    ownerTrackingStatus,
     occurredAt,
   });
   if (historicalCompleted) {
@@ -118,7 +129,7 @@ export async function POST(request: NextRequest) {
   if (stored.email && !historicalCompleted) {
     await notifyCustomer(
       stored,
-      "Mesh Harbor 3D created a custom request for you. Use the secure request link in this email to follow updates. If you already have a verified account with this email, the request is linked to your profile; otherwise it will link automatically after you create and verify an account with the same email.",
+      `Mesh Harbor 3D created a custom request for you. Its current tracking stage is ${ownerTrackingStatusLabels[ownerTrackingStatus]}. Use the secure request link in this email to follow updates. If you already have a verified account with this email, the request is linked to your profile; otherwise it will link automatically after you create and verify an account with the same email.`,
       { subject: `${stored.requestCode} created by Mesh Harbor 3D`, forceEmail: true, notificationId: `owner-request-created:${stored.id}` },
     ).catch((error) => console.error("Owner-created request notification failed", error));
   }
@@ -128,7 +139,7 @@ export async function POST(request: NextRequest) {
     action: historicalCompleted ? "historical-request-created" : "in-person-request-created",
     targetType: "request",
     targetId: stored.id,
-    summary: historicalCompleted ? `${stored.requestCode} logged as a completed historical custom request.` : `${stored.requestCode} created by owner at ${stored.status}${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
+    summary: historicalCompleted ? `${stored.requestCode} logged as a completed historical custom request.` : `${stored.requestCode} created by owner with tracking stage ${ownerTrackingStatusLabels[ownerTrackingStatus]}${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
     ipHash: requestIpHash(request),
   });
   const message = historicalCompleted

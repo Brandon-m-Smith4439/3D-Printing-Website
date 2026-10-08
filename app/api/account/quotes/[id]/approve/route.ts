@@ -62,7 +62,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
   const outstanding = quoteDepositOutstandingCents(approved);
   const satisfied = approved.status === "deposit-paid";
-  const updated = await updateStoredRequest(source.id, { status: satisfied ? "deposit-paid" : "accepted" });
+  const updated = await updateStoredRequest(source.id, { status: satisfied ? "deposit-paid" : "accepted", ...(source.source==="owner"?{ownerTrackingStatus:satisfied?"deposit-paid" as const:"accepted" as const}:{}) });
 
   const sideEffects: Promise<unknown>[] = [
     writeAudit({

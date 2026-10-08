@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       const shipment = shipments.find((candidate) => candidate.requestId === item.id) || null;
       const finalInvoice = finalInvoices.filter((candidate) => candidate.requestId === item.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0] || null;
       return {
-        id: item.id, requestCode: item.requestCode, status: item.status, projectType: item.projectType,
+        id: item.id, requestCode: item.requestCode, status: item.status, ownerTrackingStatus: item.ownerTrackingStatus || null, projectType: item.projectType,
         quantity: item.quantity, neededBy: item.neededBySubmitted || item.neededBy, description: item.description,
         createdAt: item.createdAt,
         quote: quote ? {

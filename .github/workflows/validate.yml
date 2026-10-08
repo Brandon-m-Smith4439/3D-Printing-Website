@@ -53,6 +53,8 @@ jobs:
         run: node tests/v100-owner-custom-request-modal.test.mjs
       - name: Verify v1.01 Owner Custom Request polish
         run: node tests/v101-owner-custom-request-polish.test.mjs
+      - name: Verify v1.02 Owner Custom Request tracking
+        run: node tests/v102-owner-tracking-status.test.mjs
       - name: Verify quote notification reliability
         run: node --experimental-loader ./tests/server-only-loader.mjs --experimental-strip-types tests/customer-notification-reliability.test.mjs
       - name: Verify customer follow-up policy
@@ -1036,6 +1038,11 @@ jobs:
             await wait(200);
             const ownerRequestDialog=await send("Runtime.evaluate",{expression:`Boolean(document.querySelector(".owner-custom-request-modal[role=dialog]"))&&Boolean([...document.querySelectorAll(".owner-custom-request-actions button")].find(el=>(el.textContent||"").includes("Submit Owner Custom Request")))`,returnByValue:true});
             if(!ownerRequestDialog.result.value)throw new Error("Owner Custom Request dialog or submit action is missing.");
+            const trackingOptions=await send("Runtime.evaluate",{expression:`(()=>{const select=document.querySelector(\'select[aria-label="Owner Custom Request tracking status"]\');if(!select)return {found:false,values:[]};const values=[...select.options].map(option=>option.value);select.value="printing";select.dispatchEvent(new Event("change",{bubbles:true}));return {found:true,values};})()`,returnByValue:true});
+            if(!trackingOptions.result.value.found||!trackingOptions.result.value.values.includes("printing")||!trackingOptions.result.value.values.includes("completed")||trackingOptions.result.value.values.length<13)throw new Error("Owner Custom Request tracking selector is missing full workflow stages: "+JSON.stringify(trackingOptions.result.value));
+            await wait(150);
+            const printingState=await send("Runtime.evaluate",{expression:`document.querySelector(\'select[aria-label="Owner Custom Request tracking status"]\')?.value`,returnByValue:true});
+            if(printingState.result.value!=="printing")throw new Error("Owner Custom Request tracking selector did not switch to Printing.");
             for(const width of [320,390,430,650,720,721,1440]){
               await send("Emulation.setDeviceMetricsOverride",{width,height:1200,deviceScaleFactor:1,mobile:width<=720});
               await wait(150);
