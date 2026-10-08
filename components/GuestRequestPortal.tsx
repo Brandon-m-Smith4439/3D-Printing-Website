@@ -9,6 +9,7 @@ import { CUSTOMER_POLICY_VERSION } from "@/lib/customer-policies";
 import type { LocalPaymentMethod, QuoteHistoryEntry, QuoteStatus, ShippingSelection } from "@/lib/quote-types";
 import type { QueueStatus } from "@/lib/queue-types";
 import type { RequestStatus } from "@/lib/request-types";
+import { ownerTrackingStatusLabels, type OwnerTrackingStatus } from "@/lib/owner-tracking-status";
 import type { ShipmentStatus } from "@/lib/shipment-types";
 
 type GuestQuote={
@@ -18,7 +19,7 @@ type GuestQuote={
   depositPaidCents:number;depositOutstandingCents:number;cashFinalPaidAt:string;history:QuoteHistoryEntry[];
 };
 type Props={
-  request:{id:string;requestCode:string;status:RequestStatus;name:string;email:string;projectType:string;quantity:number;description:string;createdAt:string;emailNotifications:boolean};
+  request:{id:string;requestCode:string;status:RequestStatus;ownerTrackingStatus:OwnerTrackingStatus|null;name:string;email:string;projectType:string;quantity:number;description:string;createdAt:string;emailNotifications:boolean};
   quote:GuestQuote|null;
   queue:null|{status:QueueStatus;position:number|null;estimatedReadyDate:string};
   invoice:null|{status:string;amountDueCents:number;amountPaidCents:number;amountRemainingCents:number;hostedInvoiceUrl:string;invoicePdfUrl:string;paidAt:string};
@@ -85,10 +86,11 @@ export function GuestRequestPortal({request,quote,queue,invoice,shipment}:Props)
     }catch(error){setMessage(error instanceof Error?error.message:"Could not update email preferences.");}finally{setBusy(false);}
   }
 
+  const requestState=request.ownerTrackingStatus?ownerTrackingStatusLabels[request.ownerTrackingStatus]:queue?queueLabels[queue.status]:requestLabels[request.status];
   return <div className="container guest-request-page">
     <header className="guest-request-hero">
       <div><p className="eyebrow">SECURE REQUEST PORTAL</p><h1>{request.requestCode}</h1><p>This private page was opened from the secure link sent to <strong>{request.email}</strong>.</p></div>
-      <div className="guest-request-state"><span>{queue?queueLabels[queue.status]:requestLabels[request.status]}</span>{queue?.position&&<small>Queue position #{queue.position}</small>}</div>
+      <div className="guest-request-state"><span>{requestState}</span>{queue?.position&&<small>Queue position #{queue.position}</small>}</div>
     </header>
 
     {message&&<div className="form-status info" role="status">{message}</div>}
@@ -97,7 +99,7 @@ export function GuestRequestPortal({request,quote,queue,invoice,shipment}:Props)
       <div><span>Project</span><strong>{request.description}</strong></div>
       <div><span>Quantity</span><strong>{request.quantity}</strong></div>
       <div><span>Submitted</span><strong>{new Date(request.createdAt).toLocaleDateString()}</strong></div>
-      <div><span>Current status</span><strong>{queue?queueLabels[queue.status]:requestLabels[request.status]}</strong></div>
+      <div><span>Current status</span><strong>{requestState}</strong></div>
     </section>
 
     <section className="guest-email-preferences owner-panel">
