@@ -22,6 +22,6 @@ assert.match(css, /\.owner-custom-request-modal\s*\{/, "Owner custom request mod
 assert.match(css, /max-height:min\(920px,calc\(100vh - 48px\)\)/, "Desktop modal must stay inside the viewport");
 assert.match(css, /@media\(max-width:720px\)[\s\S]*\.owner-custom-request-modal[\s\S]*min-height:100dvh/, "Mobile Owner Custom Request must become a full-height workspace");
 assert.match(css, /\.owner-custom-request-actions/, "Modal needs dedicated sticky actions");
-assert.equal(pkg.version, "1.0.0");
+assert.equal(pkg.version, "1.1.0");
 
 console.log("v1.00 Owner Custom Request modal checks passed.");

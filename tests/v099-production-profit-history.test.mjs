@@ -28,7 +28,7 @@ assert.match(owner, /historicalDirectCostCents/, "Historical request must submit
 assert.match(owner, /Historical bookkeeping/i, "Historical order details must show bookkeeping metrics");
 assert.match(ownerRoute, /saveHistoricalProfitRecord/, "Owner historical creation must persist profit data");
 assert.match(ownerRoute, /stored\.email && !historicalCompleted/, "Historical backfill must not email the customer");
-assert.match(ownerRoute, /status: historicalCompleted \? "completed" : "new"/, "Historical jobs must enter as completed records");
+assert.match(ownerRoute, /status: historicalCompleted \? "completed" : parsed\.data\.status/, "Historical jobs must enter as completed records while live owner requests honor their selected starting status");
 
 assert.match(profitability, /historicalByRequest/, "Profitability report must read historical records");
 assert.match(profitability, /historical\?\.completedAt/, "Historical completion date must drive date ranges");
@@ -41,6 +41,6 @@ assert.match(owner, /fulfillment==="pickup"\?"Cash":"Cash \(Local pickup only\)"
 
 assert.match(pricing, /\["7d","30d","90d","all"\]/, "Pricing profitability needs selectable time ranges");
 assert.match(pricing, /All time/, "Pricing profitability must expose an all-time range");
-assert.equal(pkg.version, "1.0.0");
+assert.equal(pkg.version, "1.1.0");
 
 console.log("V0.99 production search, actionable dashboard, historical profitability, and payment-label checks passed.");

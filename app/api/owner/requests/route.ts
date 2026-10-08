@@ -73,6 +73,7 @@ const ownerRequestSchema = z.object({
   neededBy: z.string().trim().max(24).optional().default(""),
   description: z.string().trim().max(2500).optional().default(""),
   internalNote: z.string().trim().max(2000).optional().default(""),
+  status: z.enum(["new","reviewing"]).optional().default("new"),
   historicalCompleted: z.boolean().optional().default(false),
   completedAt: z.string().trim().max(10).refine((value)=>value===""||/^\d{4}-\d{2}-\d{2}$/.test(value),"Use a valid completion date.").optional().default(""),
   historicalRevenueCents: z.coerce.number().int().min(0).max(100_000_000).optional().default(0),
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
   const stored = await createOwnerStoredRequest({
     ...parsed.data,
     customerAccountId: matchingAccount?.emailVerifiedAt ? matchingAccount.id : "",
-    status: historicalCompleted ? "completed" : "new",
+    status: historicalCompleted ? "completed" : parsed.data.status,
     occurredAt,
   });
   if (historicalCompleted) {
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
     action: historicalCompleted ? "historical-request-created" : "in-person-request-created",
     targetType: "request",
     targetId: stored.id,
-    summary: historicalCompleted ? `${stored.requestCode} logged as a completed historical custom request.` : `${stored.requestCode} created by owner${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
+    summary: historicalCompleted ? `${stored.requestCode} logged as a completed historical custom request.` : `${stored.requestCode} created by owner at ${stored.status}${stored.customerAccountId ? " and linked to a verified customer account" : stored.email ? " for guest/account tracking by email" : ""}.`,
     ipHash: requestIpHash(request),
   });
   const message = historicalCompleted

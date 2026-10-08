@@ -113,6 +113,7 @@ function ProductionPanel({pricing,requests,jobs,quotes,historicalProfits,shipmen
 function OwnerCustomRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Promise<void>;onNotice:(n:Notice)=>void;onClose:()=>void}){
   const [busy,setBusy]=useState(false);
   const [fulfillment,setFulfillment]=useState<"pickup"|"shipping">("pickup");
+  const [currentStatus,setCurrentStatus]=useState<"new"|"reviewing">("new");
   const [historical,setHistorical]=useState(false);
   const [historicalRevenue,setHistoricalRevenue]=useState("");
   const [historicalCost,setHistoricalCost]=useState("");
@@ -125,37 +126,110 @@ function OwnerCustomRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Prom
       modelStatus:data.get("modelStatus"),fulfillmentMethod:data.get("fulfillmentMethod"),assemblyPreference:data.get("assemblyPreference"),paymentPreference:data.get("paymentPreference"),
       quantity:Number(data.get("quantity")||1),dimensions:data.get("dimensions"),materialPreference:data.get("materialPreference"),
       colorPreference:data.get("colorPreference"),budget:data.get("budget"),neededBy:data.get("neededBy"),
-      description:data.get("description"),internalNote:data.get("internalNote"),historicalCompleted:historical,completedAt:String(data.get("completedAt")||""),historicalRevenueCents:revenueCents,historicalDirectCostCents:costCents,
+      description:data.get("description"),internalNote:data.get("internalNote"),status:currentStatus,historicalCompleted:historical,completedAt:String(data.get("completedAt")||""),historicalRevenueCents:revenueCents,historicalDirectCostCents:costCents,
     };
     try{
       const response=await fetch("/api/owner/requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const result=await response.json() as {message?:string};if(!response.ok)throw new Error(result.message||"Could not add custom request.");
-      onNotice({kind:"success",text:result.message||"Custom request added."});form.reset();setFulfillment("pickup");setHistorical(false);setHistoricalRevenue("");setHistoricalCost("");await onChanged();onClose();
+      onNotice({kind:"success",text:result.message||"Custom request added."});form.reset();setFulfillment("pickup");setCurrentStatus("new");setHistorical(false);setHistoricalRevenue("");setHistoricalCost("");await onChanged();onClose();
     }catch(error){onNotice({kind:"error",text:error instanceof Error?error.message:"Could not add custom request."});}finally{setBusy(false);}
   }
+  const displayedStatus=historical?"Completed history":currentStatus==="reviewing"?"Reviewing":"New request";
   return <form className="owner-custom-request-form" onSubmit={submit}>
-    <div className="owner-custom-request-heading"><div><p className="eyebrow">OWNER WORKSPACE</p><h2 id="owner-custom-request-title">Owner Custom Request</h2><span>Create a new direct-customer request or log a historical completed job for tracking and profitability.</span></div><button className="owner-custom-request-close" type="button" onClick={onClose} aria-label="Close Owner Custom Request">×</button></div>
-    <label className="historical-request-toggle"><input type="checkbox" checked={historical} onChange={event=>setHistorical(event.target.checked)}/><span><strong>Historical / already completed request</strong><small>Logs a past job for tracking and cost-vs-profit reporting. It will not email the customer or enter the normal quote/deposit workflow.</small></span></label>
-    <div className="owner-edit-grid">
-      <label><span>Customer name <small className="optional-label">Optional</small></span><input name="name" maxLength={80} placeholder="Customer name" autoFocus/></label>
-      <label><span>Email <small className="optional-label">Optional</small></span><input name="email" type="email" maxLength={160}/></label>
-      <label><span>Phone <small className="optional-label">Optional</small></span><input name="phone" maxLength={30}/></label>
-      <label><span>Project type <small className="optional-label">Optional</small></span><select name="projectType" defaultValue="other"><option value="other">Other / custom</option><option value="display">Display / collectible</option><option value="functional">Functional part</option><option value="replacement">Replacement part</option><option value="prototype">Prototype</option></select></label>
-      <label><span>3D model status <small className="optional-label">Optional</small></span><select name="modelStatus" defaultValue="idea-only"><option value="idea-only">Idea only / unknown</option><option value="ready">Print-ready model</option><option value="needs-adjustment">Model may need changes</option><option value="reference-only">Photos / references</option></select></label>
-      <label><span>Fulfillment <small className="optional-label">Optional</small></span><select name="fulfillmentMethod" value={fulfillment} onChange={event=>setFulfillment(event.target.value as "pickup"|"shipping")}><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option></select></label>
-      <label><span>Customer payment preference</span><select name="paymentPreference" defaultValue="stripe"><option value="stripe">Card via Stripe</option><option value="cash" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Cash":"Cash (Local pickup only)"}</option><option value="zelle" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Zelle":"Zelle (Local pickup only)"}</option><option value="cash-app" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Cash App":"Cash App (Local pickup only)"}</option><option value="apple-cash" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Apple Cash":"Apple Cash (Local pickup only)"}</option><option value="venmo" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Venmo":"Venmo (Local pickup only)"}</option><option value="paypal" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"PayPal":"PayPal (Local pickup only)"}</option></select></label>
-      <label><span>Assembly <small className="optional-label">Optional</small></span><select name="assemblyPreference" defaultValue="assembled"><option value="assembled">Assembled by Mesh Harbor 3D</option><option value="disassembled">Customer assembles</option></select></label>
-      <label><span>Quantity</span><input name="quantity" type="number" min={1} max={500} defaultValue={1}/></label>
-      <label><span>Needed by <small className="optional-label">Optional</small></span><input name="neededBy" placeholder="M/D/YYYY"/></label>
-      <label><span>Dimensions <small className="optional-label">Optional</small></span><input name="dimensions" maxLength={120}/></label>
-      <label><span>Material <small className="optional-label">Optional</small></span><select name="materialPreference" defaultValue="no-preference"><option value="no-preference">No preference / unknown</option><option value="pla">PLA</option><option value="petg">PETG</option><option value="asa">ASA</option><option value="tpu">TPU</option><option value="resin">Resin</option><option value="other">Other</option></select></label>
-      <label><span>Color <small className="optional-label">Optional</small></span><input name="colorPreference" maxLength={120}/></label>
-      <label><span>Budget <small className="optional-label">Optional</small></span><input name="budget" maxLength={80}/></label>
+    <div className="owner-custom-request-heading">
+      <div className="owner-custom-request-heading-copy">
+        <p className="eyebrow">OWNER WORKSPACE</p>
+        <h2 id="owner-custom-request-title">Owner Custom Request</h2>
+        <span>Create a direct-customer request with the same structured workflow used across Mesh Harbor 3D.</span>
+      </div>
+      <div className="owner-custom-request-heading-actions">
+        <span className={`owner-custom-request-status status-${historical?"completed":currentStatus}`}><i></i>{displayedStatus}</span>
+        <button className="owner-custom-request-close" type="button" onClick={onClose} aria-label="Close Owner Custom Request">×</button>
+      </div>
     </div>
-    {historical&&<section className="historical-profit-entry"><div><strong>Historical cost & profit</strong><span>Enter the actual numbers you want included in profitability reporting.</span></div><div className="historical-profit-grid"><label><span>Completed date</span><input name="completedAt" type="date" max={new Date().toISOString().slice(0,10)} required={historical}/></label><label><span>Amount charged ($)</span><input value={historicalRevenue} onChange={event=>setHistoricalRevenue(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><label><span>Total direct cost ($)</span><input value={historicalCost} onChange={event=>setHistoricalCost(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><div className="historical-profit-preview"><span>Profit</span><strong>{money(profitCents)}</strong><small>{revenueCents?`${(marginBasisPoints/100).toFixed(1)}% margin`:"Enter the amount charged to calculate margin"}</small></div></div></section>}
-    <label><span>What they want made <small className="optional-label">Optional</small></span><textarea name="description" rows={3} maxLength={2500}/></label>
-    <label><span>Private owner note <small className="optional-label">Optional</small></span><textarea name="internalNote" rows={2} maxLength={2000}/></label>
-    <div className="owner-custom-request-actions"><button className="button" type="submit" disabled={busy}>{busy?"Submitting…":"Submit Owner Custom Request"}</button><button className="button button-secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button></div>
+
+    <section className="owner-custom-request-section owner-custom-request-workflow">
+      <div className="owner-custom-request-section-heading">
+        <span className="owner-custom-request-section-icon">01</span>
+        <div><strong>Workflow status</strong><small>Choose where this request is starting today. Later stages advance through quotes, payment, and production.</small></div>
+      </div>
+      <div className="owner-custom-request-status-grid">
+        <label className="owner-custom-request-status-field">
+          <span>Current request status</span>
+          <select value={historical?"completed":currentStatus} onChange={event=>setCurrentStatus(event.target.value as "new"|"reviewing")} disabled={historical}>
+            {historical?<option value="completed">Completed history</option>:<><option value="new">New — awaiting review</option><option value="reviewing">Reviewing — scoping / planning</option></>}
+          </select>
+          <small>{historical?"Historical requests are stored as completed and kept out of the live quote/deposit workflow.":"Quote Sent, Deposit Paid, Queue, Production, and Completed advance from their linked workflow records so status stays accurate."}</small>
+        </label>
+        <label className="historical-request-toggle"><input type="checkbox" checked={historical} onChange={event=>setHistorical(event.target.checked)}/><span><strong>Historical / already completed request</strong><small>Use this to backfill a finished job with its actual revenue and direct cost for profitability reporting.</small></span></label>
+      </div>
+      <div className="owner-custom-request-stage-strip" aria-label="Owner custom request workflow">
+        <span className={!historical?"is-current":"is-done"}><b>1</b><em>Request</em></span>
+        <span className={historical?"is-done":""}><b>2</b><em>Quote</em></span>
+        <span className={historical?"is-done":""}><b>3</b><em>Deposit</em></span>
+        <span className={historical?"is-done":""}><b>4</b><em>Production</em></span>
+        <span className={historical?"is-done":""}><b>5</b><em>Complete</em></span>
+      </div>
+    </section>
+
+    <section className="owner-custom-request-section">
+      <div className="owner-custom-request-section-heading">
+        <span className="owner-custom-request-section-icon">02</span>
+        <div><strong>Customer & project</strong><small>Who the request belongs to and what kind of project it is.</small></div>
+      </div>
+      <div className="owner-edit-grid owner-custom-request-fields">
+        <label><span>Customer name <small className="optional-label">Optional</small></span><input name="name" maxLength={80} placeholder="Customer name" autoFocus/></label>
+        <label><span>Email <small className="optional-label">Optional</small></span><input name="email" type="email" maxLength={160} placeholder="customer@example.com"/></label>
+        <label><span>Phone <small className="optional-label">Optional</small></span><input name="phone" maxLength={30} placeholder="Phone number"/></label>
+        <label><span>Project type <small className="optional-label">Optional</small></span><select name="projectType" defaultValue="other"><option value="other">Other / custom</option><option value="display">Display / collectible</option><option value="functional">Functional part</option><option value="replacement">Replacement part</option><option value="prototype">Prototype</option></select></label>
+        <label><span>3D model status <small className="optional-label">Optional</small></span><select name="modelStatus" defaultValue="idea-only"><option value="idea-only">Idea only / unknown</option><option value="ready">Print-ready model</option><option value="needs-adjustment">Model may need changes</option><option value="reference-only">Photos / references</option></select></label>
+      </div>
+    </section>
+
+    <section className="owner-custom-request-section">
+      <div className="owner-custom-request-section-heading">
+        <span className="owner-custom-request-section-icon">03</span>
+        <div><strong>Fulfillment & job details</strong><small>Set the handoff, payment preference, assembly, quantity, and deadline.</small></div>
+      </div>
+      <div className="owner-edit-grid owner-custom-request-fields">
+        <label><span>Fulfillment <small className="optional-label">Optional</small></span><select name="fulfillmentMethod" value={fulfillment} onChange={event=>setFulfillment(event.target.value as "pickup"|"shipping")}><option value="pickup">Local pickup</option><option value="shipping">Carrier shipping</option></select></label>
+        <label><span>Customer payment preference</span><select name="paymentPreference" defaultValue="stripe"><option value="stripe">Card via Stripe</option><option value="cash" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Cash":"Cash (Local pickup only)"}</option><option value="zelle" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Zelle":"Zelle (Local pickup only)"}</option><option value="cash-app" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Cash App":"Cash App (Local pickup only)"}</option><option value="apple-cash" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Apple Cash":"Apple Cash (Local pickup only)"}</option><option value="venmo" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"Venmo":"Venmo (Local pickup only)"}</option><option value="paypal" disabled={fulfillment!=="pickup"}>{fulfillment==="pickup"?"PayPal":"PayPal (Local pickup only)"}</option></select></label>
+        <label><span>Assembly <small className="optional-label">Optional</small></span><select name="assemblyPreference" defaultValue="assembled"><option value="assembled">Assembled by Mesh Harbor 3D</option><option value="disassembled">Customer assembles</option></select></label>
+        <label><span>Quantity</span><input name="quantity" type="number" min={1} max={500} defaultValue={1}/></label>
+        <label><span>Needed by <small className="optional-label">Optional</small></span><input name="neededBy" placeholder="M/D/YYYY"/></label>
+      </div>
+    </section>
+
+    <section className="owner-custom-request-section">
+      <div className="owner-custom-request-section-heading">
+        <span className="owner-custom-request-section-icon">04</span>
+        <div><strong>Print details</strong><small>Capture the physical specs you already know. Unknown details can stay blank.</small></div>
+      </div>
+      <div className="owner-edit-grid owner-custom-request-fields">
+        <label><span>Dimensions <small className="optional-label">Optional</small></span><input name="dimensions" maxLength={120} placeholder="Example: 120 × 80 × 35 mm"/></label>
+        <label><span>Material <small className="optional-label">Optional</small></span><select name="materialPreference" defaultValue="no-preference"><option value="no-preference">No preference / unknown</option><option value="pla">PLA</option><option value="petg">PETG</option><option value="asa">ASA</option><option value="tpu">TPU</option><option value="resin">Resin</option><option value="other">Other</option></select></label>
+        <label><span>Color <small className="optional-label">Optional</small></span><input name="colorPreference" maxLength={120} placeholder="Color or finish"/></label>
+        <label><span>Budget <small className="optional-label">Optional</small></span><input name="budget" maxLength={80} placeholder="Customer budget"/></label>
+      </div>
+    </section>
+
+    {historical&&<section className="historical-profit-entry owner-custom-request-section owner-custom-request-history"><div className="owner-custom-request-section-heading"><span className="owner-custom-request-section-icon">05</span><div><strong>Historical cost & profit</strong><small>Enter the actual completed-job values you want included in profitability reporting.</small></div></div><div className="historical-profit-grid"><label><span>Completed date</span><input name="completedAt" type="date" max={new Date().toISOString().slice(0,10)} required={historical}/></label><label><span>Amount charged ($)</span><input value={historicalRevenue} onChange={event=>setHistoricalRevenue(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><label><span>Total direct cost ($)</span><input value={historicalCost} onChange={event=>setHistoricalCost(event.target.value)} inputMode="decimal" placeholder="0.00" required={historical}/></label><div className="historical-profit-preview"><span>Profit</span><strong>{money(profitCents)}</strong><small>{revenueCents?`${(marginBasisPoints/100).toFixed(1)}% margin`:"Enter the amount charged to calculate margin"}</small></div></div></section>}
+
+    <section className="owner-custom-request-section owner-custom-request-brief-section">
+      <div className="owner-custom-request-section-heading">
+        <span className="owner-custom-request-section-icon">{historical?"06":"05"}</span>
+        <div><strong>Request brief & owner notes</strong><small>Keep the customer-facing request separate from private internal context.</small></div>
+      </div>
+      <div className="owner-custom-request-text-grid">
+        <label><span>What they want made <small className="optional-label">Optional</small></span><textarea name="description" rows={4} maxLength={2500} placeholder="Describe the part, use case, requirements, references, or anything the customer already told you."/></label>
+        <label><span>Private owner note <small className="optional-label">Optional</small></span><textarea name="internalNote" rows={4} maxLength={2000} placeholder="Internal notes, pricing context, follow-up details, or anything the customer should not see."/></label>
+      </div>
+    </section>
+
+    <div className="owner-custom-request-actions">
+      <div className="owner-custom-request-submit-summary"><span>Creates as</span><strong>{displayedStatus}</strong></div>
+      <div><button className="button button-secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button" type="submit" disabled={busy}>{busy?"Submitting…":"Submit Owner Custom Request"}</button></div>
+    </div>
   </form>;
 }
 

@@ -9,6 +9,7 @@ assert.equal((await call('/api/owner/requests/x/quote-email','POST',undefined,''
 assert.equal((await call('/api/owner/requests/x/choices','POST',{},'')).response.status,401);
 let pricing=await call('/api/owner/pricing/settings','PATCH',{defaultMachineHourlyCostCents:100,defaultDesignHourlyCostCents:1800,defaultPostProcessingHourlyCostCents:1800});assert.equal(pricing.response.status,200);
 async function create(choices={}){let out=await call('/api/owner/requests','POST',{name:'Smoke Customer',email:'smoke@example.test',description:'Test-only local quote workflow',fulfillmentMethod:'pickup',assemblyPreference:'disassembled',paymentPreference:'stripe',...choices});assert.equal(out.response.status,201,JSON.stringify(out.data));return out.data.request;}
+const reviewing=await create({status:'reviewing'});assert.equal(reviewing.status,'reviewing');
 const costing={materialLines:[],machineHours:10,printerWatts:250,electricityRatePerKwh:.1059,designHours:.5,postProcessingHours:.25,laborHours:0,packagingCostCents:0,localDeliveryInternalCostCents:0,miscellaneousCostCents:0,targetMarginBasisPoints:2000};
 const payload={basePriceCents:5000,assemblyMode:'disassembled',assemblyFeeCents:0,rushFeeCents:0,fulfillmentMode:'pickup',paymentMethod:'stripe',localPaymentMethod:null,localDeliveryFeeCents:0,packageWeightOz:0,packageLengthIn:0,packageWidthIn:0,packageHeightIn:0,totalCents:5000,depositCents:2500,material:'Bambu PLA Basic',dimensions:'100 x 80 x 40 mm',estimatedReadyDate:new Date(Date.now()+60*86400000).toISOString().slice(0,10),notes:'Smoke validation',terms:'Customer approves these local test quote terms.',action:'send',costing};
 const undecided=await create({fulfillmentMethod:'unsure',assemblyPreference:'unsure'});
@@ -29,5 +30,5 @@ for(const action of ['counter','decline','approve']){
 }
 const locked=await create();assert.equal((await call(`/api/owner/requests/${locked.id}/choices`,'POST',{fulfillmentMethod:'shipping',assemblyPreference:'disassembled',customerConfirmed:true})).response.status,409);
 assert.equal((await call('/api/owner/operations')).response.status,200);
-assert.equal((await call('/api/health')).data.version,'1.0.0');
+assert.equal((await call('/api/health')).data.version,'1.1.0');
 console.log('HTTP smoke passed: drafts, electricity snapshot, guest access + approve/decline/counter, in-person approval, preference protection, owner dashboard and auth boundaries. No real emails or payments sent.');
