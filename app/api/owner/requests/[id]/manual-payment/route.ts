@@ -45,7 +45,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (quote.status !== "approved" || amount <= 0) return NextResponse.json({ message: "There is no approved local deposit waiting to be recorded." }, { status: 409 });
     const updatedQuote = await recordCashDeposit(quote.id, amount);
     if (!updatedQuote || updatedQuote.status !== "deposit-paid") return NextResponse.json({ message: "Could not record the local deposit." }, { status: 409 });
-    const updatedRequest = await updateStoredRequest(source.id, { status: "deposit-paid" });
+    const updatedRequest = await updateStoredRequest(source.id, { status: "deposit-paid", ...(source.source==="owner"?{ownerTrackingStatus:"deposit-paid" as const}:{}) });
     if (updatedRequest) {
       await notifyCustomer(updatedRequest, `Your ${label(quote.localPaymentMethod)} deposit has been confirmed. Your request is ready to be scheduled into production.`);
     }
