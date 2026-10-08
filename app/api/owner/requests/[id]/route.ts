@@ -8,9 +8,13 @@ import { notifyCustomer, deleteNotificationsForRequest } from "@/lib/customer-no
 import { deleteCustomerUploadsForRequest } from "@/lib/customer-upload-store";
 import { quoteForRequest, voidQuoteForRequest } from "@/lib/quote-store";
 import { requestIpHash, writeAudit } from "@/lib/audit-log";
+import { ownerTrackingStatuses, ownerTrackingStatusLabels, ownerTrackingStatusMessages } from "@/lib/owner-tracking-status";
 
 export const runtime = "nodejs";
-const schema = z.object({ status: z.enum(["new", "reviewing", "declined"]) });
+const schema = z.union([
+  z.object({ status: z.enum(["new", "reviewing", "declined"]) }).strict(),
+  z.object({ ownerTrackingStatus: z.enum(ownerTrackingStatuses) }).strict(),
+]);
 const requestMessages: Record<string,string> = { new:"Your request is marked as new and is waiting for review.", reviewing:"Your custom print request is being reviewed.", declined:"Your request was declined/closed. Please contact us if you have questions or want to revise the project." };
 
 export async function PATCH(request:NextRequest,context:{params:Promise<{id:string}>}){
@@ -19,8 +23,25 @@ export async function PATCH(request:NextRequest,context:{params:Promise<{id:stri
   const {id}=await context.params;let body:unknown;try{body=await request.json();}catch{return NextResponse.json({message:"Invalid request body."},{status:400});}
   const parsed=schema.safeParse(body);if(!parsed.success)return NextResponse.json({message:"Choose a valid owner-managed request status."},{status:400});
   const source=await getStoredRequest(id);if(!source)return NextResponse.json({message:"Request not found."},{status:404});
-  if(source.queueJobId)return NextResponse.json({message:"Remove this request from the production queue before changing it to a request-only status."},{status:409});
   const quote=await quoteForRequest(source.id);
+
+  if("ownerTrackingStatus" in parsed.data){
+    if(source.source!=="owner")return NextResponse.json({message:"Owner tracking stages are available only for Owner Custom Requests."},{status:409});
+    const trackingStatus=parsed.data.ownerTrackingStatus;
+    const hasFormalWorkflow=Boolean(source.queueJobId||quote);
+    const baseStatus=trackingStatus==="new"?"new":trackingStatus==="declined"?"declined":trackingStatus==="completed"?"completed":"reviewing";
+    const updated=await updateStoredRequest(id,{
+      ownerTrackingStatus:trackingStatus,
+      ...(!hasFormalWorkflow?{status:baseStatus}:{}),
+    });
+    if(updated&&source.ownerTrackingStatus!==trackingStatus){
+      await notifyCustomer(updated,ownerTrackingStatusMessages[trackingStatus]);
+    }
+    await writeAudit({actor:"owner",actorId:"owner",action:"owner-tracking-status-updated",targetType:"request",targetId:source.id,summary:`${source.requestCode} owner tracking stage changed to ${ownerTrackingStatusLabels[trackingStatus]}. No payment, quote, or queue record was created by this tracking update.`,ipHash:requestIpHash(request)});
+    return NextResponse.json({request:updated,message:`${source.requestCode} tracking stage updated to ${ownerTrackingStatusLabels[trackingStatus]}.`});
+  }
+
+  if(source.queueJobId)return NextResponse.json({message:"Remove this request from the production queue before changing it to a request-only status."},{status:409});
   if(parsed.data.status==="declined"&&quote?.depositPaidAt)return NextResponse.json({message:"A deposit is already recorded. Resolve/refund the payment before declining this request."},{status:409});
   if(parsed.data.status==="declined")await voidQuoteForRequest(source.id);
   const updated=await updateStoredRequest(id,{status:parsed.data.status});
@@ -34,7 +55,7 @@ export async function DELETE(request:NextRequest,context:{params:Promise<{id:str
   if(!sameOrigin(request))return NextResponse.json({message:"Request origin was not accepted."},{status:403});
   const {id}=await context.params;const source=await getStoredRequest(id);if(!source)return NextResponse.json({message:"Request not found."},{status:404});
   const quote=await quoteForRequest(source.id);
-  if(quote?.depositPaidAt||source.status==="completed")return NextResponse.json({message:"Paid or completed records are retained for accounting and audit history. Resolve/refund the order instead of permanently deleting it."},{status:409});
+  if(quote?.depositPaidAt||source.status==="completed"||source.ownerTrackingStatus==="completed")return NextResponse.json({message:"Paid or completed records are retained for accounting and audit history. Resolve/refund the order instead of permanently deleting it."},{status:409});
   if(source.queueJobId)await deleteQueueJob(source.queueJobId);
   await voidQuoteForRequest(source.id);
   await deleteNotificationsForRequest(source.id);
