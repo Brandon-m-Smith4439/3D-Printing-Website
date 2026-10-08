@@ -29,5 +29,5 @@ for(const action of ['counter','decline','approve']){
 }
 const locked=await create();assert.equal((await call(`/api/owner/requests/${locked.id}/choices`,'POST',{fulfillmentMethod:'shipping',assemblyPreference:'disassembled',customerConfirmed:true})).response.status,409);
 assert.equal((await call('/api/owner/operations')).response.status,200);
-assert.equal((await call('/api/health')).data.version,'1.0.0');
+assert.equal((await call('/api/health')).data.version,'1.1.0');
 console.log('HTTP smoke passed: drafts, electricity snapshot, guest access + approve/decline/counter, in-person approval, preference protection, owner dashboard and auth boundaries. No real emails or payments sent.');
