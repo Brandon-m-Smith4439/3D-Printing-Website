@@ -159,7 +159,7 @@ function OwnerCustomRequestForm({onChanged,onNotice,onClose}:{onChanged:()=>Prom
       <div className="owner-custom-request-status-grid">
         <label className="owner-custom-request-status-field">
           <span>Current request status</span>
-          <select value={displayedTrackingStatus} onChange={event=>setCurrentStatus(event.target.value as OwnerTrackingStatus)} disabled={historical}>
+          <select aria-label="Owner Custom Request tracking status" value={displayedTrackingStatus} onChange={event=>setCurrentStatus(event.target.value as OwnerTrackingStatus)} disabled={historical}>
             {historical?<option value="completed">Completed history</option>:ownerTrackingStatuses.map(status=><option value={status} key={status}>{ownerTrackingStatusLabels[status]}</option>)}
           </select>
           <small>{historical?"Historical requests are stored as completed and kept out of the live quote/deposit workflow.":"This is the owner tracking stage and can start anywhere in the workflow. It does not by itself create a quote, record a payment, add a queue job, or purchase shipping."}</small>
