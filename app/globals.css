@@ -5509,3 +5509,111 @@ button.operations-attention-item:focus-visible {
     min-width:0;
   }
 }
+
+
+/* v1.02 — editable Owner Custom Request tracking */
+.owner-manual-tracking-note {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:12px 14px;
+  border:1px solid rgba(46,214,202,.18);
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(46,214,202,.055),rgba(4,24,32,.48));
+}
+.owner-manual-tracking-note > div {
+  display:grid;
+  gap:3px;
+  min-width:0;
+}
+.owner-manual-tracking-note strong {
+  color:#b9ece8;
+  font-size:.76rem;
+}
+.owner-manual-tracking-note span,
+.owner-manual-tracking-note small {
+  color:#78999a;
+  font-size:.68rem;
+  line-height:1.45;
+}
+.owner-manual-tracking-note small {
+  flex:0 0 auto;
+  padding:7px 9px;
+  border:1px solid rgba(106,190,190,.1);
+  border-radius:9px;
+  background:rgba(255,255,255,.018);
+  white-space:nowrap;
+}
+.owner-manual-tracking-note b {
+  color:#d9efed;
+}
+.owner-linked-queue-status {
+  padding:13px 14px;
+  border:1px solid rgba(255,196,91,.16);
+  border-radius:12px;
+  background:rgba(255,196,91,.035);
+}
+.owner-linked-queue-status label {
+  display:grid;
+  grid-template-columns:minmax(180px,.55fr) minmax(210px,.65fr) minmax(0,1fr);
+  align-items:center;
+  gap:12px;
+}
+.owner-linked-queue-status label > span {
+  color:#e7d4a2;
+  font-size:.72rem;
+  font-weight:850;
+}
+.owner-linked-queue-status select {
+  width:100%;
+  min-width:0;
+}
+.owner-linked-queue-status small {
+  color:#9f9270;
+  font-size:.65rem;
+  line-height:1.4;
+}
+.owner-custom-request-status.status-on-hold {
+  border-color:rgba(255,196,91,.26);
+  background:rgba(255,196,91,.065);
+  color:#ffe0a0;
+}
+.owner-custom-request-status.status-on-hold i {
+  background:#ffc45b;
+  box-shadow:0 0 0 4px rgba(255,196,91,.09),0 0 14px rgba(255,196,91,.36);
+}
+.owner-custom-request-status.status-declined {
+  border-color:rgba(255,105,119,.3);
+  background:rgba(255,105,119,.065);
+  color:#ffc1c7;
+}
+.owner-custom-request-status.status-declined i {
+  background:#ff6977;
+  box-shadow:0 0 0 4px rgba(255,105,119,.09),0 0 14px rgba(255,105,119,.32);
+}
+.owner-custom-request-status.status-printing,
+.owner-custom-request-status.status-preparing,
+.owner-custom-request-status.status-finishing,
+.owner-custom-request-status.status-ready,
+.owner-custom-request-status.status-queued {
+  border-color:rgba(92,231,222,.34);
+  background:rgba(46,214,202,.09);
+  color:#c8f5f1;
+}
+
+@media(max-width:820px) {
+  .owner-linked-queue-status label {
+    grid-template-columns:1fr;
+    gap:7px;
+  }
+}
+@media(max-width:720px) {
+  .owner-manual-tracking-note {
+    align-items:flex-start;
+    flex-direction:column;
+  }
+  .owner-manual-tracking-note small {
+    white-space:normal;
+  }
+}
