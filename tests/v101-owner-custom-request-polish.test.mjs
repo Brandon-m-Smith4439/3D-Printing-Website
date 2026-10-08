@@ -28,6 +28,6 @@ assert.match(css, /\.owner-custom-request-stage-strip\s*\{/, "Workflow stage str
 assert.match(css, /\.owner-custom-request-form input:not\(\[type="checkbox"\]\)/, "Text inputs must use dedicated site-matched styling");
 assert.match(css, /@media\(max-width:720px\)[\s\S]*\.owner-custom-request-form \.owner-custom-request-fields[\s\S]*grid-template-columns:1fr/, "Owner form sections must collapse cleanly on mobile");
 
-assert.equal(pkg.version, "1.1.0");
+assert.equal(pkg.version, "1.2.0");
 
 console.log("v1.01 Owner Custom Request polish and starting-status checks passed.");
