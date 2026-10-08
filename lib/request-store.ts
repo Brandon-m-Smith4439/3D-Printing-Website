@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { CustomRequest } from "@/lib/request-schema";
 import type { RequestAttachment, RequestStatus, StoredRequest } from "@/lib/request-types";
+import type { OwnerTrackingStatus } from "@/lib/owner-tracking-status";
 import { readCollection, writeCollection } from "@/lib/database";
 
 let mutationChain = Promise.resolve();
@@ -91,6 +92,7 @@ export async function createOwnerStoredRequest(values: {
   description?: string;
   internalNote?: string;
   status?: RequestStatus;
+  ownerTrackingStatus?: OwnerTrackingStatus;
   occurredAt?: string;
 }) {
   return mutate(async () => {
@@ -101,6 +103,7 @@ export async function createOwnerStoredRequest(values: {
       id: randomUUID(),
       requestCode: makeRequestCode(),
       status: values.status || "new",
+      ownerTrackingStatus: values.ownerTrackingStatus,
       name: values.name?.trim() || "In-person customer",
       email: values.email?.trim().toLowerCase() || "",
       phone: values.phone?.trim() || "",
@@ -145,7 +148,7 @@ export async function getStoredRequest(id: string) {
 
 export async function updateStoredRequest(
   id: string,
-  values: Partial<Pick<StoredRequest, "status" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId" | "emailNotifications" | "fulfillmentMethod" | "assemblyPreference">>,
+  values: Partial<Pick<StoredRequest, "status" | "ownerTrackingStatus" | "imageUrl" | "internalNote" | "queuedAt" | "queueJobId" | "emailNotifications" | "fulfillmentMethod" | "assemblyPreference">>,
 ) {
   return mutate(async () => {
     const requests = await readRequests();
