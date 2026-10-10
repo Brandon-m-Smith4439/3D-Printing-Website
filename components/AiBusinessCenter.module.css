@@ -1,0 +1,23 @@
+.center { display: grid; gap: 1.25rem; margin-top: 2rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 1rem; }
+.card,.notice { padding: 1.4rem; border: 1px solid #56727a66; border-radius: 16px; background: #10232bd9; color: #ecf4f4; }
+.notice { background: #1f3b3b; }
+.card h2 { font-size: 1.25rem; margin-top: 0; }
+.card h3 { font-size: 1rem; }
+.card p,.notice p { line-height: 1.6; }
+.big { font-size: 1.8rem; font-weight: 700; }
+.center label { display: grid; gap: .4rem; margin: .8rem 0; }
+.center input,.center textarea,.center select { box-sizing: border-box; width: 100%; border: 1px solid #627d85; border-radius: 7px; padding: .65rem; background: #0a1920; color: #fff; }
+.center button { border: 1px solid #82b9aa; border-radius: 8px; padding: .65rem 1rem; margin: .3rem 0; background: #214b44; color: #fff; cursor: pointer; width: fit-content; }
+.center button:disabled { opacity: .5; cursor: wait; }
+.center button:focus-visible,.center summary:focus-visible { outline: 3px solid #cce9be; outline-offset: 3px; }
+.center fieldset { border: 1px solid #627d85; border-radius: 8px; min-width: 0; }
+.center .check { display: flex; align-items: center; gap: .6rem; }
+.check input { width: auto; }
+.metrics { display: flex; flex-wrap: wrap; gap: 1.5rem; }
+.muted { color: #b4c6cb; font-size: .9rem; }
+.approval { padding: 1rem 0; border-top: 1px solid #56727a66; overflow-wrap: anywhere; }
+.center summary { cursor: pointer; line-height: 1.6; }
+.center pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #0a1920; padding: 1rem; border-radius: 8px; }
+.center li { margin: .6rem 0; overflow-wrap: anywhere; }
+.error { color: #ffb4ae; }
