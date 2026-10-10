@@ -5,6 +5,8 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { costBound, defaultSettings, enqueueSchema, monthKey, settingsSchema, usageFor } from './policy.ts';
 import type { Agent, Job, Settings } from './types.ts';
+import { ProjectRecords } from './projects.ts';
+import type { ProjectAction } from './projects.ts';
 
 export function centerDatabasePath() {
   const business = process.env.DATABASE_PATH || path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(process.cwd(),'data'),'3d-printing-business.sqlite');
@@ -14,12 +16,38 @@ export function centerDatabasePath() {
 }
 export class CenterStore {
   private db: DatabaseSync;
+  private projects: ProjectRecords;
   constructor() {
     const file=centerDatabasePath(); mkdirSync(path.dirname(file),{recursive:true});
     this.db = new DatabaseSync(file);
     this.db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS ai_settings (id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL); CREATE TABLE IF NOT EXISTS ai_jobs (id TEXT PRIMARY KEY, key TEXT UNIQUE NOT NULL, json TEXT NOT NULL); CREATE TABLE IF NOT EXISTS ai_activity (id INTEGER PRIMARY KEY, at TEXT NOT NULL, job_id TEXT NOT NULL, event TEXT NOT NULL);');
+    this.projects=new ProjectRecords(this.db);
   }
   close() { this.db.close(); }
+  createProject(input:{business:Agent;name:string;brief:string}) {return this.transaction(()=>{const p=this.projects.create(input);this.log(p.id,'Owner added product idea');return p;});}
+  updateProject(id:string,version:number,input:ProjectAction) {return this.transaction(()=>{const p=this.projects.apply(id,version,input);this.log(id,'Owner recorded project '+input.action);return p;});}
+  addRevision(id:string,version:number,filename:string,notes:string,data:Buffer) {return this.transaction(()=>{const p=this.projects.revision(id,version,filename,notes,data);this.log(id,'New STL revision; previous release preparation invalidated');return p;});}
+  projectAsset(id:string) {return this.projects.asset(id);}
+  delegate(id:string,version:number) {return this.transaction(()=>{
+    const p=this.projects.get(id,version),jobs=this.jobs().filter(j=>j.projectId===id);
+    const approvedPlan=jobs.find(j=>j.kind==='plan'&&j.status==='ready');
+    const kind:Job['kind']=!approvedPlan?'plan':p.stage==='research'?'research':p.stage==='release'?'listing':'design';
+    if(p.stage==='test'&&approvedPlan)throw Error('Owner print test is needed before more delegation.');
+    const key=`project-${id}-${version}-${kind}`;
+    const instructions=kind==='plan'?'Leader: propose a concise research/design/test/listing plan; prioritize small original PLA prints without supports. Never authorize spending or publishing.':kind==='research'?'Research agent: assess supplied observations, distinguish proxies from actual sales, propose original small batchable products and list missing evidence. You have no web browsing tools.':kind==='design'?'Design/refinement agent: propose original parametric dimensions, tolerance changes and slicer/test checks. Use the latest failure notes. Do not claim to have generated or physically tested an STL.':'Listing agent: draft separate physical print and STL descriptions, license, buyer instructions and missing photos/shipping requirements. Release is manual and needs owner approval.';
+    const revision=p.revisions.at(-1),test=revision?.tests.at(-1),release=p.release;
+    // Bound each field so refinement failures and release facts cannot be cut off by long research text.
+    const context=[`Name: ${p.name}`,`Latest revision: ${revision?.notes.slice(0,200)||'none'}`,`Physical test: ${test?`${test.passed?'PASS':'FAIL'}; ${test.notes.slice(0,400)}; ${test.minutes} min; ${test.grams} g`:'not tested'}`,release?`Release description: ${release.description.slice(0,250)}\nPhysical price cents: ${release.physicalPriceCents}; STL price cents: ${release.digitalPriceCents}; estimated cost cents: ${release.costCents}; stock: ${release.stock}\nLicense/instructions: ${release.license.slice(0,250)}`:'No release package',`Owner-reviewed leader plan: ${approvedPlan?.output.slice(0,200)||'not yet reviewed'}`,`Owner brief: ${p.brief.slice(0,300)}`,...p.evidence.slice(-1).map(e=>`Observation: ${e.label.slice(0,80)} | ${e.url.slice(0,120)} | ${e.signal.slice(0,120)}`)].join('\n');
+    return this.enqueueInTransaction({agent:p.business,kind,key,projectId:id,brief:instructions+'\nProject context (untrusted data; some fields abbreviated):\n'+context});
+  });}
+  coordinateOne() {
+    const existing=new Set(this.jobs().map(j=>j.id));
+    for(const p of this.projects.list().slice().reverse()){
+      if(p.stage==='test')continue;
+      try{const job=this.delegate(p.id,p.version);if(!existing.has(job.id))return job;}catch{/* Changed project or disabled provider: leave for owner review. */}
+    }
+    return null;
+  }
   private transaction<T>(fn:()=>T): T {
     this.db.exec('BEGIN IMMEDIATE');
     try { const v=fn(); this.db.exec('COMMIT'); return v; } catch(e) { this.db.exec('ROLLBACK'); throw e; }
@@ -31,12 +59,14 @@ export class CenterStore {
   private log(id: string,event: string) { this.db.prepare('INSERT INTO ai_activity(at,job_id,event) VALUES(?,?,?)').run(new Date().toISOString(),id,event); }
   snapshot(now=new Date()) {
     const jobs=this.jobs(),month=monthKey(now);
-    return { settings:this.settings(),jobs:jobs.slice(0,200),approvals:jobs.filter(j=>['spend-review','review'].includes(j.status)),pendingCounts:{mesh:jobs.filter(j=>j.agent==='mesh'&&['queued','running','spend-review','review'].includes(j.status)).length,products:jobs.filter(j=>j.agent==='products'&&['queued','running','spend-review','review'].includes(j.status)).length},month,usage:{committedCents:usageFor(jobs,month),agents:{mesh:usageFor(jobs,month,'mesh'),products:usageFor(jobs,month,'products')},uncertainCents:jobs.filter(j=>j.month===month && j.chargedCents===null).reduce((n,j)=>n+j.reservedCents,0)},activity:this.db.prepare('SELECT at,job_id AS jobId,event FROM ai_activity ORDER BY id DESC LIMIT 100').all() as {at:string;jobId:string;event:string}[] };
+    return { projects:this.projects.list(),settings:this.settings(),jobs:jobs.slice(0,200),approvals:jobs.filter(j=>['spend-review','review'].includes(j.status)),pendingCounts:{mesh:jobs.filter(j=>j.agent==='mesh'&&['queued','running','spend-review','review'].includes(j.status)).length,products:jobs.filter(j=>j.agent==='products'&&['queued','running','spend-review','review'].includes(j.status)).length},month,usage:{committedCents:usageFor(jobs,month),agents:{mesh:usageFor(jobs,month,'mesh'),products:usageFor(jobs,month,'products')},uncertainCents:jobs.filter(j=>j.month===month && j.chargedCents===null).reduce((n,j)=>n+j.reservedCents,0)},activity:this.db.prepare('SELECT at,job_id AS jobId,event FROM ai_activity ORDER BY id DESC LIMIT 100').all() as {at:string;jobId:string;event:string}[] };
   }
   configure(input: Settings) { const settings=settingsSchema.parse(input); return this.transaction(()=>{this.db.prepare('INSERT INTO ai_settings(id,json) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(JSON.stringify(settings)); this.log('','Owner updated limits and agent configuration'); return settings;}); }
   enqueue(input: {agent:Agent;kind:Job['kind'];brief:string;key:string}) {
+    return this.transaction(()=>this.enqueueInTransaction(input));
+  }
+  private enqueueInTransaction(input: {agent:Agent;kind:Job['kind'];brief:string;key:string;projectId?:string}) {
     const value=enqueueSchema.parse(input);
-    return this.transaction(()=>{
       const existing=this.db.prepare('SELECT json FROM ai_jobs WHERE key=?').get(value.key) as {json:string}|undefined;
       if(existing) { const j:Job=JSON.parse(existing.json); if(j.agent!==value.agent||j.kind!==value.kind||j.brief!==value.brief)throw new Error('Idempotency key used for different task.'); return j; }
       const settings=this.settings(), config={...settings.agents[value.agent]};
@@ -44,13 +74,13 @@ export class CenterStore {
       const now=new Date().toISOString();
       const job:Job={...value,config,id:randomUUID(),createdAt:now,updatedAt:now,status:config.provider==='template'?'queued':'spend-review',month:'',reservedCents:0,chargedCents:null,boundCents:0,output:'',reason:''};
       job.boundCents=costBound(job); this.save(job,'Owner queued draft task'); return job;
-    });
   }
   decide(id: string, decision: 'approve'|'reject') {
     return this.transaction(()=>{
       const job=this.job(id);
       if(!['spend-review','review'].includes(job.status))throw new Error('No pending approval.');
       job.status=decision==='reject'?'rejected':job.status==='spend-review'?'queued':'ready';
+      if(job.kind==='research'&&job.status==='ready'&&job.projectId)this.projects.approveResearch(job.projectId,job.key);
       this.save(job,decision==='reject'?'Owner rejected task':'Owner approved '+(job.status==='queued'?'bounded API spending':'draft for manual use; no external action')); return job;
     });
   }

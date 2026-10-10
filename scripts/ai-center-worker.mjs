@@ -9,7 +9,7 @@ process.on('SIGTERM',()=>{stopped=true;});
 process.on('SIGINT',()=>{stopped=true;});
 do {
   const store=new CenterStore();
-  try {const job=await runOne(store);if(job)console.log(`AI draft job ${job.id}: ${job.status}`);}
+  try {if(process.env.AI_CENTER_COORDINATOR_ENABLED==='true')store.coordinateOne();const job=await runOne(store);if(job)console.log(`AI draft job ${job.id}: ${job.status}`);}
   finally {store.close();}
   if(watch&&!stopped)await new Promise(resolve=>setTimeout(resolve,30_000));
 } while(watch&&!stopped);

@@ -4,6 +4,7 @@ import type { CenterStore } from '@/lib/ai-center/store';
 import type { businessOverview } from '@/lib/ai-center/metrics';
 import type { Agent, Job, Settings } from '@/lib/ai-center/types';
 import styles from './AiBusinessCenter.module.css';
+import {ProductProjects} from './ProductProjects';
 
 type Snapshot=ReturnType<CenterStore['snapshot']>&{business:ReturnType<typeof businessOverview>;providerConfigured:boolean};
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
@@ -18,6 +19,7 @@ export function AiBusinessCenter() {
     catch(e){setError(e instanceof Error?e.message:'Unable to load.');}
   },[]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{const timer=setInterval(()=>{if(document.visibilityState==='visible'&&!busy)void fetch('/api/owner/business',{cache:'no-store'}).then(async r=>{if(r.ok)setData(await r.json());}).catch(()=>{});},10000);return ()=>clearInterval(timer);},[busy]);
   async function command(value:unknown) {
     setBusy(true);setMessage('');setError('');
     try {const response=await fetch('/api/owner/business',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});const result=await response.json();if(!response.ok)throw Error(result.message);setMessage(result.message);await load();return true;}
@@ -31,6 +33,7 @@ export function AiBusinessCenter() {
     <div role="status" aria-live="polite">{message}</div>{error&&<p role="alert" className={styles.error}>{error}</p>}
     <button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button>
     {!data||!settings?<p>Waiting for owner data…</p>:<>
+      <ProductProjects projects={data.projects} jobs={data.jobs} busy={busy} command={command} reload={load}/>
       <div className={styles.grid}>
         <article className={styles.card}><h2>AI budget · {data.month} UTC</h2><p className={styles.big}>{money(data.usage.committedCents)} / {money(data.settings.monthlyLimitCents)}</p><p>Used or reserved. Uncertain reservations: {money(data.usage.uncertainCents)}. Provider invoices may differ.</p></article>
         {(Object.keys(names) as Agent[]).map(id=><article key={id} className={styles.card}><h2>{names[id]}</h2><p className={styles.big}>{money(data.usage.agents[id])} / {money(data.settings.agents[id].monthlyLimitCents)}</p><p>{data.settings.agents[id].provider} · {data.settings.agents[id].model}</p><p>{data.pendingCounts[id]} tasks needing work or review</p></article>)}
@@ -47,8 +50,8 @@ export function AiBusinessCenter() {
           <label>Revenue engine<select value={agent} onChange={e=>{const id=e.target.value as Agent;setAgent(id);setKind(id==='mesh'?'review':'idea');setTaskKey('');}}><option value="mesh">Mesh Harbor automation</option><option value="products">Independent digital products</option></select></label>
           <label>Task<select value={kind} onChange={e=>{setKind(e.target.value as Job['kind']);setTaskKey('');}}>{(agent==='mesh'?['review','outreach']:['idea','listing']).map(k=><option key={k} value={k}>{k==='review'?'Operations review':k==='outreach'?'Lead/customer outreach draft':k==='idea'?'Product idea':'Listing draft'}</option>)}</select></label>
           <label>Brief<textarea required maxLength={3000} rows={5} value={brief} onChange={e=>{setBrief(e.target.value);setTaskKey('');}} placeholder="Describe the problem, audience, and desired draft. Avoid customer details, secrets, and personal information."/></label>
-          <p>Only this brief goes to the model. Customer records and financial data are not automatically included. Local templates are free and provide a starting checklist.</p><button disabled={busy||!brief.trim()}>Queue draft</button>
-        </form><button type="button" disabled={busy} onClick={()=>void command({action:'run'})}>Process one eligible task</button><p>No automatic schedule is enabled. Each click processes at most one approved job.</p></article>
+          <p>Manual tasks send only this brief. Delegated project tasks also include abbreviated project notes, test feedback, research observations and the reviewed leader plan. Customer records are not automatically included. Local templates are free and provide a starting checklist.</p><button disabled={busy||!brief.trim()}>Queue draft</button>
+        </form><button type="button" disabled={busy} onClick={()=>void command({action:'run'})}>Process one eligible task</button><p>Each click processes at most one approved job. The optional background worker is configured separately; task status shows recorded activity.</p></article>
         <article className={styles.card}><h2>Approvals inbox · {approvals.length}</h2>{approvals.length?approvals.map(j=><div key={j.id} className={styles.approval}><h3>{names[j.agent]} · {j.kind}</h3><p><strong>{labels[j.status]}</strong></p><p>{j.status==='spend-review'?`Approve one API call up to ${money(j.boundCents)}, using ${j.config.provider} / ${j.config.model}. A separate review follows.`:'Review the complete draft below. Approval permits manual use only.'}</p><details><summary>Review brief{j.output?' and draft':''}</summary><pre>{j.brief}</pre>{j.output&&<pre>{j.output}</pre>}</details><button type="button" disabled={busy} onClick={()=>void command({action:'decide',id:j.id,decision:'approve'})}>{j.status==='spend-review'?'Approve bounded API spend':'Approve draft for manual use'}</button> <button type="button" disabled={busy} onClick={()=>void command({action:'decide',id:j.id,decision:'reject'})}>Reject</button></div>):<p>No pending approvals.</p>}</article>
       </div>
       <article className={styles.card}><h2>Monthly limits & model settings</h2><form onSubmit={e=>{e.preventDefault();void command({action:'configure',settings});}}>

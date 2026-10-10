@@ -11,6 +11,9 @@ Open `/owner`, sign in using the existing owner password/2FA, then follow **Open
 - Existing business-record counts, recent request statuses, recorded payments, and the existing profitability calculation. No customer passwords, email addresses, or descriptions are returned by this adapter.
 - Free local templates by default. Optional OpenAI non-reasoning mini models. `DraftProvider` in `provider.ts` is the extension point for later providers; unsupported providers/models are rejected.
 - A manual **Process one eligible task** button and an optional standalone worker. No scheduler is registered in application startup.
+- Clickable business/project sections, leader/research/design/listing role queues, ten-second visible-page status refresh, and an owner action list.
+- Owner ideas, sourced market observations, immutable STL files/hashes, physical test history, failure feedback, revision-specific release gates and private catalog/cart previews.
+- A free original parametric tray prototype generator. Uploaded STLs are limited to 1 MB and 20,000 triangles. Each project supports at most 20 revisions and 50 observations; files remain in the private sidecar, never public storage.
 
 ## Setup
 
@@ -22,6 +25,7 @@ Use Node 22.18+ (Node 24 recommended for local development), `npm ci`, and `npm 
 | `AI_CENTER_MONTHLY_LIMIT_CENTS` | Initial global monthly budget, `2500` ($25). Saved dashboard settings take precedence. $25–$50 is the initial experiment range, configurable. |
 | `AI_CENTER_OPENAI_API_KEY` | Optional server-only API key; no key required for templates. No credentials are stored in job/settings records. |
 | `AI_CENTER_WORKER_ENABLED` | `false`; set `true` only when deliberately starting a background worker with `--watch`. |
+| `AI_CENTER_COORDINATOR_ENABLED` | `false`; optional project-stage delegation when running the standalone worker. Queues at most one new job per tick; never grants spending/test/release approval. |
 
 Per-agent initial limits are $10 each. Enable paid AI in the dashboard only after configuring a key and verifying input/output prices against the provider account. Prices in the dashboard are USD per million tokens. There is no assumed default paid price. Models initially supported: `gpt-4.1-mini` and `gpt-4o-mini`; unknown or reasoning models require a reviewed adapter/budget policy first. [OpenAI model documentation](https://developers.openai.com/api/docs/models/gpt-4.1-mini) and [Chat Completions reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) describe the request surface used here.
 

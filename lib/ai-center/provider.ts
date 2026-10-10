@@ -5,6 +5,7 @@ import type { Job } from './types.ts';
 export type DraftResult = { text: string; costCents: number };
 export type DraftProvider = (job: Job) => Promise<DraftResult>;
 function template(job: Job) {
+  if(['plan','research','design'].includes(job.kind))return {text:`${job.kind==='plan'?'Leader planning':job.kind==='research'?'Research':'Design/refinement'} — free workflow template, no AI API call\n\n${job.brief}\n\nNext steps: verify evidence and originality; prefer small PLA designs without supports; preserve each revision; slice and physically test; record failures and refine; review margin, photos, license and shipping before release. Marketplace sales and demand are unverified. This template does not browse, generate arbitrary CAD or authorize external actions.`,costCents:0};
   const heading=job.kind==='outreach'?'Outreach draft':job.kind==='review'?'Operations review':job.kind==='idea'?'Digital product idea':'Digital product listing draft';
   const next=job.agent==='mesh'
     ? 'Review the request and quote details in Mesh Harbor. Confirm the customer facts, consent, and recipient before any manual contact. Identify one bottleneck and one next action. Do not offer prices or delivery dates without confirmation.'

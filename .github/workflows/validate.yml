@@ -28,6 +28,7 @@ jobs:
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-worker.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-metrics.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-concurrency.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-projects.test.mjs
       - name: Verify EasyPost mode policy
         run: node --experimental-strip-types tests/easypost-mode.test.mjs
       - name: Verify local pickup scheduling

@@ -12,8 +12,8 @@ const configSchema = z.object({
     ctx.addIssue({code:'custom',message:'Paid models require a supported mini model and verified positive token prices.'});
 });
 export const settingsSchema = z.object({monthlyLimitCents:cents,paidEnabled:z.boolean(),agents:z.object({mesh:configSchema,products:configSchema}).strict()}).strict();
-export const enqueueSchema = z.object({agent:z.enum(['mesh','products']),kind:z.enum(['review','outreach','idea','listing']),brief:z.string().trim().min(1).max(3000),key:z.string().min(8).max(100)}).strict()
-  .refine(v=>v.agent === 'mesh' ? ['review','outreach'].includes(v.kind) : ['idea','listing'].includes(v.kind),'Task kind does not belong to this engine.');
+export const enqueueSchema = z.object({agent:z.enum(['mesh','products']),kind:z.enum(['review','outreach','idea','listing','plan','research','design']),brief:z.string().trim().min(1).max(3000),key:z.string().min(8).max(100),projectId:z.uuid().optional()}).strict()
+  .refine(v=>['plan','research','design','listing'].includes(v.kind)|| (v.agent === 'mesh' ? ['review','outreach'].includes(v.kind) : v.kind==='idea'),'Task kind does not belong to this engine.');
 export function defaultSettings(): Settings {
   const limit = Number(process.env.AI_CENTER_MONTHLY_LIMIT_CENTS ?? 2500);
   const agent = {provider:'template' as const,model:'local-template',monthlyLimitCents:1000,inputCentsPerMillion:0,outputCentsPerMillion:0,maxOutputTokens:1024};
