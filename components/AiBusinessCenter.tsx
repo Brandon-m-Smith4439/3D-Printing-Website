@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CenterStore } from '@/lib/ai-center/store';
 import type { businessOverview } from '@/lib/ai-center/metrics';
 import type { Agent, Job, Settings } from '@/lib/ai-center/types';
+import {roleNames} from '@/lib/ai-center/types';
 import styles from './AiBusinessCenter.module.css';
 import {ProductProjects} from './ProductProjects';
 
@@ -59,13 +60,15 @@ export function AiBusinessCenter() {
         <label className={styles.check}><input type="checkbox" checked={settings.paidEnabled} onChange={e=>setSettings({...settings,paidEnabled:e.target.checked})}/>Enable paid AI jobs (each still needs spending approval)</label>
         <p>OpenAI key: {data.providerConfigured?'configured on server':'not configured'}. Prices must be checked against your provider account before paid use. Budgets apply to this workspace only.</p>
         <div className={styles.grid}>{(Object.keys(names) as Agent[]).map(id=><fieldset key={id}><legend>{names[id]}</legend>
-          <label>Monthly agent budget (USD)<input type="number" min="0" max="10000" step="0.01" required value={settings.agents[id].monthlyLimitCents/100} onChange={e=>configureAgent(id,{monthlyLimitCents:Math.round(Number(e.target.value)*100)})}/></label>
+          <label>Monthly business budget (USD)<input type="number" min="0" max="10000" step="0.01" required value={settings.agents[id].monthlyLimitCents/100} onChange={e=>configureAgent(id,{monthlyLimitCents:Math.round(Number(e.target.value)*100)})}/></label>
+          <h3>Agent role limits</h3><p>Each role shares the business provider and model. Its cap is an additional ceiling within the business budget. Zero blocks paid calls; free templates remain available.</p>
+          {(Object.keys(roleNames) as Job['kind'][]).map(role=><label key={role}>{roleNames[role]} monthly cap (USD) — {money(data.usage.roles[id][role])} used or reserved<input type="number" min="0" max="10000" step="0.01" required value={settings.agents[id].roleLimitsCents[role]/100} onChange={e=>configureAgent(id,{roleLimitsCents:{...settings.agents[id].roleLimitsCents,[role]:Math.round(Number(e.target.value)*100)}})}/></label>)}
           <label>Provider<select value={settings.agents[id].provider} onChange={e=>configureAgent(id,{provider:e.target.value as 'template'|'openai',model:e.target.value==='template'?'local-template':'gpt-4.1-mini'})}><option value="template">Local templates (free)</option><option value="openai">OpenAI API</option></select></label>
           {settings.agents[id].provider==='openai'&&<><label>Model<select value={settings.agents[id].model} onChange={e=>configureAgent(id,{model:e.target.value})}><option>gpt-4.1-mini</option><option>gpt-4o-mini</option></select></label>
           <label>Input price (USD / million tokens)<input required type="number" min="0.01" max="1000" step="0.01" value={settings.agents[id].inputCentsPerMillion/100} onChange={e=>configureAgent(id,{inputCentsPerMillion:Math.round(Number(e.target.value)*100)})}/></label>
           <label>Output price (USD / million tokens)<input required type="number" min="0.01" max="1000" step="0.01" value={settings.agents[id].outputCentsPerMillion/100} onChange={e=>configureAgent(id,{outputCentsPerMillion:Math.round(Number(e.target.value)*100)})}/></label></>}
           <label>Max output tokens<input type="number" min="128" max="2048" required value={settings.agents[id].maxOutputTokens} onChange={e=>configureAgent(id,{maxOutputTokens:Number(e.target.value)})}/></label>
-        </fieldset>)}</div><p>Limits use UTC calendar months. Jobs retain the model and prices approved when queued; current monthly limits and the paid-AI toggle are checked again when claimed.</p><button disabled={busy}>Save settings</button>
+        </fieldset>)}</div><p>Limits use UTC calendar months. Jobs retain the model and prices approved when queued; current total, business and role monthly limits and the paid-AI toggle are checked again when claimed.</p><button disabled={busy}>Save settings</button>
       </form></article>
       <article className={styles.card}><h2>Task queue & drafts</h2><p>Latest 200 tasks. Failed and interrupted jobs are never automatically retried; uncertain spend remains reserved.</p>{data.jobs.length?data.jobs.map(j=><details key={j.id} className={styles.approval}><summary>{names[j.agent]} · {j.kind} · {labels[j.status]} · {money(j.chargedCents??j.reservedCents)}</summary><p>{new Date(j.createdAt).toLocaleString()} · {j.config.provider}/{j.config.model} · job {j.id}</p><pre>{j.brief}</pre>{j.output&&<pre>{j.output}</pre>}{j.reason&&<p>{j.reason}</p>}</details>):<p>No tasks queued yet.</p>}</article>
       <article className={styles.card}><h2>Agent activity log</h2>{data.activity.length?<ol>{data.activity.map((e,i)=><li key={`${e.at}-${i}`}>{new Date(e.at).toLocaleString()} · {e.event}{e.jobId&&` · ${e.jobId.slice(0,8)}`}</li>)}</ol>:<p>No activity yet.</p>}</article>

@@ -1,9 +1,13 @@
 import { z } from 'zod';
-import type { Agent, Job, Settings } from './types.ts';
+import type { Agent, Job, Kind, Settings } from './types.ts';
 
 const cents = z.number().int().min(0).max(1_000_000);
+const roleLimitsSchema=z.object({plan:cents,research:cents,design:cents,listing:cents,review:cents,outreach:cents,idea:cents}).strict();
+// Preserve older settings; business and total caps still bound the combined role spend.
+const defaultRoleLimits={plan:1000,research:1000,design:1000,listing:1000,review:1000,outreach:1000,idea:1000};
 const configSchema = z.object({
   provider: z.enum(['template','openai']), model: z.string().max(80), monthlyLimitCents: cents,
+  roleLimitsCents:roleLimitsSchema.default(()=>({...defaultRoleLimits})),
   inputCentsPerMillion: z.number().int().min(0).max(100_000),
   outputCentsPerMillion: z.number().int().min(0).max(100_000),
   maxOutputTokens: z.number().int().min(128).max(2048),
@@ -28,6 +32,6 @@ export function costBound(job: Pick<Job,'agent'|'kind'|'brief'|'config'>) {
   return Math.max(1, Math.ceil((inputBound * job.config.inputCentsPerMillion + job.config.maxOutputTokens * job.config.outputCentsPerMillion)/1_000_000));
 }
 export function monthKey(now: Date) { return now.toISOString().slice(0,7); }
-export function usageFor(jobs: Job[], month: string, agent?: Agent) {
-  return jobs.filter(j=>j.month === month && (!agent || j.agent === agent)).reduce((n,j)=>n+(j.chargedCents ?? j.reservedCents),0);
+export function usageFor(jobs: Job[], month: string, agent?: Agent, kind?: Kind) {
+  return jobs.filter(j=>j.month === month && (!agent || j.agent === agent) && (!kind || j.kind === kind)).reduce((n,j)=>n+(j.chargedCents ?? j.reservedCents),0);
 }

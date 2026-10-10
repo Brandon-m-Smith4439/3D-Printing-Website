@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { costBound, defaultSettings, enqueueSchema, monthKey, settingsSchema, usageFor } from './policy.ts';
 import type { Agent, Job, Settings } from './types.ts';
+import { roleNames } from './types.ts';
 import { ProjectRecords } from './projects.ts';
 import type { ProjectAction } from './projects.ts';
 
@@ -59,7 +60,8 @@ export class CenterStore {
   private log(id: string,event: string) { this.db.prepare('INSERT INTO ai_activity(at,job_id,event) VALUES(?,?,?)').run(new Date().toISOString(),id,event); }
   snapshot(now=new Date()) {
     const jobs=this.jobs(),month=monthKey(now);
-    return { projects:this.projects.list(),settings:this.settings(),jobs:jobs.slice(0,200),approvals:jobs.filter(j=>['spend-review','review'].includes(j.status)),pendingCounts:{mesh:jobs.filter(j=>j.agent==='mesh'&&['queued','running','spend-review','review'].includes(j.status)).length,products:jobs.filter(j=>j.agent==='products'&&['queued','running','spend-review','review'].includes(j.status)).length},month,usage:{committedCents:usageFor(jobs,month),agents:{mesh:usageFor(jobs,month,'mesh'),products:usageFor(jobs,month,'products')},uncertainCents:jobs.filter(j=>j.month===month && j.chargedCents===null).reduce((n,j)=>n+j.reservedCents,0)},activity:this.db.prepare('SELECT at,job_id AS jobId,event FROM ai_activity ORDER BY id DESC LIMIT 100').all() as {at:string;jobId:string;event:string}[] };
+    const roles=Object.fromEntries((['mesh','products'] as Agent[]).map(agent=>[agent,Object.fromEntries((Object.keys(roleNames) as Job['kind'][]).map(kind=>[kind,usageFor(jobs,month,agent,kind)]))])) as Record<Agent,Record<Job['kind'],number>>;
+    return { projects:this.projects.list(),settings:this.settings(),jobs:jobs.slice(0,200),approvals:jobs.filter(j=>['spend-review','review'].includes(j.status)),pendingCounts:{mesh:jobs.filter(j=>j.agent==='mesh'&&['queued','running','spend-review','review'].includes(j.status)).length,products:jobs.filter(j=>j.agent==='products'&&['queued','running','spend-review','review'].includes(j.status)).length},month,usage:{roles,committedCents:usageFor(jobs,month),agents:{mesh:usageFor(jobs,month,'mesh'),products:usageFor(jobs,month,'products')},uncertainCents:jobs.filter(j=>j.month===month && j.chargedCents===null).reduce((n,j)=>n+j.reservedCents,0)},activity:this.db.prepare('SELECT at,job_id AS jobId,event FROM ai_activity ORDER BY id DESC LIMIT 100').all() as {at:string;jobId:string;event:string}[] };
   }
   configure(input: Settings) { const settings=settingsSchema.parse(input); return this.transaction(()=>{this.db.prepare('INSERT INTO ai_settings(id,json) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(JSON.stringify(settings)); this.log('','Owner updated limits and agent configuration'); return settings;}); }
   enqueue(input: {agent:Agent;kind:Job['kind'];brief:string;key:string}) {
@@ -92,7 +94,7 @@ export class CenterStore {
       for(const job of jobs.slice().reverse()) {
         if(job.status!=='queued')continue;
         if(job.config.provider!=='template' && !settings.paidEnabled)continue;
-        if(usageFor(jobs,month)+job.boundCents>settings.monthlyLimitCents || usageFor(jobs,month,job.agent)+job.boundCents>settings.agents[job.agent].monthlyLimitCents)continue;
+        if(job.config.provider!=='template' && (usageFor(jobs,month)+job.boundCents>settings.monthlyLimitCents || usageFor(jobs,month,job.agent)+job.boundCents>settings.agents[job.agent].monthlyLimitCents || usageFor(jobs,month,job.agent,job.kind)+job.boundCents>settings.agents[job.agent].roleLimitsCents[job.kind]))continue;
         job.month=month;job.reservedCents=job.boundCents;job.status='running';this.save(job,'Worker claimed task and reserved budget');return job;
       }
       return null;

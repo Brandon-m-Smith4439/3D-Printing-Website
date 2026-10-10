@@ -7,7 +7,7 @@ Open `/owner`, sign in using the existing owner password/2FA, then follow **Open
 - Mesh Harbor operations-review and lead/customer outreach drafts.
 - Independent digital-product ideas and listing drafts, with a rights/license/accuracy checklist.
 - Durable queue, idempotent submissions, agent activity, separate spending and draft approvals.
-- UTC calendar-month limits in USD cents for the workspace and each engine/agent.
+- UTC calendar-month limits in USD cents for the workspace, each business engine and each agent role within that business.
 - Existing business-record counts, recent request statuses, recorded payments, and the existing profitability calculation. No customer passwords, email addresses, or descriptions are returned by this adapter.
 - Free local templates by default. Optional OpenAI non-reasoning mini models. `DraftProvider` in `provider.ts` is the extension point for later providers; unsupported providers/models are rejected.
 - A manual **Process one eligible task** button and an optional standalone worker. No scheduler is registered in application startup.
@@ -43,7 +43,7 @@ The Node loader establishes a server-only entrypoint outside Next; it does not r
 
 1. Queue an owner brief. Local templates queue immediately; paid jobs enter the spending inbox.
 2. The owner approves the exact brief, provider/model snapshot, token prices, output cap, and calculated maximum cost. Editing settings does not alter existing jobs.
-3. On claim, a `BEGIN IMMEDIATE` transaction checks current global/agent limits and the paid-AI toggle and reserves the full bound before network I/O. Blocked jobs remain queued. UTC month at claim determines the ledger month.
+3. On claim, a `BEGIN IMMEDIATE` transaction checks current global/business/role limits and the paid-AI toggle and reserves the full bound before network I/O. Blocked jobs remain queued while other eligible jobs can proceed. UTC month at claim determines the ledger month. Role reservations include uncertain failed calls. A zero role cap prevents paid calls but permits free templates.
 4. The provider receives only the owner brief and a fixed drafting instruction. Input is limited to 3,000 characters, output to 128–2,048 tokens, request timeout to 45 seconds, fixed OpenAI endpoint, no tools, no retries, `store:false`. A conservative UTF-8 byte/token bound includes framing overhead. Returned usage computes cost rounded up to cents using the approved prices.
 5. Successful drafts enter a second review. Approval changes status to **Ready for manual use**. Rejection does not refund already incurred API usage. There is no send, publish, listing, purchase, payment, or refund command.
 

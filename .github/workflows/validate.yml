@@ -25,6 +25,7 @@ jobs:
       - name: Verify AI center draft safety and budgets
         run: |
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-center.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-role-budgets.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-worker.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-metrics.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-concurrency.test.mjs
