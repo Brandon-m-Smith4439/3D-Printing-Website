@@ -1,0 +1,9 @@
+import 'server-only';
+import {CenterStore} from '../ai-center/store.ts';
+import {CommerceStore,type Product} from './store.ts';
+import {commerceConfig} from './config.ts';
+export function sourceRelease(projectId:string){const source=new CenterStore();try{const p=source.snapshot().projects.find(p=>p.id===projectId),r=p?.revisions.at(-1);if(!p||!p.release||!r||p.release.revisionId!==r.id||!r.tests.at(-1)?.passed||!p.release.original)throw Error('Current tested release package required.');return {p,r,asset:source.projectAsset(r.id)};}finally{source.close();}}
+export function eligibleReleases(){const source=new CenterStore();try{return source.snapshot().projects.filter(p=>p.release&&p.release.revisionId===p.revisions.at(-1)?.id&&p.revisions.at(-1)?.tests.at(-1)?.passed&&p.release.original).map(p=>({id:p.id,name:p.name,version:p.version,revisionId:p.release!.revisionId,updatedAt:p.updatedAt}));}finally{source.close();}}
+export function prepareCatalog(store:CommerceStore,projectId:string,photoUrl:string,websiteStock:number){const {p,r,asset}=sourceRelease(projectId),release=p.release!;return store.prepare({projectId,revisionId:r.id,name:p.name,description:release.description,license:release.license,physicalPriceCents:release.physicalPriceCents,digitalPriceCents:release.digitalPriceCents,costCents:release.costCents,stock:websiteStock,filename:asset.filename,data:asset.data,photoUrl});}
+export function approveCatalog(store:CommerceStore,id:string){const p=store.overview().products.find(p=>p.id===id);if(!p)throw Error('Product missing.');if(sourceRelease(p.projectId).r.id!==p.revisionId)throw Error('Source revision changed.');return store.approve(id);}
+export function visibleCatalog(store:CommerceStore):Product[]{if(!commerceConfig().catalogEnabled)return [];return store.catalog().filter(p=>{try{return sourceRelease(p.projectId).r.id===p.revisionId;}catch{return false;}});}

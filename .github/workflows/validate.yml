@@ -30,6 +30,14 @@ jobs:
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-metrics.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-concurrency.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-projects.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-asset-quota.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-readiness.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/commerce.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace-publication.test.mjs
+          node tests/center-backups.test.mjs
+          node tests/service-plan.test.mjs
+          node tests/service-supervisor.test.mjs
       - name: Verify EasyPost mode policy
         run: node --experimental-strip-types tests/easypost-mode.test.mjs
       - name: Verify local pickup scheduling
@@ -116,6 +124,7 @@ jobs:
             sleep 1
           done
           node tests/ai-api.integration.mjs
+          node tests/launch-api.integration.mjs
       - name: Start production app
         env:
           NEXT_PUBLIC_SITE_URL: https://meshharbor3d.com

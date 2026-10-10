@@ -6,6 +6,10 @@ import type { Agent, Job, Settings } from '@/lib/ai-center/types';
 import {roleNames} from '@/lib/ai-center/types';
 import styles from './AiBusinessCenter.module.css';
 import {ProductProjects} from './ProductProjects';
+import {LaunchReadiness} from './LaunchReadiness';
+import {MarketplaceConnections} from './MarketplaceConnections';
+import {OwnerCatalog} from './OwnerCatalog';
+import {EtsyPublication} from './EtsyPublication';
 
 type Snapshot=ReturnType<CenterStore['snapshot']>&{business:ReturnType<typeof businessOverview>;providerConfigured:boolean};
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
@@ -30,10 +34,14 @@ export function AiBusinessCenter() {
   const configureAgent=(id:Agent,patch:Partial<Settings['agents'][Agent]>)=>setSettings(s=>s?{...s,agents:{...s.agents,[id]:{...s.agents[id],...patch}}}:s);
   const approvals=data?.approvals||[];
   return <div className={styles.center}>
-    <div className={styles.notice}><strong>Draft-only workspace</strong><p>Approving a draft marks it ready for manual use. Sending, public listings, purchases, payments, and deployment are outside this workspace. Paid API jobs need a separate spending approval.</p></div>
+    <div className={styles.notice}><strong>Draft-only workspace</strong><p>Approving a draft marks it ready for manual use. Customer outreach stays draft-only. Storefront and Etsy publication require separate configuration and owner approval; deployment remains an owner decision. Paid API jobs need a separate spending approval.</p></div>
     <div role="status" aria-live="polite">{message}</div>{error&&<p role="alert" className={styles.error}>{error}</p>}
     <button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button>
     {!data||!settings?<p>Waiting for owner data…</p>:<>
+      <LaunchReadiness />
+      <MarketplaceConnections projects={data.projects} jobs={data.jobs} onProjectChanged={load}/>
+      <OwnerCatalog />
+      <EtsyPublication projects={data.projects}/>
       <ProductProjects projects={data.projects} jobs={data.jobs} busy={busy} command={command} reload={load}/>
       <div className={styles.grid}>
         <article className={styles.card}><h2>AI budget · {data.month} UTC</h2><p className={styles.big}>{money(data.usage.committedCents)} / {money(data.settings.monthlyLimitCents)}</p><p>Used or reserved. Uncertain reservations: {money(data.usage.uncertainCents)}. Provider invoices may differ.</p></article>

@@ -55,6 +55,7 @@ export class CenterStore {
   }
   private settings(): Settings { const row=this.db.prepare('SELECT json FROM ai_settings WHERE id=1').get() as {json:string}|undefined; return row?settingsSchema.parse(JSON.parse(row.json)):defaultSettings(); }
   private jobs(): Job[] { return (this.db.prepare('SELECT json FROM ai_jobs ORDER BY rowid DESC').all() as {json:string}[]).map(r=>JSON.parse(r.json)); }
+  projectJobs(id:string):Job[] { return this.jobs().filter(j=>j.projectId===id); }
   private job(id: string): Job { const row=this.db.prepare('SELECT json FROM ai_jobs WHERE id=?').get(id) as {json:string}|undefined; if(!row)throw new Error('Task not found.'); return JSON.parse(row.json); }
   private save(job: Job, event: string) { job.updatedAt=new Date().toISOString(); this.db.prepare('INSERT INTO ai_jobs(id,key,json) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(job.id,job.key,JSON.stringify(job)); this.log(job.id,event); }
   private log(id: string,event: string) { this.db.prepare('INSERT INTO ai_activity(at,job_id,event) VALUES(?,?,?)').run(new Date().toISOString(),id,event); }

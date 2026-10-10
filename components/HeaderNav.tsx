@@ -111,6 +111,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           {customer.unreadCount > 0 && <b>{customer.unreadCount}</b>}
         </Link>
         <Link href="/profile#notifications" onClick={() => accountMenuRef.current?.removeAttribute("open")}><span>Notifications</span></Link>
+        <Link href="/orders" onClick={() => accountMenuRef.current?.removeAttribute("open")}><span>Shop orders & STL downloads</span></Link>
         <Link href="/profile/settings" onClick={() => accountMenuRef.current?.removeAttribute("open")}><span>Settings</span></Link>
         <button type="button" onClick={() => void signOut()}>Sign out</button>
       </div>
@@ -127,6 +128,9 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
       </div>
 
       <nav className="nav-links desktop-nav-links" aria-label="Primary navigation">
+        <Link className={`nav-tab nav-tab-compact ${active("/products") ? "nav-active" : ""}`} href="/products">Products</Link>
+        <Link className={`nav-tab nav-tab-compact ${active("/stls") ? "nav-active" : ""}`} href="/stls">STLs</Link>
+        <Link className={`nav-tab nav-tab-compact ${active("/cart") ? "nav-active" : ""}`} href="/cart">Cart</Link>
         <Link className={`nav-tab nav-tab-compact ${active("/") ? "nav-active" : ""}`} aria-current={active("/") ? "page" : undefined} href="/">Home</Link>
         <Link className={`nav-tab nav-tab-compact ${active("/gallery") ? "nav-active" : ""}`} aria-current={active("/gallery") ? "page" : undefined} href="/gallery">Gallery</Link>
         <Link className={`nav-tab nav-tab-compact ${active("/queue") ? "nav-active" : ""}`} aria-current={active("/queue") ? "page" : undefined} href="/queue">Queue</Link>
@@ -211,6 +215,9 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         <div className="mobile-drawer-content">
           <nav className="mobile-drawer-nav" aria-label="Mobile primary navigation">
             <Link href="/" className={`mobile-drawer-link ${active("/") ? "is-active" : ""}`} onClick={closeMobileMenu}>Home</Link>
+            <Link href="/products" className="mobile-drawer-link" onClick={closeMobileMenu}>Products</Link>
+            <Link href="/stls" className="mobile-drawer-link" onClick={closeMobileMenu}>STLs</Link>
+            <Link href="/cart" className="mobile-drawer-link" onClick={closeMobileMenu}>Cart</Link>
             <Link href="/gallery" className={`mobile-drawer-link ${active("/gallery") ? "is-active" : ""}`} onClick={closeMobileMenu}>Gallery</Link>
             <Link href="/queue" className={`mobile-drawer-link ${active("/queue") ? "is-active" : ""}`} onClick={closeMobileMenu}>Queue</Link>
           </nav>
@@ -240,6 +247,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
                 </Link>
                 <div className="mobile-drawer-account-actions">
                   <Link href="/profile#requests" onClick={closeMobileMenu}>My Requests</Link>
+                  <Link href="/orders" onClick={closeMobileMenu}>Shop orders & downloads</Link>
                   <Link href="/profile/settings" onClick={closeMobileMenu}>Settings</Link>
                   <button type="button" onClick={() => void signOut()}>Sign out</button>
                 </div>
