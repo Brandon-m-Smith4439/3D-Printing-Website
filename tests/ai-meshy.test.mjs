@@ -19,7 +19,7 @@ try {
  store.approve(j.id);
  let creates=0;
  const fake=async(url,opts)=>{
-  if(opts.method==='POST'){creates++;assert.equal(JSON.parse(opts.body).ai_model,'meshy-6');return Response.json({result:'0193bfc5-ee4f-73f8-8525-44b398884ce9'});}
+  if(opts.method==='POST'){creates++;const body=JSON.parse(opts.body);assert.equal(body.ai_model,'meshy-6');assert.equal(body.should_remesh,true,'generation must request bounded geometry');assert.equal(body.topology,'triangle');assert.equal(body.target_polycount,12000);return Response.json({result:'0193bfc5-ee4f-73f8-8525-44b398884ce9'});}
   return Response.json({id:'0193bfc5-ee4f-73f8-8525-44b398884ce9',status:'IN_PROGRESS'});
  };
  await runMeshyOne(store,fake);

@@ -7,7 +7,10 @@ import {inspectStl} from './stl.ts';
 import {ProjectRecords} from './projects.ts';
 
 export const meshRequest=z.object({projectId:z.uuid(),version:z.number().int().positive(),prompt:z.string().trim().min(10).max(800),longestSideMm:z.number().int().min(20).max(150)}).strict();
-type MeshJob=z.infer<typeof meshRequest>&{id:string;parentId?:string;model:'meshy-6';status:'spend-review'|'queued'|'submitting'|'pending'|'analyze-submitting'|'analyzing'|'review'|'failed'|'imported'|'rejected';createdAt:string;month:string;reservedCredits:number;chargedCredits:number|null;providerId?:string;analysisId?:string;pollAt:number;leaseUntil?:number;leaseToken?:string;artifactId?:string;sha256?:string;report?:unknown;note:string};
+type MeshJob=z.infer<typeof meshRequest>&{id:string;parentId?:string;operation?:'generation'|'repair'|'remesh';model:'meshy-6';status:'spend-review'|'queued'|'submitting'|'pending'|'analyze-submitting'|'analyzing'|'review'|'failed'|'imported'|'rejected';createdAt:string;month:string;reservedCredits:number;chargedCredits:number|null;providerId?:string;analysisId?:string;pollAt:number;leaseUntil?:number;leaseToken?:string;artifactId?:string;sha256?:string;report?:unknown;note:string};
+// Historical child jobs are repairs; do not reinterpret them as remesh requests.
+const operation=(j:MeshJob)=>j.operation??(j.parentId?'repair':'generation');
+const credits=(kind:ReturnType<typeof operation>)=>kind==='remesh'?5:kind==='repair'?10:20;
 const taskId=z.uuid();
 const enabled=()=>process.env.AI_CENTER_MESHY_ENABLED==='true';
 function limit(){const n=Number(process.env.AI_CENTER_MESHY_MONTHLY_CREDITS??30);if(!Number.isSafeInteger(n)||n<0||n>10000)throw Error('Invalid Meshy credit cap.');return n;}
@@ -23,13 +26,21 @@ export class MeshyStore {
  private put(j:MeshJob){this.db.prepare('INSERT INTO ai_meshy_jobs(id,json) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(j.id,JSON.stringify(j));return j;}
  save(j:MeshJob){const r=this.db.prepare("INSERT INTO ai_meshy_jobs(id,json) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json WHERE json_extract(ai_meshy_jobs.json,'$.leaseToken') IS json_extract(excluded.json,'$.leaseToken')").run(j.id,JSON.stringify(j));if(!r.changes)throw Error('Worker lease changed; discard stale response.');return j;}
  private log(id:string,event:string){this.db.prepare('INSERT INTO ai_activity(at,job_id,event) VALUES(?,?,?)').run(new Date().toISOString(),id,event);}
- snapshot(){const jobs=this.jobs(),lastWebhookAt=(this.db.prepare('SELECT COALESCE(MAX(at),0) AS at FROM ai_meshy_notifications').get() as {at:number}).at;return {lastWebhookAt,enabled:enabled(),configured:Boolean(process.env.AI_CENTER_MESHY_API_KEY),monthlyLimitCredits:limit(),committedCredits:jobs.filter(j=>j.month===month()).reduce((n,j)=>n+(j.chargedCredits??j.reservedCredits),0),jobs:jobs.slice(0,100)};}
- enqueue(input:z.infer<typeof meshRequest>,parentId?:string){const v=meshRequest.parse(input);return this.transaction(()=>{
+ private importCheck(j:MeshJob){
+  if(!j.artifactId)return undefined;
+  const raw=this.projects.asset(j.artifactId).data;
+  const triangles=raw.length>=84&&raw.length===84+50*raw.readUInt32LE(80)?raw.readUInt32LE(80):undefined;
+  try{scaledStl(raw,j.longestSideMm);return {ready:true,bytes:raw.length,triangles,reason:'Structural checks passed. Review in your slicer and perform a physical print test.'};}
+  catch(e){return {ready:false,bytes:raw.length,triangles,reason:e instanceof Error?e.message:'STL validation failed.'};}
+ }
+ snapshot(){const jobs=this.jobs(),lastWebhookAt=(this.db.prepare('SELECT COALESCE(MAX(at),0) AS at FROM ai_meshy_notifications').get() as {at:number}).at;return {lastWebhookAt,enabled:enabled(),configured:Boolean(process.env.AI_CENTER_MESHY_API_KEY),monthlyLimitCredits:limit(),committedCredits:jobs.filter(j=>j.month===month()).reduce((n,j)=>n+(j.chargedCredits??j.reservedCredits),0),jobs:jobs.slice(0,100).map(j=>({...j,operation:operation(j),approvalCredits:credits(operation(j)),importCheck:this.importCheck(j)}))};}
+ enqueue(input:z.infer<typeof meshRequest>,parentId?:string,childOperation:'repair'|'remesh'='repair'){const v=meshRequest.parse(input);return this.transaction(()=>{
   this.projects.get(v.projectId,v.version);
   if(!enabled())throw Error('Meshy disabled.');
   if(this.jobs().some(j=>j.projectId===v.projectId&&!['review','failed','imported','rejected'].includes(j.status)))throw Error('Finish this project’s existing Meshy task first.');
-  if(parentId){const parent=this.get(parentId);if(parent.parentId||!parent.providerId||parent.status!=='review'||parent.projectId!==v.projectId||this.jobs().some(j=>j.parentId===parentId))throw Error('Only one approved repair per generation.');}
-  const j:MeshJob={...v,id:randomUUID(),model:'meshy-6',parentId,status:'spend-review',createdAt:new Date().toISOString(),month:'',reservedCredits:0,chargedCredits:null,pollAt:0,note:'Owner approval required: '+(parentId?'10':'20')+' credits. No automatic publishing.'};this.save(j);this.log(j.id,'Meshy draft queued for owner spending approval');return j;
+  if(parentId){const parent=this.get(parentId);if(parent.parentId||!parent.providerId||parent.status!=='review'||parent.projectId!==v.projectId||parent.version!==v.version||this.jobs().some(j=>j.parentId===parentId&&operation(j)===childOperation))throw Error(`Only one approved ${childOperation} per generation.`);}
+  const kind=parentId?childOperation:'generation';
+  const j:MeshJob={...v,id:randomUUID(),model:'meshy-6',parentId,operation:kind,status:'spend-review',createdAt:new Date().toISOString(),month:'',reservedCredits:0,chargedCredits:null,pollAt:0,note:'Owner approval required: '+credits(kind)+' credits. No automatic publishing.'};this.save(j);this.log(j.id,'Meshy draft queued for owner spending approval');return j;
  });}
  approve(id:string,reject=false){return this.transaction(()=>{const j=this.get(id);if(j.status!=='spend-review')throw Error('No spending approval pending.');j.status=reject?'rejected':'queued';j.note=reject?'Owner rejected this request.':'Spending approved; waiting for the worker and credit cap.';this.save(j);this.log(j.id,reject?'Owner rejected Meshy task':'Owner approved bounded Meshy credit spending');return j;});}
  claim(){return this.transaction(()=>{
@@ -40,7 +51,7 @@ export class MeshyStore {
   for(const j of jobs.slice().reverse()){
    if(['pending','analyzing'].includes(j.status)&&j.pollAt<=now&&(j.leaseUntil??0)<=now){j.pollAt=now+60_000;j.leaseUntil=now+90_000;j.leaseToken=randomUUID();return this.put(j);}
    if(j.status!=='queued')continue;
-   const cost=j.parentId?10:20;if(used+cost>limit())continue;
+   const cost=credits(operation(j));if(used+cost>limit())continue;
    try{this.projects.get(j.projectId,j.version);}catch{j.status='rejected';j.note='Project changed before spending.';this.save(j);continue;}
    j.month=month();j.reservedCredits=cost;j.status='submitting';j.pollAt=now+60_000;j.leaseToken=randomUUID();this.put(j);this.log(j.id,'Meshy credits reserved before provider submission');return j;
   }return null;
@@ -64,10 +75,11 @@ async function api(endpoint:string,body:unknown,fetcher:typeof fetch){const key=
 export async function runMeshyOne(store:MeshyStore,fetcher:typeof fetch=fetch){let j=store.claim();if(!j)return null;
  try{
   if(j.status==='submitting'){
-   const body=j.parentId?{input_task_id:store.get(j.parentId).providerId,printer_type:'fdm',intended_print_longest_side_mm:j.longestSideMm}:{mode:'preview',model_type:'standard',ai_model:j.model,prompt:j.prompt,should_remesh:false,target_formats:['stl'],moderation:true};
-   const result=await api(j.parentId?'/openapi/v1/print/repair':'/openapi/v2/text-to-3d',body,fetcher);j.providerId=taskId.parse(result.result);j.status='pending';j.note='Submitted to Meshy; waiting for the original model. No physical test has been performed.';store.save(j);return j;
+   const kind=operation(j),source=j.parentId?store.get(j.parentId).providerId:undefined;
+   const body=kind==='remesh'?{input_task_id:source,topology:'triangle',target_polycount:12000,target_formats:['stl']}:kind==='repair'?{input_task_id:source,printer_type:'fdm',intended_print_longest_side_mm:j.longestSideMm}:{mode:'preview',model_type:'standard',ai_model:j.model,prompt:j.prompt,should_remesh:true,topology:'triangle',target_polycount:12000,target_formats:['stl'],moderation:true};
+   const result=await api(kind==='remesh'?'/openapi/v1/remesh':kind==='repair'?'/openapi/v1/print/repair':'/openapi/v2/text-to-3d',body,fetcher);j.providerId=taskId.parse(result.result);j.status='pending';j.note='Submitted to Meshy; waiting for the candidate. No physical test has been performed.';store.save(j);return j;
   }
-  const endpoint=j.status==='analyzing'?'/openapi/v1/print/analyze/':j.parentId?'/openapi/v1/print/repair/':'/openapi/v2/text-to-3d/';
+  const endpoint=j.status==='analyzing'?'/openapi/v1/print/analyze/':operation(j)==='remesh'?'/openapi/v1/remesh/':operation(j)==='repair'?'/openapi/v1/print/repair/':'/openapi/v2/text-to-3d/';
   const response=await api(endpoint+taskId.parse(j.status==='analyzing'?j.analysisId:j.providerId),undefined,fetcher);
   if(response.id!==(j.status==='analyzing'?j.analysisId:j.providerId))throw Error('Wrong provider task.');
   if(response.status==='FAILED'||response.status==='CANCELED'){j.status='failed';j.note='Provider task failed. Reserved credits retained until verified reconciliation.';return store.save(j);}

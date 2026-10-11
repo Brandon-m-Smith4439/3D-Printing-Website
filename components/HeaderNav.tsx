@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { readCart, subscribeCart } from "@/lib/storefront-cart";
 
 type HeaderNavProps = {
   site: { name: string; logoImage: string; etsyUrl: string; whatnotUrl: string };
@@ -22,6 +23,13 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileDrawerRef = useRef<HTMLElement | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const update = () => setCartCount(readCart().reduce((count, item) => count + item.quantity, 0));
+    update();
+    return subscribeCart(update);
+  }, []);
 
   useEffect(() => {
     function closeOnOutside(event: PointerEvent) {
@@ -128,25 +136,20 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
       </div>
 
       <nav className="nav-links desktop-nav-links" aria-label="Primary navigation">
-        <Link className={`nav-tab nav-tab-compact ${active("/products") ? "nav-active" : ""}`} href="/products">Products</Link>
-        <Link className={`nav-tab nav-tab-compact ${active("/stls") ? "nav-active" : ""}`} href="/stls">STLs</Link>
-        <Link className={`nav-tab nav-tab-compact ${active("/cart") ? "nav-active" : ""}`} href="/cart">Cart</Link>
-        <Link className={`nav-tab nav-tab-compact ${active("/") ? "nav-active" : ""}`} aria-current={active("/") ? "page" : undefined} href="/">Home</Link>
-        <Link className={`nav-tab nav-tab-compact ${active("/gallery") ? "nav-active" : ""}`} aria-current={active("/gallery") ? "page" : undefined} href="/gallery">Gallery</Link>
-        <Link className={`nav-tab nav-tab-compact ${active("/queue") ? "nav-active" : ""}`} aria-current={active("/queue") ? "page" : undefined} href="/queue">Queue</Link>
-        <Link className={`nav-tab nav-request-tab ${active("/custom-request") ? "nav-active" : ""}`} aria-current={active("/custom-request") ? "page" : undefined} href="/custom-request">Custom Request</Link>
-        {site.etsyUrl && <div className="nav-shop-links" aria-label="External shop">
-          {site.etsyUrl && <a className="shop-icon-image-link etsy" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Shop on Etsy (opens in a new tab)" title="Etsy shop">
-            <Image src="/brand/etsy-generated-v068.png" alt="" width={30} height={30} unoptimized />
-          </a>}
-        </div>}
+        {[["/products", "Products"], ["/stls", "STL Files"], ["/custom-request", "Custom Printing"], ["/gallery", "Gallery"]].map(([path, label]) => (
+          <Link key={path} className={`nav-tab nav-tab-compact ${active(path) ? "nav-active" : ""}`} aria-current={active(path) ? "page" : undefined} href={path}>{label}</Link>
+        ))}
         {desktopAccountMenu}
         {!customer && (
           <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-            <span>Login</span>
+            <span className="header-icon-label">Account</span>
           </Link>
         )}
+        <Link href="/cart" className="header-cart-link" aria-label={`Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`} aria-current={active("/cart") ? "page" : undefined}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h2l2.3 12h11.4L21 7H6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>
+          <span className="cart-count" aria-hidden="true">{cartCount}</span>
+        </Link>
       </nav>
 
       <div className="mobile-header-bar">
@@ -162,10 +165,9 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
           <span className="mobile-menu-lines" aria-hidden="true"><i /><i /><i /></span>
         </button>
 
-        <Link href="/" className="mobile-header-title" aria-label={`${site.name} home`} onClick={closeMobileMenu}>
-          <Image className="mobile-header-logo" src={site.logoImage} alt="" width={30} height={30} priority />
+        <div className="mobile-brand-group"><button type="button" className="mobile-owner-mark" onClick={ownerTap} tabIndex={-1} aria-hidden="true"><Image src={site.logoImage} alt="" width={30} height={30} /></button><Link href="/" className="mobile-header-title" aria-label={`${site.name} home`} onClick={closeMobileMenu}>
           <span>{site.name}</span>
-        </Link>
+        </Link></div>
 
         <Link
           href={customer ? "/profile" : "/login"}
@@ -179,6 +181,9 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           )}
           {customer && customer.unreadCount > 0 && <b className="mobile-profile-unread">{Math.min(customer.unreadCount, 9)}</b>}
+        </Link>
+        <Link href="/cart" className="header-cart-link mobile-cart-link" aria-label={`Cart, ${cartCount} items`} onClick={closeMobileMenu}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h2l2.3 12h11.4L21 7H6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg><span className="cart-count" aria-hidden="true">{cartCount}</span>
         </Link>
       </div>
 
@@ -196,6 +201,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         className={`mobile-nav-drawer ${mobileMenuOpen ? "is-open" : ""}`}
         aria-label="Mobile navigation"
         aria-hidden={!mobileMenuOpen}
+        inert={!mobileMenuOpen}
       >
         <div className="mobile-drawer-top">
           <Link href="/" className="mobile-drawer-brand" onClick={closeMobileMenu}>
@@ -214,12 +220,10 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
 
         <div className="mobile-drawer-content">
           <nav className="mobile-drawer-nav" aria-label="Mobile primary navigation">
-            <Link href="/" className={`mobile-drawer-link ${active("/") ? "is-active" : ""}`} onClick={closeMobileMenu}>Home</Link>
-            <Link href="/products" className="mobile-drawer-link" onClick={closeMobileMenu}>Products</Link>
-            <Link href="/stls" className="mobile-drawer-link" onClick={closeMobileMenu}>STLs</Link>
-            <Link href="/cart" className="mobile-drawer-link" onClick={closeMobileMenu}>Cart</Link>
-            <Link href="/gallery" className={`mobile-drawer-link ${active("/gallery") ? "is-active" : ""}`} onClick={closeMobileMenu}>Gallery</Link>
-            <Link href="/queue" className={`mobile-drawer-link ${active("/queue") ? "is-active" : ""}`} onClick={closeMobileMenu}>Queue</Link>
+            {[["/products", "Products"], ["/stls", "STL Files"], ["/custom-request", "Custom Printing"], ["/gallery", "Gallery"]].map(([path, label]) => (
+              <Link key={path} href={path} className={`mobile-drawer-link ${active(path) ? "is-active" : ""}`} aria-current={active(path) ? "page" : undefined} onClick={closeMobileMenu}>{label}</Link>
+            ))}
+            <Link href="/queue" className="mobile-drawer-link" onClick={closeMobileMenu}>Print queue</Link>
           </nav>
 
           <div className="mobile-drawer-lower">
@@ -233,7 +237,6 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
               </div>
             </section>}
 
-            <Link href="/custom-request" className={`mobile-drawer-link mobile-drawer-primary ${active("/custom-request") ? "is-active" : ""}`} onClick={closeMobileMenu}>Custom Request</Link>
 
             <div className="mobile-drawer-account">
             {customer ? (

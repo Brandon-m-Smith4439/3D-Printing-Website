@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { GalleryItem } from "@/lib/site";
 
 export function GalleryCard({ item }: { item: GalleryItem }) {
+  const isExample = /^\/sample-[a-z-]+\.svg$/.test(item.image);
   return (
     <article className="gallery-card">
       <div className="gallery-image-wrap">
@@ -10,9 +11,10 @@ export function GalleryCard({ item }: { item: GalleryItem }) {
         <span className="gallery-chip">{item.category}</span>
       </div>
       <div className="gallery-card-body">
+        {isExample && <p className="gallery-example-label">Illustrative example · not a completed project photo</p>}
         <h3>{item.title}</h3>
         <p>{item.description}</p>
-        <Link className="gallery-card-request-link" href={`/custom-request?gallery=${encodeURIComponent(item.id)}`}>Request something like this <span aria-hidden="true">→</span></Link>
+        <Link className="gallery-card-request-link" href={`/custom-request?gallery=${encodeURIComponent(item.id)}`}>Request something like this <span aria-hidden="true">â†’</span></Link>
       </div>
     </article>
   );

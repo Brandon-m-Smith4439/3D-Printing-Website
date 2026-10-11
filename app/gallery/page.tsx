@@ -18,7 +18,7 @@ export default async function GalleryPage() {
         <div className="section-heading page-heading">
           <p className="eyebrow">PROJECT GALLERY</p>
           <h1>Prints built for display, use, and everything between.</h1>
-          <p>A growing collection of custom, functional, decorative, gaming, and prototype work.</p>
+          <p>Explore project ideas and completed work. Illustrative examples are labeled on each card; custom projects are quoted individually.</p>
         </div>
         <div className="gallery-grid gallery-grid-full">
           {galleryItems.map((item) => <GalleryCard key={item.title} item={item} />)}

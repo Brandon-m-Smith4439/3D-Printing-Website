@@ -1,5 +1,11 @@
 .center { display: grid; grid-template-columns: minmax(0,1fr); gap: 1.25rem; margin-top: 2rem; }
 .center > *, .grid > * { min-width: 0; }
+.meshySteps { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:.6rem; padding:0; list-style:none; }
+.meshySteps li { padding:.8rem; border:1px solid #56727a; border-radius:8px; }
+.meshySteps li[aria-current="step"] { border-color:#82b9aa; background:#214b44; }
+.meshySteps span { display:block; font-size:.9rem; margin-top:.4rem; }
+.meshyCheck,.meshyBlocked { padding:.8rem; margin:.8rem 0; border:1px solid #82b9aa; border-radius:8px; }
+.meshyBlocked { border-color:#e6b16d; background:#382b20; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 1rem; }
 .card,.notice { padding: 1.4rem; border: 1px solid #56727a66; border-radius: 16px; background: #10232bd9; color: #ecf4f4; }
 .notice { background: #1f3b3b; }
