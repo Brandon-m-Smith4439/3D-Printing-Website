@@ -11,7 +11,7 @@ export async function GET(request:NextRequest){
  if(!await requestIsOwner(request))return json('Sign in required.',401);
  const id=z.uuid().safeParse(request.nextUrl.searchParams.get('id'));if(!id.success)return json('Invalid file.',400);
  let store:CenterStore|undefined;
- try{store=new CenterStore();const asset=store.projectAsset(id.data);return new NextResponse(new Uint8Array(asset.data),{headers:{...headers,'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename="${asset.filename}"`}});}
+ try{store=new CenterStore();const asset=store.projectAsset(id.data);return new NextResponse(new Uint8Array(asset.data),{headers:{...headers,'Content-Type':asset.filename==='ai-concept-preview.png'?'image/png':'application/octet-stream','Content-Disposition':`attachment; filename="${asset.filename}"`}});}
  catch{return json('File unavailable.',404);}finally{store?.close();}
 }
 export async function POST(request:NextRequest){

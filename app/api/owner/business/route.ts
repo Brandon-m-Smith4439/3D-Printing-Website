@@ -8,12 +8,15 @@ import { runOne } from '@/lib/ai-center/worker';
 import { businessOverview } from '@/lib/ai-center/metrics';
 import { createProjectSchema, projectActionSchema } from '@/lib/ai-center/projects';
 import { generateTray, traySchema } from '@/lib/ai-center/stl';
+import {gatherSaleResearch} from '@/lib/ai-center/sales-research';
 
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'};
 const json=(value:unknown,status=200)=>NextResponse.json(value,{status,headers});
 const commands=z.discriminatedUnion('action',[
+  z.object({action:z.literal('prepareSale'),id:z.uuid(),version:z.number().int().positive(),includeImage:z.boolean()}).strict(),
+  z.object({action:z.literal('saleResearch'),id:z.uuid(),version:z.number().int().positive(),query:z.string().trim().min(1).max(120)}).strict(),
   z.object({action:z.literal('enqueue'),task:enqueueSchema}).strict(),
   z.object({action:z.literal('configure'),settings:settingsSchema}).strict(),
   z.object({action:z.literal('decide'),id:z.uuid(),decision:z.enum(['approve','reject'])}).strict(),
@@ -40,7 +43,9 @@ export async function POST(request: NextRequest) {
   let store:CenterStore|undefined;
   try {
     store=new CenterStore();
-    if(command.action==='enqueue')store.enqueue(command.task);
+    if(command.action==='prepareSale')store.prepareSale(command.id,command.version,command.includeImage);
+    else if(command.action==='saleResearch')await gatherSaleResearch(store,command.id,command.version,command.query);
+    else if(command.action==='enqueue')store.enqueue(command.task);
     else if(command.action==='configure')store.configure(command.settings);
     else if(command.action==='decide')store.decide(command.id,command.decision);
     else if(command.action==='createProject')store.createProject(command.project);

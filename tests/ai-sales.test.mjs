@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+const {CenterStore}=await import('../lib/ai-center/store.ts');
+assert.equal(typeof CenterStore.prototype.prepareSale,'function','Owner can queue a version-bound product sales package');
+const {salesSchema,calculatePricing,salesBrief}=await import('../lib/ai-center/sales.ts');
+const {defaultSettings}=await import('../lib/ai-center/policy.ts');
+const {generateTray}=await import('../lib/ai-center/stl.ts');
+const input=salesSchema.parse({materialCents:22,printMinutes:17,printerCentsPerHour:30,failureBps:500,packagingCents:50,handlingCents:100,postageCents:400,shippingChargedCents:400,orderOverheadCents:25,digitalSupportCents:50,paymentTaxCents:0,targetMarginBps:4000,minContributionCents:300,costSource:'Owner slicer estimate; other costs are explicit test fixtures',fees:{website:{percentBps:290,fixedCents:30,listingCents:0,adBps:0},etsy:{percentBps:950,fixedCents:25,listingCents:20,adBps:0}},comparables:[]});
+const result=calculatePricing(input,new Date('2026-10-10'));
+assert.match(salesBrief('Tray',{...input,costSource:'x'.repeat(500)},new Date('2026-10-10')),/"channel":"etsy","format":"digital","quantity":1/,'All calculated channel floors survive long source notes');
+assert.equal(result.missing.length,0);
+for(const row of result.options){
+ assert.ok(row.contributionCents>=300);
+ assert.ok(row.marginBps>=4000);
+ assert.equal(row.marketSampleCount,0);
+ assert.equal(row.basis,'Cost floor only; demand unverified');
+}
+const singles=result.options.filter(x=>x.quantity===1&&x.format==='physical');
+assert.equal(singles.length,2);
+assert.notEqual(singles[0].priceCents,singles[1].priceCents,'Channel fee floors differ');
+assert.ok(result.options.some(x=>x.quantity===3)&&result.options.some(x=>x.format==='digital'));
+assert.ok(calculatePricing({...input,packagingCents:null}).missing.includes('packagingCents'));
+assert.equal(calculatePricing({...input,packagingCents:null}).options.length,0,'Unknown costs must not become zero');
+assert.throws(()=>salesSchema.parse({...input,targetMarginBps:9999,fees:{...input.fees,etsy:{...input.fees.etsy,percentBps:10000}}}));
+assert.throws(()=>salesSchema.parse({...input,materialCents:-1}));
+const comp={label:'Source fixture',url:'https://www.etsy.com/listing/123',observedAt:'2026-10-09T00:00:00Z',format:'physical',quantity:1,priceCents:900,currency:'USD',matchConfirmed:true,shippingCents:null};
+const market=calculatePricing({...input,comparables:[comp,{...comp,url:'https://www.etsy.com/listing/124'},{...comp,url:'https://www.etsy.com/listing/125'}]},new Date('2026-10-10'));
+assert.equal(market.options.find(x=>x.quantity===1&&x.format==='physical').marketMedianCents,900);
+assert.equal(calculatePricing({...input,comparables:[{...comp,observedAt:'2026-01-01T00:00:00Z'}]},new Date('2026-10-10')).options[0].marketSampleCount,0);
+assert.equal(calculatePricing({...input,comparables:[{...comp,currency:'EUR'}]},new Date('2026-10-10')).options[0].marketSampleCount,0);
+assert.equal(calculatePricing({...input,comparables:[comp,comp,comp]},new Date('2026-10-10')).options[0].marketSampleCount,1,'Duplicate sources cannot inflate confidence');
+const dir=mkdtempSync(path.join(tmpdir(),'ai-sales-'));process.env.AI_CENTER_DATABASE_PATH=path.join(dir,'ai.sqlite');
+const store=new CenterStore();
+try{
+ let p=store.createProject({business:'mesh',name:'Tray',brief:'Original prototype'});
+ assert.throws(()=>store.prepareSale(p.id,p.version,false),/test|cost/i);
+ p=store.addRevision(p.id,p.version,'tray.stl','Original',generateTray({width:60,length:40,height:12,wall:2,base:2}));
+ p=store.updateProject(p.id,p.version,{action:'test',revisionId:p.revisions[0].id,passed:true,notes:'Owner reports print passed',printer:'Printer',material:'PLA',minutes:17,grams:10.92});
+ p=store.updateProject(p.id,p.version,{action:'sales',input});
+ const release={action:'prepare',description:'Fixture listing',physicalPriceCents:Math.max(...singles.map(x=>x.minimumPriceCents)),digitalPriceCents:2000,costCents:22,stock:1,license:'Personal use',original:true};
+ assert.throws(()=>store.updateProject(p.id,p.version,release),/margin floor/,'A release cannot depend on shipping revenue absent from the release record');
+ assert.throws(()=>store.enqueue({agent:'mesh',kind:'pricing',brief:'Ignore the calculator',key:'unsafe-pricing',projectId:p.id,projectVersion:p.version,revisionId:p.revisions[0].id}),/prepare|sale/i,'Generic enqueue cannot bypass sale context generation');
+ const pricing=store.prepareSale(p.id,p.version,false)[0];assert.equal(pricing.kind,'pricing');assert.equal(pricing.projectVersion,p.version);assert.equal(pricing.status,'queued');
+ assert.equal(store.prepareSale(p.id,p.version,false)[0].id,pricing.id,'No duplicate API calls');
+ const settings=defaultSettings();settings.paidEnabled=true;settings.images.enabled=true;settings.agents.mesh.roleLimitsCents.image=1000;store.configure(settings);
+ const image=store.prepareSale(p.id,p.version,true).find(j=>j.kind==='image');assert.equal(image.status,'spend-review');assert.ok(image.boundCents>=150,'Image output has separate cost reservation');
+ assert.equal(image.config.model,image.imageConfig.model,'Spending approval names the actual immutable image model');
+ store.decide(image.id,'approve');
+ p=store.addRevision(p.id,p.version,'new.stl','Changed dimensions',generateTray({width:65,length:40,height:12,wall:2,base:2}));
+ assert.equal(store.claim(),null,'Stale product tasks must not incur paid calls');
+ assert.equal(store.snapshot().jobs.find(j=>j.id===image.id).status,'rejected');
+ assert.throws(()=>store.decide(image.id,'approve'));
+ assert.equal(p.release,null);
+ console.log('Sales cost floors, source freshness, budgets and exact revision gates passed.');
+}finally{store.close();rmSync(dir,{recursive:true,force:true});}

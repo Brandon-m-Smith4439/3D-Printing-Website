@@ -1,4 +1,5 @@
-.center { display: grid; gap: 1.25rem; margin-top: 2rem; }
+.center { display: grid; grid-template-columns: minmax(0,1fr); gap: 1.25rem; margin-top: 2rem; }
+.center > *, .grid > * { min-width: 0; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,280px),1fr)); gap: 1rem; }
 .card,.notice { padding: 1.4rem; border: 1px solid #56727a66; border-radius: 16px; background: #10232bd9; color: #ecf4f4; }
 .notice { background: #1f3b3b; }
@@ -21,3 +22,7 @@
 .center pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: #0a1920; padding: 1rem; border-radius: 8px; }
 .center li { margin: .6rem 0; overflow-wrap: anywhere; }
 .error { color: #ffb4ae; }
+.draftImage { display: block; width: min(100%, 420px); height: auto; border-radius: 8px; margin-top: 1rem; }
+.tableWrap { overflow-x: auto; max-width: 100%; }
+.tableWrap table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.tableWrap th, .tableWrap td { text-align: left; padding: .6rem; border-bottom: 1px solid #56727a66; min-width: 7rem; }
