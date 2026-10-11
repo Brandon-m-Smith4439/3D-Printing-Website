@@ -17,6 +17,7 @@ export type StoredRequest = {
   requestCode: string;
   status: RequestStatus;
   ownerTrackingStatus?: OwnerTrackingStatus;
+  ownerIntakeKey?: string;
   name: string;
   email: string;
   phone: string;
@@ -51,3 +52,4 @@ export type StoredRequest = {
 
 export const updateStoredRequestSchema = z.object({ status: z.enum(requestStatuses) });
 export const queueFromRequestSchema = z.object({}).strict();
+
