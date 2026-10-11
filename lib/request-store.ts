@@ -75,6 +75,7 @@ export async function createStoredRequest(
 
 export async function createOwnerStoredRequest(values: {
   ownerIntakeKey?: string;
+  emailNotifications?: boolean;
   name?: string;
   email?: string;
   phone?: string;
@@ -135,7 +136,7 @@ export async function createOwnerStoredRequest(values: {
       riskLevel: "none",
       riskFlags: [],
       source: "owner",
-      emailNotifications: Boolean(values.email?.trim()),
+      emailNotifications: values.emailNotifications ?? Boolean(values.email?.trim()),
       isAnonymous: false,
     };
     requests.push(stored);

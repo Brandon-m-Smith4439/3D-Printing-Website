@@ -16,4 +16,6 @@ assert.equal(records.length,1);
 assert.equal(records[0].email,'');assert.equal(records[0].emailNotifications,false);
 assert.equal(records[0].status,'new');assert.equal(records[0].ownerTrackingStatus,'on-hold');
 assert.equal(records[0].queueJobId,'');
+await exports.createOwnerStoredRequest({name:'Contact review',email:'test@example.com',emailNotifications:false});
+assert.equal(records[1].emailNotifications,false);
 console.log('Concurrent intake retries create one private request without email or production queue entry.');

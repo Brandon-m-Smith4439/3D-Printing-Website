@@ -11,3 +11,5 @@ assert.equal(payload.response_format.json_schema.schema.additionalProperties,fal
 assert.equal(payload.response_format.json_schema.schema.properties.stage.enum.includes('deposit-paid'),false);
 assert.ok(costBound({agent:'mesh',kind:'review',brief:'A possible handle.',key:'intake-test',config})>=1);
 console.log('AI intake requests a strict non-financial JSON draft under the existing spend bound.');
+const free=await generateDraft({key:'intake-free',kind:'review',agent:'mesh',brief:'Instructions\nOwner notes:\nA possible handle.',config:defaultSettings().agents.mesh},async()=>{throw Error('Free intake must not contact provider');});
+const freeDraft=JSON.parse(free.text);assert.equal(free.costCents,0);assert.equal(freeDraft.stage,'reviewing');assert.match(freeDraft.description,/A possible handle/);
