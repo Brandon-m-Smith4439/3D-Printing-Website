@@ -1,6 +1,7 @@
 import 'server-only';
 import { SYSTEM_PROMPT, prompt } from './policy.ts';
 import type { Job } from './types.ts';
+import {intakeOutputFormat,intakeInstruction} from './intake.ts';
 
 export type DraftResult = { text: string; costCents: number;image?:Buffer };
 export type DraftProvider = (job: Job) => Promise<DraftResult>;
@@ -18,10 +19,11 @@ export async function generateDraft(job: Job, fetcher: typeof fetch = fetch): Pr
   if(job.config.provider==='template')return template(job);
   const key=process.env.AI_CENTER_OPENAI_API_KEY;
   if(!key)throw new Error('Paid provider is not configured.');
+  const intake=job.agent==='mesh'&&job.kind==='review'&&job.key.startsWith('intake-');
   const response=await fetcher('https://api.openai.com/v1/chat/completions',{
     method:'POST',redirect:'error',signal:AbortSignal.timeout(45_000),
     headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
-    body:JSON.stringify({model:job.config.model,store:false,max_completion_tokens:job.config.maxOutputTokens,messages:[{role:'system',content:SYSTEM_PROMPT},{role:'user',content:prompt(job)}]}),
+    body:JSON.stringify({model:job.config.model,store:false,max_completion_tokens:job.config.maxOutputTokens,...(intake?{response_format:intakeOutputFormat}:{}),messages:[{role:'system',content:SYSTEM_PROMPT+(intake?'\n'+intakeInstruction:'')},{role:'user',content:prompt(job)}]}),
   });
   if(!response.ok)throw new Error('Provider request failed.');
   const data=await response.json() as {choices?:{message?:{content?:string}}[];usage?:{prompt_tokens?:number;completion_tokens?:number}};
