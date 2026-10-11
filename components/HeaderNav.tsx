@@ -141,7 +141,7 @@ export function HeaderNav({ site, customer }: HeaderNavProps) {
         ))}
         {desktopAccountMenu}
         {!customer && (
-          <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login">
+          <Link className={`account-nav-link ${active("/login") ? "is-active" : ""}`} href="/login" aria-label="Sign in or create account">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2"/><path d="M4.5 20c.9-4 3.4-6 7.5-6s6.6 2 7.5 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
             <span className="header-icon-label">Account</span>
           </Link>
