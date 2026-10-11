@@ -10,6 +10,7 @@ import {LaunchReadiness} from './LaunchReadiness';
 import {MarketplaceConnections} from './MarketplaceConnections';
 import {OwnerCatalog} from './OwnerCatalog';
 import {EtsyPublication} from './EtsyPublication';
+import {BusinessLeader} from './BusinessLeader';
 
 type Snapshot=ReturnType<CenterStore['snapshot']>&{business:ReturnType<typeof businessOverview>;providerConfigured:boolean};
 const money=(cents:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(cents/100);
@@ -38,6 +39,7 @@ export function AiBusinessCenter() {
     <div role="status" aria-live="polite">{message}</div>{error&&<p role="alert" className={styles.error}>{error}</p>}
     <button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button>
     {!data||!settings?<p>Waiting for owner data…</p>:<>
+      <BusinessLeader jobs={data.jobs} projects={data.projects} busy={busy} command={command}/>
       <LaunchReadiness />
       <MarketplaceConnections projects={data.projects} jobs={data.jobs} onProjectChanged={load}/>
       <OwnerCatalog />
@@ -89,3 +91,4 @@ export function AiBusinessCenter() {
     </>}
   </div>;
 }
+
