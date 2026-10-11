@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+const {servicePlan}=await import('../scripts/service-plan.mjs');
+const normal=servicePlan({});
+assert.equal(normal.length,1);assert.equal(normal[0].name,'web');
+assert.deepEqual(normal[0].args.slice(-4),['-H','0.0.0.0','-p','3000']);
+const background=servicePlan({PORT:'8080',AI_CENTER_WORKER_ENABLED:'true'});
+assert.equal(background.length,2);assert.equal(background[1].name,'worker');
+assert.ok(background[1].args.includes('--experimental-strip-types'));
+assert.equal(background[0].args.at(-1),'8080');
+assert.equal(servicePlan({AI_CENTER_WORKER_ENABLED:'false'}).length,1);
+assert.equal(servicePlan({PORT:'3000'},['-p','3087'])[0].args.at(-1),'3087');
+assert.throws(()=>servicePlan({},['--inspect']),/launcher/);
+for(const port of ['0','65536','--inspect','8080;bad','1.5'])assert.throws(()=>servicePlan({PORT:port}),/port/i);
+console.log('Same-container optional worker and validated port plans passed.');

@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+const base=process.env.AI_TEST_BASE_URL;
+if(!base||!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(base))throw Error('Disposable local test URL required.');
+const paths=['/api/owner/business/readiness','/api/owner/catalog','/api/owner/marketplace','/api/owner/marketplace/publications'];
+for(const p of paths)assert.equal((await fetch(base+p)).status,401,p);
+for(const p of [...paths.slice(1),'/api/owner/business/backup'])assert.equal((await fetch(base+p,{method:'POST',headers:{origin:'https://invalid.example','Content-Type':'application/json'},body:'{}'})).status,403,p);
+const login=await fetch(base+'/api/owner/login',{method:'POST',headers:{origin:base,'Content-Type':'application/json'},body:JSON.stringify({password:process.env.AI_TEST_OWNER_PASSWORD})});
+assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0],headers={cookie,origin:base,'Content-Type':'application/json'};
+for(const p of paths){const r=await fetch(base+p,{headers});assert.equal(r.status,200,p);assert.equal(r.headers.get('cache-control'),'no-store',p);}
+const listing=await(await fetch(base+'/api/owner/marketplace/publications',{headers})).json();assert.equal(listing.writesEnabled,false);assert.deepEqual(listing.publications,[]);
+const form=new FormData();form.set('reference','{}');form.set('package','{}');
+assert.ok([400,409].includes((await fetch(base+'/api/owner/marketplace/publications',{method:'POST',headers:{cookie,origin:base},body:form})).status));
+assert.equal((await fetch(base+'/api/owner/marketplace/callback',{method:'POST',headers:{origin:base,'Content-Type':'application/json'},body:'{}'})).status,401);
+assert.equal((await fetch(base+'/api/owner/marketplace/callback',{method:'POST',headers,body:'{}'})).status,400);
+const callback=await fetch(base+'/api/owner/marketplace/callback?code=PRIVATE_SENTINEL&state=PRIVATE_SENTINEL');
+assert.equal(callback.status,200);assert.equal(callback.headers.get('cache-control'),'no-store');assert.match(callback.headers.get('content-security-policy'),/nonce-/);assert.ok(!(await callback.text()).includes('PRIVATE_SENTINEL'));
+const read=await(await fetch(base+'/api/owner/business/readiness',{headers})).json();assert.equal(read.configuredOnly,true);assert.equal(read.checks.find(c=>c.id==='ai-key').status,'action');
+const catalog=await(await fetch(base+'/api/store/catalog')).json();assert.deepEqual(catalog.products,[]);assert.equal(catalog.checkoutEnabled,false);
+assert.equal((await fetch(base+'/api/store/checkout',{method:'POST',headers:{origin:base,'Content-Type':'application/json'},body:'[]'})).status,401);
+assert.equal((await fetch(base+'/api/store/orders')).status,401);
+assert.equal((await fetch(base+'/api/store/webhook',{method:'POST',body:'{}'})).status,400);
+const backup=await fetch(base+'/api/owner/business/backup',{method:'POST',headers});assert.equal(backup.status,200);const manifest=await backup.json();assert.ok(manifest.files.length>=2);assert.equal(manifest.directory,undefined);
+for(const p of ['/products','/stls','/cart','/orders'])assert.equal((await fetch(base+p)).status,200,p);
+const page=await(await fetch(base+'/owner/business',{headers})).text();assert.match(page,/AI Business Control Center/);assert.match(page,/Waiting for owner data/);
+console.log('Disposable production HTTP: owner access/CSRF/private headers, default-off Etsy writes/catalog/checkout, unsigned webhook rejection, customer access, sidecar snapshot and pages passed. No external API calls.');

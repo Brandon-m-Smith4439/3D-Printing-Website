@@ -22,6 +22,25 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify AI center draft safety and budgets
+        run: |
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-center.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-role-budgets.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-worker.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-metrics.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-concurrency.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-projects.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-sales.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-images.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-sales-research.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-asset-quota.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-readiness.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/commerce.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace-publication.test.mjs
+          node tests/center-backups.test.mjs
+          node tests/service-plan.test.mjs
+          node tests/service-supervisor.test.mjs
       - name: Verify EasyPost mode policy
         run: node --experimental-strip-types tests/easypost-mode.test.mjs
       - name: Verify local pickup scheduling
@@ -88,6 +107,27 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Verify AI center owner API against disposable production build
+        env:
+          OWNER_PASSWORD: ci-ai-owner-password-12345
+          OWNER_SESSION_SECRET: ci-ai-session-secret-at-least-32-characters
+          NEXT_PUBLIC_SITE_URL: http://localhost:3087
+          AI_TEST_BASE_URL: http://localhost:3087
+          AI_TEST_OWNER_PASSWORD: ci-ai-owner-password-12345
+          AI_TEST_PRODUCTION: 'true'
+          CUSTOMER_FOLLOWUPS_ENABLED: 'false'
+        run: |
+          export DATABASE_PATH="$RUNNER_TEMP/ai-center-test/business.sqlite"
+          export AI_CENTER_DATABASE_PATH="$RUNNER_TEMP/ai-center-test/ai.sqlite"
+          npm run start -- -p 3087 > "$RUNNER_TEMP/ai-center-test.log" 2>&1 &
+          AI_SERVER_PID=$!
+          trap 'kill "$AI_SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -s http://localhost:3087/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node tests/ai-api.integration.mjs
+          node tests/launch-api.integration.mjs
       - name: Start production app
         env:
           NEXT_PUBLIC_SITE_URL: https://meshharbor3d.com
