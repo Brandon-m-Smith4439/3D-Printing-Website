@@ -1421,4 +1421,3 @@ jobs:
             visual-smoke/custom-request-390.png
             visual-smoke/custom-request-1440.png
           retention-days: 7
-

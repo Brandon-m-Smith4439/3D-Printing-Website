@@ -19,8 +19,8 @@ export function BusinessLeader({jobs,projects,busy,command}:{jobs:Job[];projects
     <label>Leader business<select value={business} onChange={e=>{setBusiness(e.target.value as Agent);setKey('');}}><option value="mesh">Mesh Harbor 3D</option><option value="products">Independent digital products</option></select></label>
     <div role="log" aria-label="Leader conversation">
       {conversations.length?conversations.map(job=><article key={job.id} className={styles.approval}>
-        <p><strong>You</strong> � {new Date(job.createdAt).toLocaleString()}</p><pre>{job.brief}</pre>
-        <p><strong>Leader</strong> � {statusNames[job.status]}</p>{job.output?<pre>{job.output}</pre>:<p>A response will appear after this task is approved and processed.</p>}
+        <p><strong>You</strong> · {new Date(job.createdAt).toLocaleString()}</p><pre>{job.brief}</pre>
+        <p><strong>Leader</strong> · {statusNames[job.status]}</p>{job.output?<pre>{job.output}</pre>:<p>A response will appear after this task is approved and processed.</p>}
       </article>):<p>No leader messages for this business yet.</p>}
     </div>
     <form onSubmit={async e=>{e.preventDefault();const requestKey=key||crypto.randomUUID();setKey(requestKey);if(await command({action:'enqueue',task:{agent:business,kind:'plan',brief:message,key:requestKey}})){setMessage('');setKey('');}}}>
@@ -30,9 +30,9 @@ export function BusinessLeader({jobs,projects,busy,command}:{jobs:Job[];projects
     <p>Each message creates a separate plan task. Earlier messages and customer records are not automatically sent to the model. This chat cannot buy postage, publish listings or send outreach.</p>
     {business==='mesh'&&<OwnerProjectIntake jobs={jobs} busy={busy} command={command}/>}
     <h3>Delegate the next project step</h3>
-    {projects.filter(p=>p.business===business).map(project=><div key={project.id} className={styles.approval}><strong>{project.name}</strong><p>Stage: {project.stage}. {project.stage==='test'?'Record your physical print test in the project below before continuing.':'The coordinator selects the next bounded role from the project's reviewed plan and current stage.'}</p><button disabled={busy||project.stage==='test'} onClick={()=>void command({action:'delegate',id:project.id,version:project.version})}>Queue next step</button></div>)}
+    {projects.filter(p=>p.business===business).map(project=><div key={project.id} className={styles.approval}><strong>{project.name}</strong><p>Stage: {project.stage}. {project.stage==='test'?'Record your physical print test in the project below before continuing.':'The coordinator selects the next bounded role from the project’s reviewed plan and current stage.'}</p><button disabled={busy||project.stage==='test'} onClick={()=>void command({action:'delegate',id:project.id,version:project.version})}>Queue next step</button></div>)}
     <h3>Agent activity now</h3>
-    <div className={styles.tableWrap}><table><thead><tr><th>Agent</th><th>Working</th><th>Queued</th><th>Needs your review</th><th>Latest recorded task</th></tr></thead><tbody>{Object.entries(roleNames).map(([kind,name])=>{const tasks=jobs.filter(j=>j.agent===business&&j.kind===kind),latest=tasks[0];return <tr key={kind}><th scope="row">{name}</th><td>{tasks.filter(j=>j.status==='running').length}</td><td>{tasks.filter(j=>j.status==='queued').length}</td><td>{tasks.filter(j=>j.status==='spend-review'||j.status==='review').length}</td><td>{latest?<details><summary>{statusNames[latest.status]} � {new Date(latest.updatedAt).toLocaleString()}</summary><p>{latest.config.provider} / {latest.config.model}</p><pre>{latest.brief}</pre>{latest.output&&<pre>{latest.output}</pre>}{latest.reason&&<p>{latest.reason}</p>}</details>:'No recorded task'}</td></tr>;})}</tbody></table></div>
+    <div className={styles.tableWrap}><table><thead><tr><th>Agent</th><th>Working</th><th>Queued</th><th>Needs your review</th><th>Latest recorded task</th></tr></thead><tbody>{Object.entries(roleNames).map(([kind,name])=>{const tasks=jobs.filter(j=>j.agent===business&&j.kind===kind),latest=tasks[0];return <tr key={kind}><th scope="row">{name}</th><td>{tasks.filter(j=>j.status==='running').length}</td><td>{tasks.filter(j=>j.status==='queued').length}</td><td>{tasks.filter(j=>j.status==='spend-review'||j.status==='review').length}</td><td>{latest?<details><summary>{statusNames[latest.status]} · {new Date(latest.updatedAt).toLocaleString()}</summary><p>{latest.config.provider} / {latest.config.model}</p><pre>{latest.brief}</pre>{latest.output&&<pre>{latest.output}</pre>}{latest.reason&&<p>{latest.reason}</p>}</details>:'No recorded task'}</td></tr>;})}</tbody></table></div>
     <p>Counts cover the latest 200 tasks. These are roles in a shared worker, with recorded task activity.</p>
     <h3>Research and shipping connections</h3>
     <ShippingTest/>
@@ -40,4 +40,3 @@ export function BusinessLeader({jobs,projects,busy,command}:{jobs:Job[];projects
     <p>Shipping labels for custom quotes are managed in the <a href="/owner">owner operations dashboard</a>. Paid orders need confirmed package weight, dimensions and readiness before individual postage approval. Catalog label automation and owner email delivery are not connected yet.</p>
   </section>;
 }
-

@@ -29,4 +29,3 @@ Actual carrier testing is incomplete until an owner signs in and an EasyPost tes
 ## Release limitations
 
 The $25 monthly AI cap and individual spending approvals remain unchanged. The refined Meshy model has owner-reported successful printing; its revised grams/time/cost must be recorded before pricing uses those measurements. Website renders must accurately represent the model and be labeled. Etsy physical-product listings still need imagery that meets Etsy's actual-product photo rules. Public catalog checkout is not enabled merely because isolated Stripe sandbox tests passed; tax/shipping/pricing and the main catalog webhook need their own release checks.
-

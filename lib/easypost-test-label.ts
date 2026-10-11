@@ -20,4 +20,3 @@ export async function createTestLabel(key:string,client:typeof fetch=fetch) {
   const purchased=z.object({id:z.literal(shipment.data.id),mode:z.literal('test'),tracking_code:z.string().min(1),postage_label:z.object({label_url:labelUrl})}).parse(await post(`https://api.easypost.com/v2/shipments/${shipment.data.id}/buy`,{rate:{id:selected.id}}));
   return {testOnly:true as const,labelFormat:'PNG',labelSize:'4x6',shipmentId:purchased.id,trackingCode:purchased.tracking_code,carrier:selected.carrier,service:selected.service,rateCents:Math.round(Number(selected.rate)*100),labelUrl:purchased.postage_label.label_url,warning:'Test-only fixture label. No real postage or customer order; this label cannot be used for shipping.'};
 }
-

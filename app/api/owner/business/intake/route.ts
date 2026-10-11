@@ -15,4 +15,3 @@ export async function POST(request:NextRequest){
   const saved=await createOwnerStoredRequest({...draft,ownerIntakeKey:key,ownerTrackingStatus:stage,status:stage==='new'?'new':'reviewing',internalNote:'Owner-reviewed in-person intake. No payment or customer notification recorded.'});
   return NextResponse.json({message:`${saved.requestCode} saved to the owner request board.`,requestCode:saved.requestCode},{headers:{'Cache-Control':'no-store'}});
 }
-

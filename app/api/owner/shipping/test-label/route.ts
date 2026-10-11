@@ -16,4 +16,3 @@ export async function POST(request:NextRequest){
   try{return NextResponse.json(await createTestLabel(key),{headers});}
   catch{return NextResponse.json({message:'The carrier test did not complete. Check the EasyPost test key, USPS carrier and test shipments dashboard. No live label was requested.'},{status:503,headers});}
 }
-

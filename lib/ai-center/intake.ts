@@ -5,4 +5,3 @@ export function parseIntakeDraft(text:string):IntakeDraft {
   const value=text.trim().replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,'');
   return intakeSchema.parse(JSON.parse(value));
 }
-

@@ -7,4 +7,3 @@ assert.throws(()=>parseIntakeDraft(JSON.stringify({...draft,email:'someone@examp
 assert.equal(intakeSchema.safeParse({...draft,quantity:501}).success,false);
 assert.throws(()=>parseIntakeDraft('Here is a suggestion, not structured data.'));
 console.log('Owner intake rejects payment stages, contacts and invalid model output.');
-

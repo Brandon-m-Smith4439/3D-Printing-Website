@@ -19,10 +19,9 @@ export function OwnerProjectIntake({jobs,busy,command}:{jobs:Job[];busy:boolean;
       <label>Description<textarea required maxLength={2500} value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})}/></label>
       <label>Quantity<input type="number" min={1} max={500} required value={draft.quantity} onChange={e=>setDraft({...draft,quantity:Number(e.target.value)})}/></label>
       <label>Stage<select value={draft.stage} onChange={e=>setDraft({...draft,stage:e.target.value as IntakeDraft['stage']})}>{['on-hold','new','reviewing','preparing','printing','finishing','ready'].map(stage=><option key={stage} value={stage}>{stage==='on-hold'?'Maybe / on hold':stage}</option>)}</select></label>
-      <button disabled={saving}>{saving?'Saving.':'Approve and save to request board'}</button>
+      <button disabled={saving}>{saving?'Saving…':'Approve and save to request board'}</button>
     </form>}
     {message&&<p role="status">{message}</p>}
     <p><a href="/owner">Open owner request board</a>. Add customer contact and quote details there when you are ready.</p>
   </section>;
 }
-

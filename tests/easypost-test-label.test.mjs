@@ -16,4 +16,3 @@ let mismatchCalls=0;
 await assert.rejects(()=>createTestLabel('EZTK_synthetic_test',async()=>{mismatchCalls++;return {ok:true,json:async()=>({id:'shp_live',mode:'production',rates:[]})};}),/mode/i);
 assert.equal(mismatchCalls,1,'Mode mismatch must block before purchase');
 console.log('EasyPost test-only label guards and 4x6 selection passed.');
-
