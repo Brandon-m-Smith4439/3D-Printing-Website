@@ -23,7 +23,7 @@ export class MeshyStore {
  private put(j:MeshJob){this.db.prepare('INSERT INTO ai_meshy_jobs(id,json) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(j.id,JSON.stringify(j));return j;}
  save(j:MeshJob){const r=this.db.prepare("INSERT INTO ai_meshy_jobs(id,json) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json WHERE json_extract(ai_meshy_jobs.json,'$.leaseToken') IS json_extract(excluded.json,'$.leaseToken')").run(j.id,JSON.stringify(j));if(!r.changes)throw Error('Worker lease changed; discard stale response.');return j;}
  private log(id:string,event:string){this.db.prepare('INSERT INTO ai_activity(at,job_id,event) VALUES(?,?,?)').run(new Date().toISOString(),id,event);}
- snapshot(){const jobs=this.jobs();return {enabled:enabled(),configured:Boolean(process.env.AI_CENTER_MESHY_API_KEY),monthlyLimitCredits:limit(),committedCredits:jobs.filter(j=>j.month===month()).reduce((n,j)=>n+(j.chargedCredits??j.reservedCredits),0),jobs:jobs.slice(0,100)};}
+ snapshot(){const jobs=this.jobs(),lastWebhookAt=(this.db.prepare('SELECT COALESCE(MAX(at),0) AS at FROM ai_meshy_notifications').get() as {at:number}).at;return {lastWebhookAt,enabled:enabled(),configured:Boolean(process.env.AI_CENTER_MESHY_API_KEY),monthlyLimitCredits:limit(),committedCredits:jobs.filter(j=>j.month===month()).reduce((n,j)=>n+(j.chargedCredits??j.reservedCredits),0),jobs:jobs.slice(0,100)};}
  enqueue(input:z.infer<typeof meshRequest>,parentId?:string){const v=meshRequest.parse(input);return this.transaction(()=>{
   this.projects.get(v.projectId,v.version);
   if(!enabled())throw Error('Meshy disabled.');
@@ -31,7 +31,7 @@ export class MeshyStore {
   if(parentId){const parent=this.get(parentId);if(parent.parentId||!parent.providerId||parent.status!=='review'||parent.projectId!==v.projectId||this.jobs().some(j=>j.parentId===parentId))throw Error('Only one approved repair per generation.');}
   const j:MeshJob={...v,id:randomUUID(),model:'meshy-6',parentId,status:'spend-review',createdAt:new Date().toISOString(),month:'',reservedCredits:0,chargedCredits:null,pollAt:0,note:'Owner approval required: '+(parentId?'10':'20')+' credits. No automatic publishing.'};this.save(j);this.log(j.id,'Meshy draft queued for owner spending approval');return j;
  });}
- approve(id:string,reject=false){return this.transaction(()=>{const j=this.get(id);if(j.status!=='spend-review')throw Error('No spending approval pending.');j.status=reject?'rejected':'queued';this.save(j);this.log(j.id,reject?'Owner rejected Meshy task':'Owner approved bounded Meshy credit spending');return j;});}
+ approve(id:string,reject=false){return this.transaction(()=>{const j=this.get(id);if(j.status!=='spend-review')throw Error('No spending approval pending.');j.status=reject?'rejected':'queued';j.note=reject?'Owner rejected this request.':'Spending approved; waiting for the worker and credit cap.';this.save(j);this.log(j.id,reject?'Owner rejected Meshy task':'Owner approved bounded Meshy credit spending');return j;});}
  claim(){return this.transaction(()=>{
   if(!enabled()||!process.env.AI_CENTER_MESHY_API_KEY)return null;
   const jobs=this.jobs(),used=this.snapshot().committedCredits,now=Date.now();
@@ -65,7 +65,7 @@ export async function runMeshyOne(store:MeshyStore,fetcher:typeof fetch=fetch){l
  try{
   if(j.status==='submitting'){
    const body=j.parentId?{input_task_id:store.get(j.parentId).providerId,printer_type:'fdm',intended_print_longest_side_mm:j.longestSideMm}:{mode:'preview',model_type:'standard',ai_model:j.model,prompt:j.prompt,should_remesh:false,target_formats:['stl'],moderation:true};
-   const result=await api(j.parentId?'/openapi/v1/print/repair':'/openapi/v2/text-to-3d',body,fetcher);j.providerId=taskId.parse(result.result);j.status='pending';store.save(j);return j;
+   const result=await api(j.parentId?'/openapi/v1/print/repair':'/openapi/v2/text-to-3d',body,fetcher);j.providerId=taskId.parse(result.result);j.status='pending';j.note='Submitted to Meshy; waiting for the original model. No physical test has been performed.';store.save(j);return j;
   }
   const endpoint=j.status==='analyzing'?'/openapi/v1/print/analyze/':j.parentId?'/openapi/v1/print/repair/':'/openapi/v2/text-to-3d/';
   const response=await api(endpoint+taskId.parse(j.status==='analyzing'?j.analysisId:j.providerId),undefined,fetcher);

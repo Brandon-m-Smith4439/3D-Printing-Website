@@ -32,6 +32,7 @@ try {
  assert.equal(store.get(j.id).status,'pending','read-only transient failure must preserve resumable task');
  assert.equal(store.get(j.id).reservedCredits,20);
  assert.equal(store.notify(store.get(j.id).providerId),true);
+ assert.ok(store.snapshot().lastWebhookAt>0,'known notifications must be visible for delivery verification');
  const leased=store.claim();assert.ok(leased,'known webhook should schedule an authoritative check');
  assert.equal(store.claim(),null,'in-flight polling must have an exclusive lease');
  const realNow=Date.now;let replacement;
