@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
-const db=`/tmp/meshharbor-bambu-post-${process.pid}.sqlite`;
+import path from 'node:path';
+import {tmpdir} from 'node:os';
+const db=path.join(tmpdir(),`meshharbor-bambu-post-${process.pid}.sqlite`);
 process.env.DATABASE_PATH=db;
+process.env.AI_CENTER_DATABASE_PATH=db+'.ai.sqlite';
 await rm(db,{force:true});
 const invoiceStore=await import('../lib/bambu-invoice-store.ts');
 const purchaseStore=await import('../lib/bambu-purchase-store.ts');

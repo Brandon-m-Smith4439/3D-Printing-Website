@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { rm } from 'node:fs/promises';
+import path from 'node:path';
+import {tmpdir} from 'node:os';
 
-const db=`/tmp/meshharbor-pricing-store-${process.pid}.sqlite`;
+const db=path.join(tmpdir(),`meshharbor-pricing-store-${process.pid}.sqlite`);
 process.env.DATABASE_PATH=db;
+process.env.AI_CENTER_DATABASE_PATH=db+'.ai.sqlite';
 await rm(db,{force:true});
 
 const store=await import('../lib/pricing-store.ts');

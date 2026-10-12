@@ -13,6 +13,7 @@ export const salesSchema=z.object({
  targetMarginBps:z.number().int().min(0).max(8000).default(4000),minContributionCents:cents.default(300),
  costSource:z.string().trim().min(1).max(500),fees:z.object({website:fee.nullable(),etsy:fee.nullable()}).strict(),
  comparables:z.array(comparableSchema).max(25).default([]),
+ physicalQuantities:z.tuple([z.literal(1)]).optional(),
 }).strict();
 export type SalesInput=z.infer<typeof salesSchema>;
 export type PriceOption={channel:'website'|'etsy';format:'physical'|'digital';quantity:number;priceCents:number;minimumPriceCents:number;shippingChargedCents:number;variableCostCents:number;feesCents:number;contributionCents:number;marginBps:number;marketSampleCount:number;marketMedianCents:number|null;basis:string};
@@ -27,7 +28,7 @@ export function calculatePricing(raw:SalesInput,now=new Date()){
  for(const channel of ['website','etsy'] as const){
   const fees=input.fees[channel]!,percentage=(fees.percentBps+fees.adBps)/10000,margin=input.targetMarginBps/10000;
   if(percentage+margin>=1){missing.push(`${channel}: margin plus percentage fees must be below 100%`);continue;}
-  for(const format of ['physical','digital'] as const)for(const quantity of format==='physical'?[1,3,5]:[1]){
+  for(const format of ['physical','digital'] as const)for(const quantity of format==='physical'?(input.physicalQuantities??[1,3,5]):[1]){
    const shipping=format==='physical'?input.shippingChargedCents!:0;
    const production=quantity*(input.materialCents!+input.printMinutes!*input.printerCentsPerHour!/60)/(1-input.failureBps!/10000);
    const variable=Math.ceil(format==='physical'?production+input.packagingCents!+input.handlingCents!+input.postageCents!+input.orderOverheadCents!:input.digitalSupportCents!+input.orderOverheadCents!);

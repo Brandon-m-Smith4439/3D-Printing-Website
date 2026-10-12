@@ -38,6 +38,12 @@ jobs:
           node --experimental-strip-types tests/catalog-shipping-provider.test.mjs
           node --experimental-strip-types tests/shipment-tracker-match.test.mjs
           node --experimental-strip-types tests/shipping-sandbox-configuration.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-slicing-store.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-slicing-proposals.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-slicing-projects.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-order-packing.test.mjs
+          node tests/slicer-runner.test.mjs
+          node tests/slicer-transport.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-center.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-role-budgets.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-worker.test.mjs

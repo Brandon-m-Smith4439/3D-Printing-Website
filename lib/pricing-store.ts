@@ -1,3 +1,4 @@
+import {invalidateSlicingMaterialCosts} from './ai-center/cost-invalidation.ts';
 import 'server-only';
 import { readCollection, readSingleton, writeCollection, writeSingleton } from './database.ts';
 import { bambuCatalogSeed } from './bambu-catalog-seed.ts';
@@ -34,5 +35,5 @@ export function updatePricingSettings(patch:Partial<PricingSettings>){return mut
 export async function readBambuCatalog(){return (await readCollection<BambuFilamentCatalogItem>(CATALOG)).sort((a,b)=>a.materialClass.localeCompare(b.materialClass)||a.displayName.localeCompare(b.displayName));}
 export async function findBambuCatalogItem(id:string){return (await readBambuCatalog()).find(x=>x.id===id)||null;}
 export function replaceBambuCatalogSeed(items:BambuFilamentCatalogItem[]){return mutate(async()=>{await writeCollection(CATALOG,items);return items;});}
-export function upsertBambuCatalogItem(item:BambuFilamentCatalogItem){return mutate(async()=>{const items=await readBambuCatalog();const index=items.findIndex(x=>x.id===item.id);const next={...item,updatedAt:new Date().toISOString()};if(index>=0)items[index]=next;else items.push(next);await writeCollection(CATALOG,items);return next;});}
+export function upsertBambuCatalogItem(item:BambuFilamentCatalogItem){return mutate(async()=>{const items=await readBambuCatalog();const index=items.findIndex(x=>x.id===item.id);const next={...item,updatedAt:new Date().toISOString()};if(index>=0)items[index]=next;else items.push(next);invalidateSlicingMaterialCosts([item.id]);await writeCollection(CATALOG,items);invalidateSlicingMaterialCosts([item.id]);return next;});}
 export async function ensureBambuCatalogSeeded(){const existing=await readBambuCatalog();if(existing.length)return existing;return replaceBambuCatalogSeed(bambuCatalogSeed.map(x=>({...x})));}

@@ -7,6 +7,9 @@ import { costBound, defaultSettings, enqueueSchema, monthKey, settingsSchema, us
 import type { Agent, Job, Settings } from './types.ts';
 import { roleNames } from './types.ts';
 import { ProjectRecords } from './projects.ts';
+import {SlicingRecords} from './slicing-store.ts';
+import {materialPlanSchema} from './slicing-types.ts';
+import type {MaterialPlan,SliceResult,SliceInput} from './slicing-types.ts';
 import type { ProjectAction } from './projects.ts';
 import {salesBrief} from './sales.ts';
 
@@ -19,22 +22,40 @@ export function centerDatabasePath() {
 export class CenterStore {
   private db: DatabaseSync;
   private projects: ProjectRecords;
+  readonly slicing:SlicingRecords;
   constructor() {
     const file=centerDatabasePath(); mkdirSync(path.dirname(file),{recursive:true});
     this.db = new DatabaseSync(file);
     this.db.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS ai_settings (id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL); CREATE TABLE IF NOT EXISTS ai_jobs (id TEXT PRIMARY KEY, key TEXT UNIQUE NOT NULL, json TEXT NOT NULL); CREATE TABLE IF NOT EXISTS ai_activity (id INTEGER PRIMARY KEY, at TEXT NOT NULL, job_id TEXT NOT NULL, event TEXT NOT NULL);');
     this.projects=new ProjectRecords(this.db);
+    this.slicing=new SlicingRecords(this.db);
   }
   close() { this.db.close(); }
   createProject(input:{business:Agent;name:string;brief:string}) {return this.transaction(()=>{const p=this.projects.create(input);this.log(p.id,'Owner added product idea');return p;});}
   updateProject(id:string,version:number,input:ProjectAction) {return this.transaction(()=>{const p=this.projects.apply(id,version,input);this.log(id,'Owner recorded project '+input.action);return p;});}
-  addRevision(id:string,version:number,filename:string,notes:string,data:Buffer) {return this.transaction(()=>{const p=this.projects.revision(id,version,filename,notes,data);this.log(id,'New STL revision; previous release preparation invalidated');return p;});}
+  addRevision(id:string,version:number,filename:string,notes:string,data:Buffer) {return this.transaction(()=>{const p=this.projects.revision(id,version,filename,notes,data);p.sliceEstimate=null;if(p.sales)p.salesNeedsReview=true;this.projects.save(p);this.log(id,'New STL revision; previous release preparation invalidated');return p;});}
+  private currentSlice(input:SliceInput){const p=this.projects.get(input.projectId),r=p.revisions.at(-1);if(!r||r.id!==input.revisionId||r.sha256!==input.sha256)throw Error('Slice revision changed');if(p.materialPlan&&JSON.stringify(p.materialPlan)!==JSON.stringify(input.materialPlan))throw Error('Slice material changed');if(this.slicing.config().profileHashes[input.profileId]!==input.profileHash)throw Error('Slice profile changed');return p;}
+  recordSlicePartMass(jobId:string,grams:number){return this.slicing.recordPartMass(jobId,grams,j=>this.currentSlice(j.input));}
+  retrySlice(jobId:string){return this.slicing.retry(jobId,new Date(),j=>this.currentSlice(j.input));}
+  sliceCostsCurrent(p:import('./projects.ts').ProductProject){return !p.salesNeedsReview&&(!p.salesEstimateSource||this.slicing.contextHash(p.salesEstimateSource.jobId)===p.salesEstimateSource.contextHash);}
+  reviewSliceCosts(id:string){return this.transaction(()=>{const p=this.projects.get(id);if(!p.salesEstimateSource&&!p.sliceEstimate)return;p.salesNeedsReview=true;p.release=null;if(p.stage==='release')p.stage='design';p.version++;this.log(id,'Recorded cost source changed; review required');this.projects.save(p);});}
+  acceptSliceCosts(id:string,version:number,input:import('./sales.ts').SalesInput,source:NonNullable<import('./projects.ts').ProductProject['salesEstimateSource']>){return this.transaction(()=>{const p=this.projects.get(id,version),j=this.slicing.get(source.jobId);this.currentSlice(j.input);if(p.sliceEstimate?.jobId!==j.id||this.slicing.contextHash(j.id)!==source.contextHash)throw Error('Cost estimate context changed');const next=this.projects.apply(id,version,{action:'sales',input});next.salesEstimateSource=source;this.log(id,'Owner accepted revision-bound slicing costs');return this.projects.save(next);});}
+  enqueueSlice(id:string,version:number,quantity:number,profileId:SliceInput['profileId'],raw:MaterialPlan){
+    const plan=materialPlanSchema.parse(raw),p=this.projects.get(id,version),r=p.revisions.at(-1),profileHash=this.slicing.config().profileHashes[profileId];
+    if(!r)throw Error('Current STL revision required');if(!profileHash)throw Error('Profile needs verified setup');
+    if(p.materialPlan&&JSON.stringify(p.materialPlan)!==JSON.stringify(plan))throw Error('Save material/color selection before slicing');
+    return this.slicing.enqueue({projectId:id,revisionId:r.id,sha256:r.sha256,quantity,profileId,profileHash,materialPlan:plan},new Date(),()=>this.projects.get(id,version));
+  }
+  setSliceMaterial(id:string,version:number,raw:MaterialPlan){return this.transaction(()=>{const p=this.projects.get(id,version);p.materialPlan=materialPlanSchema.parse(raw);p.sliceEstimate=null;if(p.sales)p.salesNeedsReview=true;p.release=null;if(p.stage==='release')p.stage='design';p.version++;this.log(id,'Owner changed material/color requirements');return this.projects.save(p);});}
+  finishSlice(workerId:string,claimId:string,result:SliceResult){return this.slicing.finish(workerId,claimId,result,new Date(),j=>this.currentSlice(j.input));}
+  sliceAsset(workerId:string,claimId:string){const j=this.slicing.claimed(workerId,claimId);this.currentSlice(j.input);return this.projectAsset(j.input.revisionId);}
+  acceptSlice(id:string,version:number,jobId:string){return this.transaction(()=>{const p=this.projects.get(id,version),j=this.slicing.get(jobId);this.currentSlice(j.input);if(j.input.projectId!==id||j.state!=='completed')throw Error('Completed current revision required');if(p.materialPlan&&JSON.stringify(p.materialPlan)!==JSON.stringify(j.input.materialPlan))throw Error('Material requirements changed');p.sliceEstimate={jobId,revisionId:j.input.revisionId,profileHash:j.input.profileHash,quantity:j.input.quantity,at:new Date().toISOString()};p.release=null;if(p.sales)p.salesNeedsReview=true;if(p.stage==='release')p.stage='design';p.version++;this.log(id,'Owner accepted slicer estimate; physical test still required');return this.projects.save(p);});}
   projectAsset(id:string) {return this.projects.asset(id);}
   product(id:string,version:number){return this.projects.get(id,version);}
   prepareSale(id:string,version:number,includeImage:boolean){return this.transaction(()=>{
     const p=this.projects.get(id,version),revision=p.revisions.at(-1);
     if(!revision?.tests.at(-1)?.passed)throw Error('Current revision needs a passing physical test.');
-    if(!p.sales)throw Error('Save explicit costs and fee estimates first.');
+    if(!p.sales||p.salesNeedsReview||(p.salesEstimateSource&&this.slicing.contextHash(p.salesEstimateSource.jobId)!==p.salesEstimateSource.contextHash))throw Error('Save reviewed costs and fee estimates for the current revision first.');
     const settings=this.settings();if(includeImage&&(!settings.paidEnabled||!settings.images.enabled))throw Error('Paid image generation is disabled.');
     const common={agent:p.business,projectId:id,projectVersion:version,revisionId:revision.id};
     const jobs=[this.enqueueInTransaction({...common,kind:'pricing',key:`sale-${id}-${version}-pricing`,brief:salesBrief(p.name,p.sales)})];
@@ -47,7 +68,7 @@ export class CenterStore {
     const kind:Job['kind']=!approvedPlan?'plan':p.stage==='research'?'research':p.stage==='release'?'listing':'design';
     if(p.stage==='test'&&approvedPlan)throw Error('Owner print test is needed before more delegation.');
     const key=`project-${id}-${version}-${kind}`;
-    const instructions=kind==='plan'?'Leader: propose a concise research/design/test/listing plan; prioritize small original PLA prints without supports. Never authorize spending or publishing.':kind==='research'?'Research agent: assess supplied observations, distinguish proxies from actual sales, propose original small batchable products and list missing evidence. You have no web browsing tools.':kind==='design'?'Design/refinement agent: propose original parametric dimensions, tolerance changes and slicer/test checks. Use the latest failure notes. Do not claim to have generated or physically tested an STL.':'Listing agent: draft separate physical print and STL descriptions, license, buyer instructions and missing photos/shipping requirements. Release is manual and needs owner approval.';
+    const instructions=kind==='plan'?'Leader: propose a concise research/design/test/listing plan; prioritize original small batchable prints; default Black PLA Basic indoors, PETG required outdoors; preserve required colors and include multicolor waste/time. Never authorize spending or publishing.':kind==='research'?'Research agent: assess supplied observations, assess dated evidence from Etsy, other marketplaces, independent shops, model communities and social trends; distinguish likes/views/downloads/asking prices from verified sales, preserve product color intent, propose original small batchable products and list missing evidence. You have no web browsing tools.':kind==='design'?'Design/refinement agent: propose original parametric dimensions, tolerance changes and slicer/test checks. Use the latest failure notes. Do not claim to have generated or physically tested an STL.':'Listing agent: draft separate physical print and STL descriptions, license, buyer instructions and missing photos/shipping requirements. Release is manual and needs owner approval.';
     const revision=p.revisions.at(-1),test=revision?.tests.at(-1),release=p.release;
     // Bound each field so refinement failures and release facts cannot be cut off by long research text.
     const context=[`Name: ${p.name}`,`Latest revision: ${revision?.notes.slice(0,200)||'none'}`,`Physical test: ${test?`${test.passed?'PASS':'FAIL'}; ${test.notes.slice(0,400)}; ${test.minutes} min; ${test.grams} g`:'not tested'}`,release?`Release description: ${release.description.slice(0,250)}\nPhysical price cents: ${release.physicalPriceCents}; STL price cents: ${release.digitalPriceCents}; estimated cost cents: ${release.costCents}; stock: ${release.stock}\nLicense/instructions: ${release.license.slice(0,250)}`:'No release package',`Owner-reviewed leader plan: ${approvedPlan?.output.slice(0,200)||'not yet reviewed'}`,`Owner brief: ${p.brief.slice(0,300)}`,...p.evidence.slice(-1).map(e=>`Observation: ${e.label.slice(0,80)} | ${e.url.slice(0,120)} | ${e.signal.slice(0,120)}`)].join('\n');

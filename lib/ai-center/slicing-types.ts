@@ -1,0 +1,22 @@
+import {z} from 'zod';
+const hash=z.string().regex(/^[a-f0-9]{64}$/);
+const finite=z.number().finite();
+export const profileIdSchema=z.enum(['x2d-04-020-pla-basic','x2d-04-020-pla-matte','x2d-04-020-petg']);
+export const materialPlanSchema=z.object({use:z.enum(['indoor','outdoor','unknown']),multicolor:z.boolean(),lines:z.array(z.object({slot:z.number().int().min(1).max(16),catalogItemId:z.string().min(1).max(100),colorHex:z.string().regex(/^#[a-fA-F0-9]{6}$/),colorName:z.string().trim().min(1).max(80),assignment:z.string().trim().min(1).max(200)}).strict()).min(1).max(16)}).strict();
+export type MaterialPlan=z.infer<typeof materialPlanSchema>;
+export const defaultMaterialPlan=():MaterialPlan=>({use:'indoor',multicolor:false,lines:[{slot:1,catalogItemId:'pla-basic-spool',colorHex:'#000000',colorName:'Black',assignment:'Whole model'}]});
+export const sliceInputSchema=z.object({projectId:z.uuid(),revisionId:z.uuid(),sha256:hash,quantity:z.number().int().min(1).max(100),profileId:profileIdSchema,profileHash:hash,materialPlan:materialPlanSchema}).strict();
+export type SliceInput=z.infer<typeof sliceInputSchema>;
+export const sliceResultSchema=z.object({sourceSha256:hash,profileHash:hash,slicerVersion:z.string().min(1).max(100),grams:finite.positive().max(100000),partGrams:finite.positive().max(100000).nullable(),filaments:z.array(z.object({slot:z.number().int().min(1).max(16),consumedGrams:finite.min(0).max(100000),purgeGrams:finite.min(0).nullable(),towerGrams:finite.min(0).nullable()}).strict()).min(1).max(16),colorChanges:z.number().int().min(0).max(100000),seconds:finite.positive().max(864000),sizeMm:z.tuple([finite.positive().max(256),finite.positive().max(256),finite.positive().max(261)]),warnings:z.array(z.string().max(300)).max(20)}).strict().superRefine((r,ctx)=>{
+ if(Math.abs(r.filaments.reduce((n,f)=>n+f.consumedGrams,0)-r.grams)>0.02)ctx.addIssue({code:'custom',message:'Filament total mismatch'});
+ if(r.partGrams!==null&&r.partGrams>r.grams+0.02)ctx.addIssue({code:'custom',message:'Part mass exceeds consumed mass'});
+ if(new Set(r.filaments.map(f=>f.slot)).size!==r.filaments.length)ctx.addIssue({code:'custom',message:'Duplicate filament slot'});
+});
+export type SliceResult=z.infer<typeof sliceResultSchema>;
+export type SliceJob={id:string;input:SliceInput;state:'queued'|'running'|'completed'|'failed'|'cancelled';attempts:number;workerId:string;claimId:string;leaseUntil:string;createdAt:string;updatedAt:string;result:SliceResult|null;reason:string;measuredPartMass?:{grams:number;at:string}};
+export type SliceClaim={job:SliceJob;claimId:string};
+export const packingPresetSchema=z.object({id:z.uuid(),name:z.string().trim().min(1).max(100),internalMm:z.tuple([finite.positive(),finite.positive(),finite.positive()]),externalMm:z.tuple([finite.positive(),finite.positive(),finite.positive()]),boxGrams:finite.min(0),protectionGrams:finite.min(0),clearanceMm:finite.min(0).max(100),packagingCents:z.number().int().min(0).max(100000),available:z.boolean(),calibrated:z.boolean(),quantity:z.number().int().min(1).max(100)}).strict().refine(p=>p.externalMm.every((v,i)=>v>=p.internalMm[i]),'Outside dimensions must cover inside dimensions');
+export type PackingPreset=z.infer<typeof packingPresetSchema>;
+export type PackingProposal={presetId:string;presetName:string;boxGrams:number;protectionGrams:number;clearanceMm:number;quantity:number;grams:number;ounces:number;externalMm:[number,number,number];packagingCents:number;estimated:true};
+export const slicingConfigSchema=z.object({profileHashes:z.object({'x2d-04-020-pla-basic':hash.nullable(),'x2d-04-020-pla-matte':hash.nullable(),'x2d-04-020-petg':hash.nullable()}).strict(),presets:z.array(packingPresetSchema).max(50),massAllowanceGrams:finite.min(0).max(1000)}).strict();
+export const defaultSlicingConfig=()=>({profileHashes:{'x2d-04-020-pla-basic':null,'x2d-04-020-pla-matte':null,'x2d-04-020-petg':null},presets:[],massAllowanceGrams:0});
