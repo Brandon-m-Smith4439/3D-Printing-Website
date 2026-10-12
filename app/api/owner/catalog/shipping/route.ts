@@ -40,5 +40,9 @@ export async function POST(r:NextRequest){
   if((v.action==='approve'||v.action==='reconcile')&&result.state==='label-ready'){try{const email=await sendCatalogLabelEmail(store,v.id);message+=` Owner label email: ${email.state}.`;}catch{message+=' Owner label email needs review; the label record is saved. Do not repeat postage purchase.';}}
   await writeAudit({actor:'owner',actorId:'owner',action:`catalog-shipping-${v.action}`,targetType:'order',targetId:v.id,summary:`Catalog shipping ${v.action}: ${result.state}${v.action==='approve'?`; exact approved postage ${v.approvedCents} cents`:''}.`,ipHash:requestIpHash(r)}).catch(()=>undefined);
   return json({shipping:store.shippingForOrder(v.id)||result,message});
- }catch{return json({message:'Shipping action rejected. Refresh the order; check its payment, package, rate version and carrier mode. Existing purchases require reconciliation.'},409);}finally{store.close();}
+ }catch(error){
+  // Diagnostic categories and schema field names only: never addresses, keys or provider payloads.
+  if(process.env.COMMERCE_SHIPPING_SANDBOX_ENABLED==='true')console.warn('Catalog shipping sandbox rejection',{action:parsed.data.action,type:error instanceof z.ZodError?'validation':'operation',fields:error instanceof z.ZodError?error.issues.map(issue=>issue.path.join('.')):[],stage:error instanceof Error&&'shippingStage' in error?String(error.shippingStage):'context-or-store'});
+  return json({message:'Shipping action rejected. Refresh the order; check its payment, package, rate version and carrier mode. Existing purchases require reconciliation.'},409);
+ }finally{store.close();}
 }
