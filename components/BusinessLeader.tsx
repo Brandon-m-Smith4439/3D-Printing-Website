@@ -6,6 +6,7 @@ import type {ProductProject} from '@/lib/ai-center/projects';
 import styles from './AiBusinessCenter.module.css';
 import {ShippingTest} from './ShippingTest';
 import {OwnerProjectIntake} from './OwnerProjectIntake';
+import {CatalogShipping} from './CatalogShipping';
 
 const statusNames:Record<Job['status'],string>={'spend-review':'Needs spending approval',queued:'Queued',running:'Working',review:'Needs draft review',ready:'Reviewed',rejected:'Rejected',failed:'Failed'};
 export function BusinessLeader({jobs,projects,busy,command}:{jobs:Job[];projects:ProductProject[];busy:boolean;command:(value:unknown)=>Promise<boolean>}) {
@@ -37,6 +38,7 @@ export function BusinessLeader({jobs,projects,busy,command}:{jobs:Job[];projects
     <h3>Research and shipping connections</h3>
     <ShippingTest/>
     <p>Research drafts assess supplied evidence; they do not browse the web. Etsy API research needs an approved app and authorization. Until then, use <a href="https://www.etsy.com/your/shops/me/marketplace-insights" target="_blank" rel="noopener noreferrer">Etsy Marketplace Insights</a> and save dated observations in each project. Search volume, asking prices and badges are signals, not proven sales for your product. Compare functional and decorative opportunities, conversion, competition, seasonality and full costs before choosing a small test batch.</p>
-    <p>Shipping labels for custom quotes are managed in the <a href="/owner">owner operations dashboard</a>. Paid orders need confirmed package weight, dimensions and readiness before individual postage approval. Catalog label automation and owner email delivery are not connected yet.</p>
+    <p>Shipping labels for custom quotes are managed in the <a href="/owner">owner operations dashboard</a>. Paid website catalog orders use the measured packing and individual postage approval controls below.</p>
+    {business==='mesh'&&<CatalogShipping/>}
   </section>;
 }

@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify one-page thermal label printing
+        run: node tests/catalog-label-print.browser.mjs
       - name: Verify AI center draft safety and budgets
         run: |
           node tests/owner-login-flow.test.mjs
@@ -30,6 +32,11 @@ jobs:
           node --experimental-strip-types tests/owner-intake-route.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/owner-intake-provider.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/easypost-test-label.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-store.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-service.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-email.test.mjs
+          node --experimental-strip-types tests/catalog-shipping-provider.test.mjs
+          node --experimental-strip-types tests/shipment-tracker-match.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-center.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-role-budgets.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-worker.test.mjs
@@ -129,6 +136,10 @@ jobs:
         run: |
           export DATABASE_PATH="$RUNNER_TEMP/ai-center-test/business.sqlite"
           export AI_CENTER_DATABASE_PATH="$RUNNER_TEMP/ai-center-test/ai.sqlite"
+          export COMMERCE_DATABASE_PATH="$RUNNER_TEMP/ai-center-test/commerce.sqlite"
+          export CATALOG_SHIPPING_TEST_DB="$COMMERCE_DATABASE_PATH"
+          export CATALOG_SHIPPING_TEST_URL="$AI_TEST_BASE_URL"
+          export CATALOG_SHIPPING_TEST_PASSWORD="$AI_TEST_OWNER_PASSWORD"
           npm run start -- -p 3087 > "$RUNNER_TEMP/ai-center-test.log" 2>&1 &
           AI_SERVER_PID=$!
           trap 'kill "$AI_SERVER_PID" 2>/dev/null || true' EXIT
@@ -138,6 +149,7 @@ jobs:
           done
           node tests/ai-api.integration.mjs
           node tests/launch-api.integration.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-api.integration.mjs
       - name: Start production app
         env:
           NEXT_PUBLIC_SITE_URL: https://meshharbor3d.com

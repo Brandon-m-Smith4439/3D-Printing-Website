@@ -1,0 +1,5 @@
+import 'server-only';
+import {getSiteContent} from '@/lib/site-content-store';
+import {getLiveShippingRates,buyEasyPostShipment,readEasyPostShipment} from '@/lib/easypost';
+import type {ShippingDependencies} from './shipping.ts';
+export function catalogShippingDependencies():ShippingDependencies{return {credential:process.env.EASYPOST_API_KEY||'',liveEnabled:/^(true|1|yes|on)$/i.test(process.env.EASYPOST_LIVE_ENABLED||''),now:()=>new Date(),origin:async()=>{const content=await getSiteContent();return {...content.shippingOrigin,name:content.shippingOrigin.name||content.name};},rates:async(parcel,address,origin)=>{const result=await getLiveShippingRates({fulfillmentMode:'shipping',packageWeightOz:parcel.weightOz,packageLengthIn:parcel.lengthIn,packageWidthIn:parcel.widthIn,packageHeightIn:parcel.heightIn},address,{label_format:'PNG',label_size:'4x6'},origin);return readEasyPostShipment(result.shipmentId);},read:readEasyPostShipment,buy:async(id,rate)=>{const result=await buyEasyPostShipment(id,rate);if(result.shipmentId!==id)throw Error('Carrier shipment mismatch.');return readEasyPostShipment(id);}};}

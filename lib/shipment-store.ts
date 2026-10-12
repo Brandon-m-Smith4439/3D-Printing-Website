@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { readCollection, writeCollection } from "@/lib/database";
 import type { ShipmentRecord, ShipmentTrackingEvent } from "@/lib/shipment-types";
+import {matchesShipmentTracker} from './shipment-tracker-match.ts';
 
 let mutationChain = Promise.resolve();
 
@@ -49,7 +50,7 @@ export async function shipmentForRequest(requestId: string) {
 
 export async function shipmentByTracker(trackerId: string, trackingCode = "") {
   const items = await readShipments();
-  return items.find((item) => (trackerId && item.trackerId === trackerId) || (trackingCode && item.trackingCode === trackingCode)) || null;
+  return items.find((item) => matchesShipmentTracker(item,trackerId,trackingCode)) || null;
 }
 
 export async function upsertShipment(
@@ -114,10 +115,7 @@ export async function applyTrackingUpdate(input: {
 }) {
   return mutate(async () => {
     const items = await readShipments();
-    const index = items.findIndex((item) =>
-      (input.trackerId && item.trackerId === input.trackerId) ||
-      (input.trackingCode && item.trackingCode === input.trackingCode),
-    );
+    const index = items.findIndex((item) => matchesShipmentTracker(item,input.trackerId,input.trackingCode));
     if (index < 0) return { shipment: null, changed: false };
     const current = normalize(items[index]);
     if (input.eventId && current.lastWebhookEventId === input.eventId) return { shipment: current, changed: false };
