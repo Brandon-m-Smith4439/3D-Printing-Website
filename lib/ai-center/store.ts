@@ -46,7 +46,7 @@ export class CenterStore {
     if(p.materialPlan&&JSON.stringify(p.materialPlan)!==JSON.stringify(plan))throw Error('Save material/color selection before slicing');
     return this.slicing.enqueue({projectId:id,revisionId:r.id,sha256:r.sha256,quantity,profileId,profileHash,materialPlan:plan},new Date(),()=>this.projects.get(id,version));
   }
-  setSliceMaterial(id:string,version:number,raw:MaterialPlan){return this.transaction(()=>{const p=this.projects.get(id,version);p.materialPlan=materialPlanSchema.parse(raw);p.sliceEstimate=null;if(p.sales)p.salesNeedsReview=true;p.release=null;if(p.stage==='release')p.stage='design';p.version++;this.log(id,'Owner changed material/color requirements');return this.projects.save(p);});}
+  setSliceMaterial(id:string,version:number,raw:MaterialPlan){return this.transaction(()=>{const p=this.projects.get(id,version);const plan=materialPlanSchema.parse(raw);if(JSON.stringify(p.materialPlan)===JSON.stringify(plan))return p;p.materialPlan=plan;p.printTestNeedsReview=true;if(p.revisions.length)p.stage='test';p.sliceEstimate=null;if(p.sales)p.salesNeedsReview=true;p.release=null;if(p.stage==='release')p.stage='design';p.version++;this.log(id,'Owner changed material/color requirements');return this.projects.save(p);});}
   finishSlice(workerId:string,claimId:string,result:SliceResult){return this.slicing.finish(workerId,claimId,result,new Date(),j=>this.currentSlice(j.input));}
   sliceAsset(workerId:string,claimId:string){const j=this.slicing.claimed(workerId,claimId);this.currentSlice(j.input);return this.projectAsset(j.input.revisionId);}
   acceptSlice(id:string,version:number,jobId:string){return this.transaction(()=>{const p=this.projects.get(id,version),j=this.slicing.get(jobId);this.currentSlice(j.input);if(j.input.projectId!==id||j.state!=='completed')throw Error('Completed current revision required');if(p.materialPlan&&JSON.stringify(p.materialPlan)!==JSON.stringify(j.input.materialPlan))throw Error('Material requirements changed');p.sliceEstimate={jobId,revisionId:j.input.revisionId,profileHash:j.input.profileHash,quantity:j.input.quantity,at:new Date().toISOString()};p.release=null;if(p.sales)p.salesNeedsReview=true;if(p.stage==='release')p.stage='design';p.version++;this.log(id,'Owner accepted slicer estimate; physical test still required');return this.projects.save(p);});}
@@ -54,7 +54,7 @@ export class CenterStore {
   product(id:string,version:number){return this.projects.get(id,version);}
   prepareSale(id:string,version:number,includeImage:boolean){return this.transaction(()=>{
     const p=this.projects.get(id,version),revision=p.revisions.at(-1);
-    if(!revision?.tests.at(-1)?.passed)throw Error('Current revision needs a passing physical test.');
+    if(p.printTestNeedsReview||!revision?.tests.at(-1)?.passed)throw Error('Current revision/material needs a passing physical test.');
     if(!p.sales||p.salesNeedsReview||(p.salesEstimateSource&&this.slicing.contextHash(p.salesEstimateSource.jobId)!==p.salesEstimateSource.contextHash))throw Error('Save reviewed costs and fee estimates for the current revision first.');
     const settings=this.settings();if(includeImage&&(!settings.paidEnabled||!settings.images.enabled))throw Error('Paid image generation is disabled.');
     const common={agent:p.business,projectId:id,projectVersion:version,revisionId:revision.id};

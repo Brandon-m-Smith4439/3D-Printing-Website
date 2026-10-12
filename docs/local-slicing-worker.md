@@ -68,7 +68,7 @@ use, unverified profiles and unconfigured multicolor stay blocked. The action
 queues a deterministic local task; free-text leader messages still create draft
 plans rather than automatically executing arbitrary tools.
 
-Accept the current slice estimate after reviewing the profile/revision and any
+Changing material or required colors preserves historical test records but requires a new physical-test confirmation before release. Failed/cancelled jobs have an explicit owner retry control; restarting the worker alone does not reset exhausted attempts. Automatic sliced-cost recommendations currently cover single physical units; bundles need separate costing review. Recorded material-price changes invalidate linked costs even while the worker is disabled. Accept the current slice estimate after reviewing the profile/revision and any
 warnings. This does not create a passing physical test. Record finished-part
 weight separately after weighing the actual piece. Add your actual box supplies:
 inside/outside dimensions, tare, protection weight, clearance, cost and calibrated

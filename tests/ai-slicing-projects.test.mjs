@@ -40,5 +40,11 @@ try{
  const nextClaim=s.slicing.claim(pairing.workerId);
  p=s.addRevision(p.id,p.version,'third.stl','Changed while running',generateTray({width:64,length:40,height:12,wall:2,base:2}));
  assert.throws(()=>s.finishSlice(pairing.workerId,nextClaim.claimId,{...result,sourceSha256:next.input.sha256}),/revision/);
+ p=s.updateProject(p.id,p.version,{action:'test',revisionId:p.revisions.at(-1).id,passed:true,notes:'Synthetic pass',printer:'X2D',material:'PLA Basic',minutes:20,grams:8});
+ const changed={...p.materialPlan,lines:p.materialPlan.lines.map(l=>({...l,colorName:'White',colorHex:'#ffffff'}))};
+ p=s.setSliceMaterial(p.id,p.version,changed);
+ assert.equal(p.printTestNeedsReview,true,'Changing material/colors requires a fresh physical confirmation');
+ p=s.updateProject(p.id,p.version,{action:'sales',input:sales});
+ assert.throws(()=>s.updateProject(p.id,p.version,{action:'prepare',description:'No release yet',physicalPriceCents:2000,digitalPriceCents:1000,costCents:100,stock:1,license:'Test',original:true}),/physical|test/i);
  console.log('Slicing project tests passed');
 }finally{s.close();rmSync(dir,{recursive:true,force:true});}
