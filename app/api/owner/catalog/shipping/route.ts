@@ -1,3 +1,4 @@
+import {catalogCarrierCredential} from '@/lib/commerce/shipping-configuration.ts';
 import {NextRequest} from 'next/server';
 import {z} from 'zod';
 import {requestIsOwner} from '@/lib/owner-auth';
@@ -21,7 +22,7 @@ const commands=z.discriminatedUnion('action',[
  z.object({action:z.literal('retryEmail'),id}).strict(),
  z.object({action:z.literal('handoff'),id,version,confirm:z.literal(true)}).strict(),
 ]);
-export async function GET(r:NextRequest){if(!await requestIsOwner(r))return json({message:'Sign in required.'},401);const store=new CommerceStore();try{const ledgers=store.shippingOverview(),byId=new Map(ledgers.map(s=>[s.orderId,s]));const orders=store.overview().orders.filter(o=>o.items.some(i=>!i.digital)&&(['paid','shipped','revoked'].includes(o.status)||byId.has(o.id))).slice(0,100);return json({rows:orders.map(order=>({order,shipping:byId.get(order.id)||null})),origin:(await getSiteContent()).shippingOrigin,credentialMode:classifyEasyPostCredential(process.env.EASYPOST_API_KEY||''),liveEnabled:/^(true|1|yes|on)$/i.test(process.env.EASYPOST_LIVE_ENABLED||'')});}finally{store.close();}}
+export async function GET(r:NextRequest){if(!await requestIsOwner(r))return json({message:'Sign in required.'},401);const store=new CommerceStore();try{const ledgers=store.shippingOverview(),byId=new Map(ledgers.map(s=>[s.orderId,s]));const orders=store.overview().orders.filter(o=>o.items.some(i=>!i.digital)&&(['paid','shipped','revoked'].includes(o.status)||byId.has(o.id))).slice(0,100);return json({rows:orders.map(order=>({order,shipping:byId.get(order.id)||null})),origin:(await getSiteContent()).shippingOrigin,credentialMode:classifyEasyPostCredential(catalogCarrierCredential(process.env)||''),liveEnabled:/^(true|1|yes|on)$/i.test(process.env.EASYPOST_LIVE_ENABLED||'')});}finally{store.close();}}
 export async function POST(r:NextRequest){
  if(!await requestIsOwner(r))return json({message:'Sign in required.'},401);
  if(!sameOrigin(r))return json({message:'Origin rejected.'},403);

@@ -20,6 +20,10 @@ try {
   assert.throws(()=>assertSandboxEnvironment({...env,COMMERCE_SANDBOX_PASSWORD:'short'}),/password/);
   assert.equal(existsSync(root),false,'Rejected guards must not write databases');
   assert.doesNotThrow(()=>assertSandboxEnvironment({...env,STRIPE_SECRET_KEY:'rk_test_fixture'}));
+  const shippingQA={...env,COMMERCE_SHIPPING_SANDBOX_ENABLED:'true',EASYPOST_LIVE_ENABLED:'false',STRIPE_LIVE_ENABLED:'false',CATALOG_SHIPPING_TEST_EASYPOST_API_KEY:'EZTK_fixture',CATALOG_SHIPPING_TEST_RESEND_API_KEY:'re_fixture',OWNER_SHIPPING_EMAIL:'owner@example.test'};
+  assert.doesNotThrow(()=>assertSandboxEnvironment(shippingQA));
+  assert.throws(()=>assertSandboxEnvironment({...shippingQA,CATALOG_SHIPPING_TEST_EASYPOST_API_KEY:'EZAK_live'}),/sandbox/i);
+  assert.throws(()=>assertSandboxEnvironment({...shippingQA,RESEND_API_KEY:'re_generic'}),/disabled/i);
   Object.assign(process.env,env);
   await seedCommerceSandbox();await seedCommerceSandbox();
   const {CommerceStore}=await import('../lib/commerce/store.ts');

@@ -1,30 +1,21 @@
-import {mkdirSync,existsSync,realpathSync} from 'node:fs';
+import {mkdirSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {register} from 'node:module';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {shippingSandboxEnabled,isolatedSandboxFile} from '../lib/commerce/shipping-configuration.ts';
 
 const databaseNames=['DATABASE_PATH','AI_CENTER_DATABASE_PATH','COMMERCE_DATABASE_PATH','MARKETPLACE_DATABASE_PATH'];
 const disabledFlags=['AI_CENTER_WORKER_ENABLED','AI_CENTER_COORDINATOR_ENABLED','AI_CENTER_MESHY_ENABLED','CUSTOMER_FOLLOWUPS_ENABLED','CONTROL_CENTER_BACKUPS_ENABLED','ETSY_ENABLED','ETSY_WRITES_ENABLED','ETSY_RESEARCH_ENABLED','EASYPOST_LIVE_ENABLED','EASYPOST_AUTO_BUY_LABELS','STRIPE_LIVE_ENABLED'];
 const disabledCredentials=['RESEND_API_KEY','AI_CENTER_OPENAI_API_KEY','AI_CENTER_MESHY_API_KEY','ETSY_APP_KEY','ETSY_SHARED_SECRET','MARKETPLACE_TOKEN_KEY','EASYPOST_API_KEY'];
-function isolatedFile(value){
-  if(!value||!path.isAbsolute(value))throw Error('All sandbox database paths must be explicit isolated absolute paths.');
-  const file=path.resolve(value);
-  const valid=location=>{const segments=location.replaceAll('\\','/').toLowerCase().split('/');return segments.includes('sandbox-data')&&!segments.includes('data')&&!segments.includes('public');};
-  if(!valid(file))throw Error('Sandbox database paths must be isolated under sandbox-data, never data or public.');
-  let ancestor=file;
-  while(!existsSync(ancestor)){const parent=path.dirname(ancestor);if(parent===ancestor)break;ancestor=parent;}
-  const canonical=path.resolve(realpathSync(ancestor),path.relative(ancestor,file));
-  if(!valid(canonical))throw Error('Sandbox database paths must stay isolated after resolving links.');
-  return canonical;
-}
 export function assertSandboxEnvironment(env=process.env){
   if(env.COMMERCE_SANDBOX_FIXTURE!=='true')throw Error('Explicit COMMERCE_SANDBOX_FIXTURE=true opt-in required.');
   if(!/^(sk_test_|rk_test_).+/.test(env.STRIPE_SECRET_KEY||''))throw Error('A Stripe test credential is required.');
-  const files=databaseNames.map(name=>isolatedFile(env[name]));
+  const files=databaseNames.map(name=>isolatedSandboxFile(env[name]));
   if(new Set(files.map(file=>file.toLowerCase())).size!==files.length)throw Error('Sandbox databases must use distinct files.');
   if(new Set(files.map(file=>path.dirname(file).toLowerCase())).size!==1)throw Error('Sandbox databases must share one isolated sandbox-data directory.');
   if(disabledFlags.some(name=>env[name]&&env[name]!=='false')||disabledCredentials.some(name=>env[name]?.trim()))throw Error('External email, workers, Etsy and paid providers must remain disabled in this fixture.');
+  shippingSandboxEnabled(env);
   if((env.COMMERCE_SANDBOX_PASSWORD||'').length<16)throw Error('A private sandbox password of at least 16 characters is required.');
   return files;
 }

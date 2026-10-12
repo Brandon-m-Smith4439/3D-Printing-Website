@@ -14,5 +14,7 @@ await sendCatalogLabelEmail(store,s.orderId,client,{...config,to:'owner@example.
 const rejected=labelReady();let rejectedCalls=0;assert.equal((await sendCatalogLabelEmail(store,rejected.orderId,async()=>{rejectedCalls++;return {ok:false,status:401};},{...config,to:'owner@example.test'})).state,'failed');assert.equal(rejectedCalls,1);
 const uncertain=labelReady();let uncertainCalls=0;assert.equal((await sendCatalogLabelEmail(store,uncertain.orderId,async()=>{uncertainCalls++;throw Error('Timeout');},{...config,to:'owner@example.test'})).state,'uncertain');assert.equal(uncertainCalls,3);
 await sendCatalogLabelEmail(store,uncertain.orderId,client,{...config,to:'owner@example.test',now:()=>new Date('2026-10-13T12:00:00Z')});assert.equal(calls,2,'Uncertain expired sends must not replay');
+const productionLabel={shippingForOrder:()=>({providerMode:'production'}),claimShippingEmail:()=>{throw Error('TEST email must not claim a production label');}};
+assert.equal((await sendCatalogLabelEmail(productionLabel,s.orderId,client,{...config,to:'owner@example.test',testOnly:true})).state,'pending');assert.equal(calls,2);
 console.log('Owner-only print link, HTML escaping, bounded idempotent retries and independent mail/postage state passed.');
 }finally{store.close();rmSync(dir,{recursive:true,force:true});}

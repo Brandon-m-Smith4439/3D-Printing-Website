@@ -40,4 +40,10 @@ Software tests and fake provider responses do not establish actual EasyPost conn
 
 ## Release limitations
 
+### Optional isolated fulfillment QA
+
+The ordinary checkout fixture still rejects `EASYPOST_API_KEY` and `RESEND_API_KEY`, workers, paid AI and Etsy. An explicitly approved fulfillment test uses `COMMERCE_SHIPPING_SANDBOX_ENABLED=true` plus dedicated variable references `CATALOG_SHIPPING_TEST_EASYPOST_API_KEY` and `CATALOG_SHIPPING_TEST_RESEND_API_KEY`. This requires `COMMERCE_SANDBOX_FIXTURE=true`, four distinct databases in one `sandbox-data` directory, both live-payment/postage flags exactly `false`, a test-only `EZTK` key and a configured `OWNER_SHIPPING_EMAIL`. Generic carrier/email credentials must remain absent. Invalid configuration fails before provider use; aliases cannot activate on the main site's data paths.
+
+Only catalog label notifications use the test email alias, always addressed to the configured owner. Generic account/customer email helpers still have no Resend credential. Test label email rejects a production-mode label. The canonical HTTPS address must point to the isolated test site, so the protected print link resolves against its separate data. This mode is for manual owner testing; it does not enable autonomous postage, customer email, marketing, Etsy or AI. Remove these dedicated test references before disabling the explicit QA flag.
+
 The $25 monthly AI cap and individual spending approvals remain unchanged. The refined Meshy model has owner-reported successful printing; its revised grams/time/cost must be recorded before pricing uses those measurements. Website renders must accurately represent the model and be labeled. Etsy physical-product listings still need imagery that meets Etsy's actual-product photo rules. Public catalog checkout is not enabled merely because isolated Stripe sandbox tests passed; tax/shipping/pricing and the main catalog webhook need their own release checks.
