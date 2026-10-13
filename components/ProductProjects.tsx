@@ -1,23 +1,25 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import type {ProductProject} from '@/lib/ai-center/projects';
 import type {Agent,Job} from '@/lib/ai-center/types';
 import styles from './AiBusinessCenter.module.css';
 import {ProductSalesPreparation} from './ProductSalesPreparation';
 import {ProductPrintEstimates} from './ProductPrintEstimates';
 import {MeshyProjects} from './MeshyProjects';
-type Props={projects:ProductProject[];jobs:Job[];busy:boolean;command:(value:unknown)=>Promise<boolean>;reload:()=>Promise<void>};
+type Props={projectRequest?:{id:string;at:number}|null;projects:ProductProject[];jobs:Job[];busy:boolean;command:(value:unknown)=>Promise<boolean>;reload:()=>Promise<void>};
 const businesses={mesh:'Mesh Harbor · prints & STLs',products:'Independent digital products'};
 const roles={plan:'Leader',research:'Research',design:'Design / refinement',listing:'Listing',idea:'Ideas',review:'Operations',outreach:'Outreach drafts',pricing:'Pricing',image:'Visuals'};
 const usd=(c:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(c/100);
-export function ProductProjects({projects,jobs,busy,command,reload}:Props){
+export function ProductProjects({projectRequest,projects,jobs,busy,command,reload}:Props){
  const [business,setBusiness]=useState<Agent>('mesh'),[selected,setSelected]=useState(''),[view,setView]=useState<'projects'|'products'|'stls'|'cart'>('projects');
  const [cart,setCart]=useState<{id:string;digital:boolean;revision:string}[]>([]);
  const [uploadMessage,setUploadMessage]=useState(''),[uploadBusy,setUploadBusy]=useState(false);
+ const openedRequest=useRef<Props['projectRequest']>(null);
+ useEffect(()=>{if(!projectRequest||openedRequest.current===projectRequest)return;const target=projects.find(x=>x.id===projectRequest.id);if(target){openedRequest.current=projectRequest;setBusiness(target.business);setSelected(target.id);setView('projects');}},[projectRequest,projects]);
  const p=projects.find(x=>x.id===selected&&x.business===business);
  const releaseProjects=projects.filter(x=>x.business===business&&x.release);
  const validCart=cart.filter(c=>projects.some(x=>x.id===c.id&&x.release?.revisionId===c.revision));
- return <section className={styles.card}>
+ return <section id="product-workspaces" className={styles.card}>
   <h2>Your business workspaces</h2><div className={styles.grid}>{(Object.keys(businesses) as Agent[]).map(id=><button key={id} aria-pressed={business===id} onClick={()=>{setBusiness(id);setSelected('');setView('projects');}}>{businesses[id]} · {projects.filter(p=>p.business===id).length} projects</button>)}</div>
   <nav aria-label="Business sections">{(['projects','products','stls','cart'] as const).map(v=><button key={v} aria-pressed={view===v} onClick={()=>setView(v)}>{v==='projects'?'Project board':v==='products'?'Products preview':v==='stls'?'STLs preview':`Cart preview (${validCart.length})`}</button>)}</nav>
   <p>Private previews. No public listing, payment, stock reservation or customer downloads are enabled.</p>

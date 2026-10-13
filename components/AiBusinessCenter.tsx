@@ -10,6 +10,7 @@ import {LaunchReadiness} from './LaunchReadiness';
 import {MarketplaceConnections} from './MarketplaceConnections';
 import {OwnerCatalog} from './OwnerCatalog';
 import {EtsyPublication} from './EtsyPublication';
+import {OwnerActionCenter} from './OwnerActionCenter';
 import {BusinessLeader} from './BusinessLeader';
 
 type Snapshot=ReturnType<CenterStore['snapshot']>&{business:ReturnType<typeof businessOverview>;providerConfigured:boolean};
@@ -33,18 +34,20 @@ export function AiBusinessCenter() {
     finally {setBusy(false);}
   }
   const configureAgent=(id:Agent,patch:Partial<Settings['agents'][Agent]>)=>setSettings(s=>s?{...s,agents:{...s.agents,[id]:{...s.agents[id],...patch}}}:s);
+  const [projectRequest,setProjectRequest]=useState<{id:string;at:number}|null>(null);
   const approvals=data?.approvals||[];
   return <div className={styles.center}>
     <div className={styles.notice}><strong>Draft-only workspace</strong><p>Approving a draft marks it ready for manual use. Customer outreach stays draft-only. Storefront and Etsy publication require separate configuration and owner approval; deployment remains an owner decision. Paid API jobs need a separate spending approval.</p></div>
     <div role="status" aria-live="polite">{message}</div>{error&&<p role="alert" className={styles.error}>{error}</p>}
     <button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button>
     {!data||!settings?<p>Waiting for owner data…</p>:<>
+      <OwnerActionCenter jobs={data.jobs} projects={data.projects} openProject={id=>setProjectRequest({id,at:Date.now()})}/>
       <BusinessLeader jobs={data.jobs} projects={data.projects} busy={busy} command={command}/>
       <LaunchReadiness />
       <MarketplaceConnections projects={data.projects} jobs={data.jobs} onProjectChanged={load}/>
       <OwnerCatalog />
       <EtsyPublication projects={data.projects}/>
-      <ProductProjects projects={data.projects} jobs={data.jobs} busy={busy} command={command} reload={load}/>
+      <ProductProjects projectRequest={projectRequest} projects={data.projects} jobs={data.jobs} busy={busy} command={command} reload={load}/>
       <div className={styles.grid}>
         <article className={styles.card}><h2>AI budget · {data.month} UTC</h2><p className={styles.big}>{money(data.usage.committedCents)} / {money(data.settings.monthlyLimitCents)}</p><p>Used or reserved. Uncertain reservations: {money(data.usage.uncertainCents)}. Provider invoices may differ.</p></article>
         {(Object.keys(names) as Agent[]).map(id=><article key={id} className={styles.card}><h2>{names[id]}</h2><p className={styles.big}>{money(data.usage.agents[id])} / {money(data.settings.agents[id].monthlyLimitCents)}</p><p>{data.settings.agents[id].provider} · {data.settings.agents[id].model}</p><p>{data.pendingCounts[id]} tasks needing work or review</p></article>)}
@@ -63,7 +66,7 @@ export function AiBusinessCenter() {
           <label>Brief<textarea required maxLength={3000} rows={5} value={brief} onChange={e=>{setBrief(e.target.value);setTaskKey('');}} placeholder="Describe the problem, audience, and desired draft. Avoid customer details, secrets, and personal information."/></label>
           <p>Manual tasks send only this brief. Delegated project tasks also include abbreviated project notes, test feedback, research observations and the reviewed leader plan. Customer records are not automatically included. Local templates are free and provide a starting checklist.</p><button disabled={busy||!brief.trim()}>Queue draft</button>
         </form><button type="button" disabled={busy} onClick={()=>void command({action:'run'})}>Process one eligible task</button><p>Each click processes at most one approved job. The optional background worker is configured separately; task status shows recorded activity.</p></article>
-        <article className={styles.card}><h2>Approvals inbox · {approvals.length}</h2>{approvals.length?approvals.map(j=><div key={j.id} className={styles.approval}><h3>{names[j.agent]} · {j.kind}</h3><p><strong>{labels[j.status]}</strong></p><p>{j.status==='spend-review'?`Approve one API call up to ${money(j.boundCents)}, using ${j.config.provider} / ${j.config.model}. A separate review follows.`:'Review the complete draft below. Approval permits manual use only.'}</p><details><summary>Review brief{j.output?' and draft':''}</summary><pre>{j.brief}</pre>{j.output&&<pre>{j.output}</pre>}</details><button type="button" disabled={busy} onClick={()=>void command({action:'decide',id:j.id,decision:'approve'})}>{j.status==='spend-review'?'Approve bounded API spend':'Approve draft for manual use'}</button> <button type="button" disabled={busy} onClick={()=>void command({action:'decide',id:j.id,decision:'reject'})}>Reject</button></div>):<p>No pending approvals.</p>}</article>
+        <article className={styles.card}><h2>Approvals inbox · {approvals.length}</h2>{approvals.length?approvals.map(j=><div key={j.id} id={`approval-${j.id}`} className={styles.approval}><h3>{names[j.agent]} · {j.kind}</h3><p><strong>{labels[j.status]}</strong></p><p>{j.status==='spend-review'?`Approve one API call up to ${money(j.boundCents)}, using ${j.config.provider} / ${j.config.model}. A separate review follows.`:'Review the complete draft below. Approval permits manual use only.'}</p><details><summary>Review brief{j.output?' and draft':''}</summary><pre>{j.brief}</pre>{j.output&&<pre>{j.output}</pre>}</details><button type="button" disabled={busy} onClick={()=>void command({action:'decide',id:j.id,decision:'approve'})}>{j.status==='spend-review'?'Approve bounded API spend':'Approve draft for manual use'}</button> <button type="button" disabled={busy} onClick={()=>void command({action:'decide',id:j.id,decision:'reject'})}>Reject</button></div>):<p>No pending approvals.</p>}</article>
       </div>
       <article className={styles.card}><h2>Monthly limits & model settings</h2><form onSubmit={e=>{e.preventDefault();void command({action:'configure',settings});}}>
         <label>Total monthly budget (USD)<input type="number" min="0" max="10000" step="0.01" required value={settings.monthlyLimitCents/100} onChange={e=>setSettings({...settings,monthlyLimitCents:Math.round(Number(e.target.value)*100)})}/></label>
@@ -86,9 +89,8 @@ export function AiBusinessCenter() {
           <label>Max output tokens<input type="number" min="128" max="2048" required value={settings.agents[id].maxOutputTokens} onChange={e=>configureAgent(id,{maxOutputTokens:Number(e.target.value)})}/></label>
         </fieldset>)}</div><p>Limits use UTC calendar months. Jobs retain the model and prices approved when queued; current total, business and role monthly limits and the paid-AI toggle are checked again when claimed.</p><button disabled={busy}>Save settings</button>
       </form></article>
-      <article className={styles.card}><h2>Task queue & drafts</h2><p>Latest 200 tasks. Failed and interrupted jobs are never automatically retried; uncertain spend remains reserved.</p>{data.jobs.length?data.jobs.map(j=><details key={j.id} className={styles.approval}><summary>{names[j.agent]} · {j.kind} · {labels[j.status]} · {money(j.chargedCents??j.reservedCents)}</summary><p>{new Date(j.createdAt).toLocaleString()} · {j.config.provider}/{j.config.model} · job {j.id}</p><pre>{j.brief}</pre>{j.output&&<pre>{j.output}</pre>}{j.reason&&<p>{j.reason}</p>}</details>):<p>No tasks queued yet.</p>}</article>
+      <article className={styles.card}><h2>Task queue & drafts</h2><p>Latest 200 tasks. Failed and interrupted jobs are never automatically retried; uncertain spend remains reserved.</p>{data.jobs.length?data.jobs.map(j=><details key={j.id} id={`task-${j.id}`} className={styles.approval}><summary>{names[j.agent]} · {j.kind} · {labels[j.status]} · {money(j.chargedCents??j.reservedCents)}</summary><p>{new Date(j.createdAt).toLocaleString()} · {j.config.provider}/{j.config.model} · job {j.id}</p><pre>{j.brief}</pre>{j.output&&<pre>{j.output}</pre>}{j.reason&&<p>{j.reason}</p>}</details>):<p>No tasks queued yet.</p>}</article>
       <article className={styles.card}><h2>Agent activity log</h2>{data.activity.length?<ol>{data.activity.map((e,i)=><li key={`${e.at}-${i}`}>{new Date(e.at).toLocaleString()} · {e.event}{e.jobId&&` · ${e.jobId.slice(0,8)}`}</li>)}</ol>:<p>No activity yet.</p>}</article>
     </>}
   </div>;
 }
-

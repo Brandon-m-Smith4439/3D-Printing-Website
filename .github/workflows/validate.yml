@@ -59,6 +59,7 @@ jobs:
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-sales-research.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-asset-quota.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-readiness.test.mjs
+          node --experimental-strip-types tests/owner-actions.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/commerce.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace.test.mjs
           node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace-publication.test.mjs

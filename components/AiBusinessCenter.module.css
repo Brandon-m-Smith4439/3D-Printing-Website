@@ -32,3 +32,6 @@
 .tableWrap { overflow-x: auto; max-width: 100%; }
 .tableWrap table { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .tableWrap th, .tableWrap td { text-align: left; padding: .6rem; border-bottom: 1px solid #56727a66; min-width: 7rem; }
+
+.center [id] { scroll-margin-top: 7rem; }
+.center [id]:target { outline: 2px solid #82b9aa; outline-offset: 5px; }
