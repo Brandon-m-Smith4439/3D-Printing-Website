@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+const {packingForOrder}=await import('../lib/ai-center/order-packing.ts');
+const profileHash='b'.repeat(64),id=crypto.randomUUID(),revisionId=crypto.randomUUID(),projectId=crypto.randomUUID();
+const order={status:'paid',refundedCents:0,items:[{id,revisionId,digital:false,quantity:1}]};
+const product={id,revisionId,projectId};
+const plan={use:'indoor',multicolor:false,lines:[{slot:1,catalogItemId:'pla-basic-spool',colorName:'Black',colorHex:'#000000',assignment:'Whole model'}]};
+const job={id:crypto.randomUUID(),state:'completed',input:{projectId,revisionId,quantity:1,materialPlan:plan,profileId:'x2d-04-020-pla-basic',profileHash},result:{sourceSha256:'a'.repeat(64),profileHash,slicerVersion:'test',grams:8,partGrams:null,filaments:[{slot:1,consumedGrams:8,purgeGrams:null,towerGrams:null}],colorChanges:0,seconds:1200,sizeMm:[60,36,12],warnings:[]},measuredPartMass:{grams:7,at:new Date().toISOString()}};
+const project={id:projectId,materialPlan:plan,revisions:[{id:revisionId}],sliceEstimate:{jobId:job.id,quantity:1}};
+const config={profileHashes:{'x2d-04-020-pla-basic':profileHash},massAllowanceGrams:0,presets:[{id:crypto.randomUUID(),name:'Test only',internalMm:[80,55,25],externalMm:[85,60,30],boxGrams:20,protectionGrams:10,clearanceMm:5,packagingCents:40,available:true,calibrated:true,quantity:1}]};
+assert.equal(packingForOrder(order,[product],[project],[job],config).ounces,2);
+assert.equal(packingForOrder({...order,status:'reserved'},[product],[project],[job],config),null);
+assert.equal(packingForOrder({...order,refundedCents:1},[product],[project],[job],config),null);
+assert.equal(packingForOrder({...order,items:[...order.items,...order.items]},[product],[project],[job],config),null);
+assert.equal(packingForOrder(order,[product],[{...project,revisions:[{id:crypto.randomUUID()}]}],[job],config),null);
+assert.equal(packingForOrder(order,[product],[project],[{...job,measuredPartMass:undefined}],config),null);
+assert.equal(packingForOrder(order,[product],[project],[job],{...config,profileHashes:{}}),null);
+console.log('Order packing gates passed');

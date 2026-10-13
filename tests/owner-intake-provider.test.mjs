@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {generateDraft} from '../lib/ai-center/provider.ts';
+import {defaultSettings,costBound} from '../lib/ai-center/policy.ts';
+process.env.AI_CENTER_OPENAI_API_KEY='synthetic-test-key';
+const config={...defaultSettings().agents.mesh,provider:'openai',model:'gpt-4.1-mini',inputCentsPerMillion:40,outputCentsPerMillion:160};
+let payload;
+await generateDraft({key:'intake-test',kind:'review',agent:'mesh',brief:'A possible handle.',config},async(_,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>({choices:[{message:{content:JSON.stringify({name:'Handle',description:'Possible handle; confirm measurements.',quantity:1,stage:'on-hold'})}}],usage:{prompt_tokens:300,completion_tokens:50}})};});
+assert.equal(payload.response_format.type,'json_schema');
+assert.equal(payload.response_format.json_schema.strict,true);
+assert.equal(payload.response_format.json_schema.schema.additionalProperties,false);
+assert.equal(payload.response_format.json_schema.schema.properties.stage.enum.includes('deposit-paid'),false);
+assert.ok(costBound({agent:'mesh',kind:'review',brief:'A possible handle.',key:'intake-test',config})>=1);
+console.log('AI intake requests a strict non-financial JSON draft under the existing spend bound.');
+const free=await generateDraft({key:'intake-free',kind:'review',agent:'mesh',brief:'Instructions\nOwner notes:\nA possible handle.',config:defaultSettings().agents.mesh},async()=>{throw Error('Free intake must not contact provider');});
+const freeDraft=JSON.parse(free.text);assert.equal(free.costCents,0);assert.equal(freeDraft.stage,'reviewing');assert.match(freeDraft.description,/A possible handle/);

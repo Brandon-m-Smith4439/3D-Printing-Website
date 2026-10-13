@@ -28,6 +28,12 @@ export default function PrivacyPage() {
         <h2>Quotes, payments, and storefronts</h2>
         <p>Custom quotes, the exact terms accepted by a customer, approval timestamps, deposit status, and payment-provider reference identifiers may be stored as part of the business record. Payment-card details are entered on Stripe-hosted Checkout and are not collected or stored by this website. Purchases made through Etsy or Whatnot are handled by those platforms and are subject to their own privacy and payment practices.</p>
 
+        <h2>Website purchases and downloads</h2>
+        <p>For website catalog purchases, the site stores ordered products, prices, quantities, shipping and tax totals, payment references, inventory reservations, fulfillment status and the customer account that placed the order. Purchased STL access is checked against payment status. A private order recovery token is stored in your checkout browser; its server copy is hashed. Your cart uses browser storage and contains product selections, not payment-card details.</p>
+
+        <h2>Private design workspace</h2>
+        <p>Owner-approved AI design tasks may send the owner&apos;s model description and project notes to the configured AI provider. Meshy candidates and project files remain private until a separate product release. Customer account records are not automatically included in these design tasks.</p>
+
         <h2>Production queue</h2>
         <p>Accepted print jobs may appear on the public Queue page using a generated order code, a generic public print name, status, quantity, owner-selected image, and estimated date. Customer names, email addresses, private notes, account details, and customer-uploaded attachments are not displayed publicly.</p>
 

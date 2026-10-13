@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+const {generateTray,inspectStl}=await import('../lib/ai-center/stl.ts');
+const tray=generateTray({width:60,length:40,height:12,wall:2,base:2});
+const inspected=inspectStl(tray);
+assert.equal(inspected.closed,true);
+assert.deepEqual(inspected.sizeMm,[60,40,12]);
+assert.throws(()=>generateTray({width:10,length:10,height:1,wall:8,base:2}));
+const broken=Buffer.from(tray);broken.writeFloatLE(NaN,96);
+assert.throws(()=>inspectStl(broken),/finite/);
+assert.throws(()=>inspectStl(Buffer.from('solid open\nendsolid open')),/triangle/);
+const dir=mkdtempSync(path.join(tmpdir(),'ai-project-'));
+process.env.AI_CENTER_DATABASE_PATH=path.join(dir,'ai.sqlite');
+const {CenterStore}=await import('../lib/ai-center/store.ts');
+const store=new CenterStore();
+try {
+ let p=store.createProject({business:'mesh',name:'Small desk tray',brief:'Original useful small print'});
+ const plan=store.delegate(p.id,p.version);
+ assert.equal(store.delegate(p.id,p.version).id,plan.id);
+ assert.equal(plan.kind,'plan');
+ const j=store.claim();store.finish(j.id,'Plan draft',0);store.decide(j.id,'approve');
+ const research=store.delegate(p.id,p.version);assert.equal(research.kind,'research');
+ p=store.updateProject(p.id,p.version,{action:'evidence',label:'Example observation',url:'https://www.etsy.com/listing/123/example',signal:'Public review count is a proxy; actual sales unknown.'});
+ assert.equal(p.stage,'research','Evidence must be evaluated before design');
+ assert.throws(()=>store.updateProject(p.id,1,{action:'evidence',label:'stale',url:'https://example.com',signal:'old'}),/changed/);
+ p=store.addRevision(p.id,p.version,'tray.stl','Initial original tray',tray);
+ assert.equal(p.stage,'test');assert.equal(store.projectAsset(p.revisions[0].id).data.length,tray.length);
+ assert.throws(()=>store.updateProject(p.id,p.version,{action:'prepare',description:'A tray',physicalPriceCents:1200,digitalPriceCents:300,costCents:400,stock:5,license:'Personal use',original:true}),/test/);
+ p=store.updateProject(p.id,p.version,{action:'test',revisionId:p.revisions[0].id,passed:true,notes:'Owner physically printed; fits and stable.',printer:'Owner printer',material:'PLA',minutes:30,grams:18});
+ p=store.updateProject(p.id,p.version,{action:'prepare',description:'A tray',physicalPriceCents:1200,digitalPriceCents:300,costCents:400,stock:5,license:'Personal use',original:true});
+ assert.equal(p.stage,'release');assert.ok(p.release);
+ const listing=store.delegate(p.id,p.version);assert.match(listing.brief,/Personal use/);assert.match(listing.brief,/1200/);
+ p=store.addRevision(p.id,p.version,'tray-v2.stl','Thicker wall',generateTray({width:60,length:40,height:12,wall:3,base:2}));
+ assert.equal(p.release,null);assert.equal(p.stage,'test');
+ assert.throws(()=>store.updateProject(p.id,p.version,{action:'test',revisionId:p.revisions[0].id,passed:true,notes:'Wrong old file',printer:'P',material:'PLA',minutes:1,grams:1}),/current/);
+ p=store.updateProject(p.id,p.version,{action:'test',revisionId:p.revisions[1].id,passed:false,notes:'Poor first layer; refine base.',printer:'P',material:'PLA',minutes:10,grams:5});
+ assert.equal(p.stage,'refine');assert.equal(p.release,null);
+ assert.equal(store.delegate(p.id,p.version).kind,'design');
+ let long=store.createProject({business:'mesh',name:'Long context',brief:'x'.repeat(2000)});
+ const longPlan=store.delegate(long.id,long.version);
+ let eligible;while((eligible=store.claim())){store.finish(eligible.id,'Draft',0);if(eligible.id===longPlan.id){store.decide(eligible.id,'approve');break;}}
+ long=store.updateProject(long.id,long.version,{action:'evidence',label:'Source',url:'https://example.com',signal:'y'.repeat(2000)});
+ long=store.addRevision(long.id,long.version,'long.stl','z'.repeat(2000),tray);
+ long=store.updateProject(long.id,long.version,{action:'test',revisionId:long.revisions[0].id,passed:false,notes:'FAILURE_SENTINEL',printer:'P',material:'PLA',minutes:1,grams:1});
+ assert.match(store.delegate(long.id,long.version).brief,/FAILURE_SENTINEL/);
+ let researchProject=store.createProject({business:'products',name:'Research handoff',brief:'Validate demand'});
+ const leader=store.delegate(researchProject.id,researchProject.version);
+ while((eligible=store.claim())){store.finish(eligible.id,'Draft',0);if(eligible.id===leader.id){store.decide(eligible.id,'approve');break;}}
+ researchProject=store.updateProject(researchProject.id,researchProject.version,{action:'evidence',label:'Source',url:'https://example.com',signal:'Unverified public observation'});
+ const researchJob=store.delegate(researchProject.id,researchProject.version);
+ assert.equal(researchJob.kind,'research');
+ while((eligible=store.claim())){store.finish(eligible.id,'Research draft',0);if(eligible.id===researchJob.id){store.decide(eligible.id,'approve');break;}}
+ researchProject=store.snapshot().projects.find(x=>x.id===researchProject.id);
+ assert.equal(researchProject.stage,'design');
+ assert.equal(store.delegate(researchProject.id,researchProject.version).kind,'design');
+ const auto=store.createProject({business:'mesh',name:'Coordinator test',brief:'One original project'});
+ const coordinated=store.coordinateOne();assert.ok(coordinated);
+ assert.equal(store.delegate(auto.id,auto.version).kind,'plan');
+ const count=store.snapshot().jobs.length;store.coordinateOne();assert.equal(store.snapshot().jobs.length,count,'Coordinator must not repeatedly enqueue the same stage');
+ assert.throws(()=>store.updateProject(p.id,p.version,{action:'evidence',label:'bad',url:'javascript:alert(1)',signal:'bad'}));
+ assert.ok(store.snapshot().projects.find(x=>x.id===p.id));
+ console.log('Project revision, delegation, geometry and release gates passed.');
+}finally{store.close();rmSync(dir,{recursive:true,force:true});}

@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+const dir=mkdtempSync(path.join(tmpdir(),'ai-worker-'));
+process.env.AI_CENTER_DATABASE_PATH=path.join(dir,'ai.sqlite');
+const { CenterStore }=await import('../lib/ai-center/store.ts');
+const { runOne }=await import('../lib/ai-center/worker.ts');
+const { generateDraft }=await import('../lib/ai-center/provider.ts');
+const store=new CenterStore();
+try {
+  const j=store.enqueue({agent:'products',kind:'idea',brief:'A printable maintenance checklist',key:'template-test'});
+  const result=await runOne(store);
+  assert.equal(result.id,j.id);
+  assert.equal(result.status,'review');
+  assert.match(result.output,/maintenance checklist/);
+  assert.match(result.output,/rights/i);
+  assert.equal(result.chargedCents,0);
+  const s=store.snapshot().settings;
+  s.paidEnabled=true;
+  s.agents.products={...s.agents.products,provider:'openai',model:'gpt-4.1-mini',inputCentsPerMillion:40,outputCentsPerMillion:160};
+  store.configure(s);
+  const paid=store.enqueue({agent:'products',kind:'listing',brief:'A desk planning template',key:'provider-test'});
+  store.decide(paid.id,'approve');
+  let calls=0;
+  const failure=await runOne(store,async()=>{calls++;throw Error('secret provider failure');});
+  assert.equal(failure.status,'failed');
+  assert.equal(calls,1);
+  assert.ok(store.snapshot().usage.uncertainCents>0);
+  assert.equal(await runOne(store),null);
+  assert.ok(!JSON.stringify(store.snapshot()).includes('secret provider failure'));
+  process.env.AI_CENTER_OPENAI_API_KEY='test-key';
+  const output=await generateDraft({...paid,reservedCents:paid.boundCents},async(url,opts)=>{
+    assert.equal(url,'https://api.openai.com/v1/chat/completions');
+    const body=JSON.parse(opts.body);
+    assert.equal(body.max_completion_tokens,1024);
+    assert.equal(body.store,false);
+    assert.equal(body.tools,undefined);
+    return new Response(JSON.stringify({choices:[{message:{content:'Review this listing'}}],usage:{prompt_tokens:100,completion_tokens:10}}),{status:200});
+  });
+  assert.equal(output.text,'Review this listing');
+  assert.equal(output.costCents,1);
+  await assert.rejects(()=>generateDraft(paid,async()=>new Response(JSON.stringify({choices:[{message:{content:'draft'}}]}))),/usage/);
+  console.log('AI draft worker and provider checks passed.');
+} finally {store.close();rmSync(dir,{recursive:true,force:true});}

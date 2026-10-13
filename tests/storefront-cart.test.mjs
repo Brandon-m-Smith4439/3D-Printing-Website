@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {parseCart,readCart,writeCart,subscribeCart,CART_KEY,CART_EVENT} from '../lib/storefront-cart.ts';
+assert.deepEqual(parseCart('broken'),[]);
+assert.deepEqual(parseCart(JSON.stringify([null,{id:'p',digital:false,quantity:2},{id:'p',digital:true,quantity:0},{id:'q',digital:false,quantity:21} ])),[{id:'p',digital:false,quantity:2}]);
+const target=new EventTarget(), values=new Map();
+globalThis.window={localStorage:{getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v)},addEventListener:target.addEventListener.bind(target),removeEventListener:target.removeEventListener.bind(target),dispatchEvent:target.dispatchEvent.bind(target)};
+let calls=0;const stop=subscribeCart(()=>calls++);
+assert.equal(writeCart([{id:'p',digital:false,quantity:2}]),true);assert.equal(calls,1);assert.equal(readCart()[0].quantity,2);
+const other=new Event('storage');Object.defineProperty(other,'key',{value:'unrelated'});target.dispatchEvent(other);assert.equal(calls,1);
+const storage=new Event('storage');Object.defineProperty(storage,'key',{value:CART_KEY});target.dispatchEvent(storage);assert.equal(calls,2);
+stop();target.dispatchEvent(new Event(CART_EVENT));assert.equal(calls,2);
+window.localStorage.setItem=()=>{throw Error('blocked')};assert.equal(writeCart([]),false);
+console.log('Cart validation, same-tab/cross-tab updates, listener cleanup and blocked storage passed.');

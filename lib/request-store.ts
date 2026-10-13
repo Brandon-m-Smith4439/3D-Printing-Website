@@ -74,6 +74,8 @@ export async function createStoredRequest(
 }
 
 export async function createOwnerStoredRequest(values: {
+  ownerIntakeKey?: string;
+  emailNotifications?: boolean;
   name?: string;
   email?: string;
   phone?: string;
@@ -97,6 +99,7 @@ export async function createOwnerStoredRequest(values: {
 }) {
   return mutate(async () => {
     const requests = await readRequests();
+    if(values.ownerIntakeKey){const existing=requests.find(item=>item.ownerIntakeKey===values.ownerIntakeKey);if(existing)return existing;}
     const now = new Date().toISOString();
     const occurredAt = values.occurredAt?.trim() || now;
     const stored: StoredRequest = {
@@ -104,6 +107,7 @@ export async function createOwnerStoredRequest(values: {
       requestCode: makeRequestCode(),
       status: values.status || "new",
       ownerTrackingStatus: values.ownerTrackingStatus,
+      ownerIntakeKey: values.ownerIntakeKey,
       name: values.name?.trim() || "In-person customer",
       email: values.email?.trim().toLowerCase() || "",
       phone: values.phone?.trim() || "",
@@ -132,7 +136,7 @@ export async function createOwnerStoredRequest(values: {
       riskLevel: "none",
       riskFlags: [],
       source: "owner",
-      emailNotifications: Boolean(values.email?.trim()),
+      emailNotifications: values.emailNotifications ?? Boolean(values.email?.trim()),
       isAnonymous: false,
     };
     requests.push(stored);

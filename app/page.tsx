@@ -21,8 +21,8 @@ export default async function HomePage() {
               replacement parts, and custom ideas that deserve more than an off-the-shelf solution.
             </p>
             <div className="hero-actions">
-              <Link href="/custom-request" className="button">Request a Custom Print</Link>
-              <Link href="/gallery" className="button button-secondary">View My Work</Link>
+              <Link href="/products" className="button">Shop Products</Link>
+              <Link href="/custom-request" className="button button-secondary">Request a Custom Print</Link>
             </div>
             <div className="trust-row" aria-label="Service highlights">
               <span>Clear quotes</span><span>Material guidance</span><span>Made-to-order options</span>
@@ -53,18 +53,20 @@ export default async function HomePage() {
         <div className="container store-panel">
           <div>
             <p className="eyebrow">READY TO SHOP?</p>
-            <h2>Browse finished prints on the shops you already use.</h2>
-            <p className="panel-copy">Checkout stays with Etsy and Whatnot while this site focuses on showcasing work and handling custom requests.</p>
+            <h2>Find your next print.</h2>
+            <p className="panel-copy">Explore physical prints, choose an STL for your own printer, or start a custom project with a clear quote.</p>
           </div>
           <div className="home-shop-links">
-            <a className="home-shop-link" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Open Etsy shop in a new tab">
+            <Link className="button" href="/products">Physical Prints</Link>
+            <Link className="button button-secondary" href="/stls">STL Files</Link>
+            {site.etsyUrl && <a className="home-shop-link" href={site.etsyUrl} target="_blank" rel="noopener noreferrer" aria-label="Open Etsy shop in a new tab">
               <span className="home-market-icon" aria-hidden="true"><Image src="/brand/etsy-generated-v068.png" alt="" width={42} height={42} unoptimized /></span>
               <span><strong>Etsy</strong><small>Shop listings ↗</small></span>
-            </a>
-            <a className="home-shop-link" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Open Whatnot shop in a new tab">
+            </a>}
+            {site.whatnotUrl && <a className="home-shop-link" href={site.whatnotUrl} target="_blank" rel="noopener noreferrer" aria-label="Open Whatnot shop in a new tab">
               <span className="home-market-icon" aria-hidden="true"><Image src="/brand/whatnot-generated-v068.png" alt="" width={42} height={42} unoptimized /></span>
               <span><strong>Whatnot</strong><small>Shop & live sales ↗</small></span>
-            </a>
+            </a>}
           </div>
         </div>
       </section>
@@ -91,7 +93,7 @@ export default async function HomePage() {
       <section className="section section-surface">
         <div className="container">
           <div className="section-heading split-heading">
-            <div><p className="eyebrow">RECENT WORK</p><h2>Made layer by layer.</h2></div>
+            <div><p className="eyebrow">PROJECT IDEAS & WORK</p><h2>Made layer by layer.</h2></div>
             <Link href="/gallery" className="text-link">See full gallery →</Link>
           </div>
           <div className="gallery-grid">
