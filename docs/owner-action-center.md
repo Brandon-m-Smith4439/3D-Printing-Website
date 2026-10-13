@@ -32,7 +32,8 @@ the top of https://meshharbor3d.com/owner/business.
 The checklist clears items from recorded results, not a cosmetic “done” checkbox.
 Setup failures explicitly show an incomplete-check warning. Task/project data
 refreshes every ten seconds; setup/orders every thirty seconds while visible.
-Only the latest 200 tasks and 100 physical catalog orders are covered. Custom
+All pending task approvals are included. Failure history covers the latest 200
+tasks; shipping covers the latest 100 physical catalog orders. Custom
 quotes and in-person projects remain on the owner operations board.
 
 Configuration checks do not establish a successful live transaction. The wider

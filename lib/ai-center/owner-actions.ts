@@ -1,15 +1,17 @@
-import type {Job} from './types.ts';
+import {roleNames,type Job} from './types.ts';
+type AttentionJob=Pick<Job,'id'|'kind'|'status'|'boundCents'>;
 import type {ProductProject} from './projects.ts';
 import type {ReadinessCheck} from './readiness.ts';
 import type {CatalogShipping} from '../commerce/shipping-types.ts';
 export type OwnerAction={id:string;title:string;detail:string;target:string;group:'Approvals'|'Products'|'Shipping'|'Setup and problems';projectId?:string};
 export type ShippingAttentionRow={order:{id:string;status:string;refundedCents:number};shipping:Pick<CatalogShipping,'state'|'email'|'reviewReason'>|null};
-export function ownerActions(input:{jobs:Pick<Job,'id'|'kind'|'status'|'boundCents'>[];projects:ProductProject[];checks:ReadinessCheck[];rows:ShippingAttentionRow[]}):OwnerAction[]{
+export function ownerActions(input:{jobs:AttentionJob[];approvals?:AttentionJob[];projects:ProductProject[];checks:ReadinessCheck[];rows:ShippingAttentionRow[]}):OwnerAction[]{
  const actions:OwnerAction[]=[];
  const add=(id:string,title:string,detail:string,target:string,group:OwnerAction['group'],projectId?:string)=>actions.push({id,title,detail,target,group,projectId});
- for(const j of input.jobs){
-  if(j.status==='spend-review'||j.status==='review')add(j.id,j.status==='spend-review'?`Approve AI spending: ${j.kind}`:`Review the ${j.kind} draft`,j.status==='spend-review'?`Review one call up to $${(j.boundCents/100).toFixed(2)}. Approval does not publish anything.`:'Read the full draft before approving or rejecting it.',`approval-${j.id}`,'Approvals');
-  if(j.status==='failed')add(j.id,`Check failed ${j.kind} task`,'Review the failure. Do not repeat uncertain spending automatically.',`task-${j.id}`,'Setup and problems');
+ const approvals=input.approvals??[],pendingIds=new Set(approvals.map(j=>j.id));
+ for(const j of [...approvals,...input.jobs.filter(j=>!pendingIds.has(j.id))]){
+  if(j.status==='spend-review'||j.status==='review')add(j.id,j.status==='spend-review'?`Approve AI spending: ${roleNames[j.kind]}`:`Review the ${roleNames[j.kind]} draft`,j.status==='spend-review'?`Review one call up to $${(j.boundCents/100).toFixed(2)}. Approval does not publish anything.`:'Read the full draft before approving or rejecting it.',`approval-${j.id}`,'Approvals');
+  if(j.status==='failed')add(j.id,`Check failed ${roleNames[j.kind]} task`,'Review the failure. Do not repeat uncertain spending automatically.',`task-${j.id}`,'Setup and problems');
  }
  for(const p of input.projects){
   const last=p.revisions.at(-1),passed=last?.tests.at(-1)?.passed&&!p.printTestNeedsReview;

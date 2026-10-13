@@ -17,4 +17,8 @@ assert.equal(shipping.length,1);
 assert.equal(shipping[0].target,'shipping-paid');
 assert.equal(ownerActions({...base,rows:[{order:{id:'r',status:'paid',refundedCents:0},shipping:{state:'reconcile',email:{state:'pending'}}}]}).length,1);
 assert.equal(ownerActions({...base,checks:[{id:'live-carrier',label:'Live carrier',status:'action',detail:'Use a production carrier key'}]})[0].target,'catalog-shipping-heading');
+const oldApproval={id:'old',kind:'review',status:'review',boundCents:0};
+assert.equal(ownerActions({...base,approvals:[oldApproval],jobs:Array.from({length:200},(_,i)=>({id:String(i),kind:'plan',status:'ready',boundCents:0}))}).length,1);
+assert.equal(ownerActions({...base,approvals:[oldApproval],jobs:[oldApproval]}).length,1);
+assert.match(ownerActions({...base,jobs:[oldApproval]})[0].title,/Operations/);
 console.log('Owner actions: approvals, current physical tests, setup and paid shipping checks passed');

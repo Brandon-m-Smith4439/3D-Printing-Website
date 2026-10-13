@@ -41,7 +41,7 @@ export function AiBusinessCenter() {
     <div role="status" aria-live="polite">{message}</div>{error&&<p role="alert" className={styles.error}>{error}</p>}
     <button type="button" disabled={busy} onClick={()=>void load()}>Refresh</button>
     {!data||!settings?<p>Waiting for owner data…</p>:<>
-      <OwnerActionCenter jobs={data.jobs} projects={data.projects} openProject={id=>setProjectRequest({id,at:Date.now()})}/>
+      <OwnerActionCenter approvals={data.approvals} jobs={data.jobs} projects={data.projects} openProject={id=>setProjectRequest({id,at:Date.now()})}/>
       <BusinessLeader jobs={data.jobs} projects={data.projects} busy={busy} command={command}/>
       <LaunchReadiness />
       <MarketplaceConnections projects={data.projects} jobs={data.jobs} onProjectChanged={load}/>
