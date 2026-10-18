@@ -1,4 +1,6 @@
 import "server-only";
+import {z} from 'zod';
+import {catalogRateSchema,purchasedLabelSchema} from './commerce/shipping-types.ts';
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ShippingAddress, StoredQuote } from "@/lib/quote-types";
 import { getSiteContent } from "@/lib/site-content-store";
@@ -73,15 +75,15 @@ type RawTracker = {
 function apiKey() { return (process.env.EASYPOST_API_KEY || "").trim(); }
 function liveEnabled() { return /^(1|true|yes|on)$/i.test((process.env.EASYPOST_LIVE_ENABLED || "").trim()); }
 function operationalMode(): EasyPostOperationalMode { return resolveEasyPostOperationalMode(apiKey(), liveEnabled()); }
-function assertBusinessCallsAllowed() {
-  const mode = operationalMode();
+function assertBusinessCallsAllowed(key=apiKey()) {
+  const mode = resolveEasyPostOperationalMode(key, liveEnabled());
   if (mode === "unconfigured") throw new Error("EasyPost is not configured.");
   if (!easyPostBusinessCallsAllowed(mode)) {
     throw new Error("EasyPost production shipping is locked. Enable EASYPOST_LIVE_ENABLED only after the live-shipping readiness review.");
   }
 }
-export function easyPostConfigured() {
-  return classifyEasyPostCredential(apiKey()) !== "unconfigured";
+export function easyPostConfigured(key=apiKey()) {
+  return classifyEasyPostCredential(key) !== "unconfigured";
 }
 
 function originReady(origin: { street1: string; city: string; state: string; zip: string }) {
@@ -120,7 +122,7 @@ export async function easyPostConfigurationSummary() {
   } as const;
 }
 
-function authHeader() { return `Basic ${Buffer.from(`${apiKey()}:`).toString("base64")}`; }
+function authHeader(key=apiKey()) { return `Basic ${Buffer.from(`${key}:`).toString("base64")}`; }
 
 export async function testEasyPostConnection(): Promise<EasyPostDiagnostic> {
   const summary = await easyPostConfigurationSummary();
@@ -234,7 +236,7 @@ async function easyPostFetch(url: string, init: RequestInit) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
-    return await fetch(url, { ...init, signal: controller.signal, cache: "no-store" });
+    return await fetch(url, { ...init, redirect:'error', signal: controller.signal, cache: "no-store" });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw new Error("The carrier service took too long to respond. Please try again.");
     throw new Error("Could not reach the carrier service. Please try again shortly.");
@@ -243,10 +245,10 @@ async function easyPostFetch(url: string, init: RequestInit) {
   }
 }
 
-export async function getLiveShippingRates(quote: StoredQuote, to: ShippingAddress) {
-  assertBusinessCallsAllowed();
-  if (!easyPostConfigured()) throw new Error("Live shipping rates are not configured yet. The owner needs to add an EasyPost API key.");
-  const origin = await fromAddress();
+export async function getLiveShippingRates(quote: Pick<StoredQuote,'fulfillmentMode'|'packageWeightOz'|'packageLengthIn'|'packageWidthIn'|'packageHeightIn'>, to: ShippingAddress, labelOptions?:{label_format:'PNG';label_size:'4x6'}, capturedOrigin?:ShippingAddress, credentialKey=apiKey()) {
+  assertBusinessCallsAllowed(credentialKey);
+  if (!easyPostConfigured(credentialKey)) throw new Error("Live shipping rates are not configured yet. The owner needs to add an EasyPost API key.");
+  const origin = capturedOrigin || await fromAddress();
   if (!originReady(origin)) throw new Error("Mesh Harbor 3D's ship-from address is not configured yet. The owner can set it under Owner → Site Content.");
   if (quote.fulfillmentMode !== "shipping") throw new Error("This quote is not configured for carrier shipping.");
   if (quote.packageWeightOz <= 0 || quote.packageLengthIn <= 0 || quote.packageWidthIn <= 0 || quote.packageHeightIn <= 0) throw new Error("Package weight and dimensions are required before live rates can be requested.");
@@ -267,12 +269,12 @@ export async function getLiveShippingRates(quote: StoredQuote, to: ShippingAddre
         width: quote.packageWidthIn,
         height: quote.packageHeightIn,
       },
-      options: { currency: "USD" },
+      options: { currency: "USD",...labelOptions },
     },
   };
   const response = await easyPostFetch("https://api.easypost.com/v2/shipments", {
     method: "POST",
-    headers: { Authorization: authHeader(), "Content-Type": "application/json", Accept: "application/json" },
+    headers: { Authorization: authHeader(credentialKey), "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
   });
   const result = await response.json().catch(() => ({})) as EasyPostErrorBody & {
@@ -320,12 +322,12 @@ export async function verifySelectedEasyPostRate(shipmentId: string, rateId: str
   } satisfies EasyPostRate;
 }
 
-export async function buyEasyPostShipment(shipmentId: string, rateId: string) {
-  assertBusinessCallsAllowed();
-  if (!easyPostConfigured()) throw new Error("EasyPost label purchasing is not configured yet.");
+export async function buyEasyPostShipment(shipmentId: string, rateId: string, credentialKey=apiKey()) {
+  assertBusinessCallsAllowed(credentialKey);
+  if (!easyPostConfigured(credentialKey)) throw new Error("EasyPost label purchasing is not configured yet.");
   const response = await easyPostFetch(`https://api.easypost.com/v2/shipments/${encodeURIComponent(shipmentId)}/buy`, {
     method: "POST",
-    headers: { Authorization: authHeader(), "Content-Type": "application/json", Accept: "application/json" },
+    headers: { Authorization: authHeader(credentialKey), "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ rate: { id: rateId } }),
   });
   const result = await response.json().catch(() => ({})) as EasyPostErrorBody & {
@@ -348,6 +350,17 @@ export async function buyEasyPostShipment(shipmentId: string, rateId: string) {
     refundStatus: result.refund_status || "",
     tracker: { ...tracker, trackingCode: tracker.trackingCode || result.tracking_code },
   };
+}
+
+export async function readEasyPostShipment(shipmentId:string, credentialKey=apiKey()){
+  assertBusinessCallsAllowed(credentialKey);if(!/^shp_[A-Za-z0-9_]+$/.test(shipmentId))throw Error('Invalid shipment ID.');
+  const response=await easyPostFetch(`https://api.easypost.com/v2/shipments/${shipmentId}`,{headers:{Authorization:authHeader(credentialKey),Accept:'application/json'},redirect:'error'});
+  if(!response.ok)throw Error('Carrier shipment verification unavailable.');
+  const raw=z.object({id:z.literal(shipmentId),mode:z.enum(['test','production']),rates:z.array(z.unknown()).max(100),selected_rate:z.object({id:z.string(),currency:z.literal('USD'),rate:z.string().regex(/^\d+(\.\d{1,2})?$/)}).nullable().optional(),tracking_code:z.string().nullable().optional(),tracker:z.object({id:z.string()}).nullable().optional(),postage_label:z.object({label_url:z.string(),label_png_url:z.string().nullable().optional(),label_size:z.literal('4x6'),label_file_type:z.literal('image/png')}).nullable().optional()}).parse(await response.json());
+  if(raw.mode!==classifyEasyPostCredential(credentialKey))throw Error('Carrier response mode does not match credentials.');
+  const rates=raw.rates.flatMap(value=>{const rate=z.object({id:z.string(),carrier:z.string(),service:z.string(),currency:z.literal('USD'),rate:z.string().regex(/^\d+(\.\d{1,2})?$/),delivery_days:z.number().nullable().optional(),delivery_date:z.string().nullable().optional()}).safeParse(value);if(!rate.success)return [];const parsed=catalogRateSchema.safeParse({id:rate.data.id,carrier:normalizeCarrier(rate.data.carrier),service:rate.data.service,rateCents:dollarsToCents(rate.data.rate),deliveryDays:rate.data.delivery_days??null,deliveryDate:rate.data.delivery_date||''});return parsed.success?[parsed.data]:[];});
+  const label=raw.postage_label?purchasedLabelSchema.parse({labelUrl:raw.postage_label.label_png_url||raw.postage_label.label_url,trackingCode:raw.tracking_code,trackerId:raw.tracker?.id,postageCents:raw.selected_rate?dollarsToCents(raw.selected_rate.rate):-1}):null;
+  return {id:raw.id,mode:raw.mode,rates,label,selectedRateId:raw.selected_rate?.id};
 }
 
 export async function refundEasyPostShipment(shipmentId: string) {

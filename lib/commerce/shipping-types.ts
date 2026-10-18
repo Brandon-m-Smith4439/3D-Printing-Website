@@ -1,0 +1,10 @@
+import {z} from 'zod';
+export const parcelSchema=z.object({weightOz:z.number().positive().max(1120),lengthIn:z.number().positive().max(108),widthIn:z.number().positive().max(108),heightIn:z.number().positive().max(108)}).strict();
+export type PackedParcel=z.infer<typeof parcelSchema>;
+export const catalogRateSchema=z.object({id:z.string().regex(/^rate_[A-Za-z0-9_]+$/),carrier:z.enum(['USPS','UPS','FedEx']),service:z.string().min(1).max(100),rateCents:z.number().int().min(0).max(100000),deliveryDays:z.number().int().min(0).nullable(),deliveryDate:z.string().max(100)});
+export type CatalogRate=z.infer<typeof catalogRateSchema>;
+export const shippingRatesSchema=z.object({shipmentId:z.string().regex(/^shp_[A-Za-z0-9_]+$/),providerMode:z.enum(['test','production']),rates:z.array(catalogRateSchema).min(1).max(100),contextHash:z.string().min(1).max(100),expiresAt:z.iso.datetime({offset:true})});
+export const labelUrlSchema=z.url().max(2000).refine(value=>{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&/^easypost-files(?:\.[a-z0-9-]+)*\.amazonaws\.com$/.test(u.hostname);});
+export const purchasedLabelSchema=z.object({labelUrl:labelUrlSchema,trackingCode:z.string().min(1).max(150),trackerId:z.string().regex(/^trk_[A-Za-z0-9_]+$/),postageCents:z.number().int().min(0).max(100000)});
+export type PurchasedLabel=z.infer<typeof purchasedLabelSchema>;
+export type CatalogShipping={orderId:string;version:number;state:'packed'|'rated'|'buying'|'label-ready'|'reconcile'|'handed-off';parcel:PackedParcel;shippingHash:string;contextHash:string;providerMode:'test'|'production';shipmentId:string;rates:CatalogRate[];expiresAt:string;selectedRateId:string;approvedCents:number;claimId:string;labelUrl:string;trackingCode:string;trackerId:string;postageCents:number;reviewReason:string;createdAt:string;updatedAt:string;handedOffAt:string;trackingStatus:string;trackingAt:string;trackingEvents:string[];email:{state:'pending'|'sending'|'sent'|'failed'|'uncertain';attempts:number;firstAttemptAt:string;lastAttemptAt:string;providerId:string;claimId:string;reason:string}};

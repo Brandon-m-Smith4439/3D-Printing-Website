@@ -36,7 +36,6 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
-          { key: "Content-Security-Policy", value: contentSecurityPolicy },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
@@ -45,6 +44,15 @@ const nextConfig: NextConfig = {
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           { key: "Strict-Transport-Security", value: "max-age=31536000" },
         ],
+      },
+      {
+        // This data-free OAuth handoff supplies its own per-response nonce policy.
+        source: "/((?!api/owner/marketplace/callback$).*)",
+        headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy }],
+      },
+      {
+        source: "/api/owner/marketplace/callback",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
     ];
   },

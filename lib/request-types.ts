@@ -17,6 +17,7 @@ export type StoredRequest = {
   requestCode: string;
   status: RequestStatus;
   ownerTrackingStatus?: OwnerTrackingStatus;
+  ownerIntakeKey?: string;
   name: string;
   email: string;
   phone: string;

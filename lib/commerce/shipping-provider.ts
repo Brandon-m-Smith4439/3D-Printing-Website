@@ -1,0 +1,7 @@
+import 'server-only';
+import {catalogCarrierCredential} from './shipping-configuration.ts';
+import {getSiteContent} from '@/lib/site-content-store';
+import {getLiveShippingRates,buyEasyPostShipment,readEasyPostShipment} from '@/lib/easypost';
+import type {ShippingDependencies} from './shipping.ts';
+async function carrierStep<T>(shippingStage:string,run:()=>Promise<T>):Promise<T>{try{return await run();}catch(error){if(error instanceof Error)Object.assign(error,{shippingStage});throw error;}}
+export function catalogShippingDependencies():ShippingDependencies{const credential=catalogCarrierCredential(process.env);return {credential,liveEnabled:/^(true|1|yes|on)$/i.test(process.env.EASYPOST_LIVE_ENABLED||''),now:()=>new Date(),origin:async()=>{const content=await getSiteContent();return {...content.shippingOrigin,name:content.shippingOrigin.name||content.name};},rates:async(parcel,address,origin)=>{const result=await carrierStep('create-rates',()=>getLiveShippingRates({fulfillmentMode:'shipping',packageWeightOz:parcel.weightOz,packageLengthIn:parcel.lengthIn,packageWidthIn:parcel.widthIn,packageHeightIn:parcel.heightIn},address,{label_format:'PNG',label_size:'4x6'},origin,credential));return carrierStep('read-rates',()=>readEasyPostShipment(result.shipmentId,credential));},read:id=>readEasyPostShipment(id,credential),buy:async(id,rate)=>{const result=await buyEasyPostShipment(id,rate,credential);if(result.shipmentId!==id)throw Error('Carrier shipment mismatch.');return readEasyPostShipment(id,credential);}};}

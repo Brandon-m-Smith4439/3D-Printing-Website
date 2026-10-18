@@ -22,6 +22,50 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Verify one-page thermal label printing
+        run: node tests/catalog-label-print.browser.mjs
+      - name: Verify AI center draft safety and budgets
+        run: |
+          node tests/owner-login-flow.test.mjs
+          node --experimental-strip-types tests/owner-intake.test.mjs
+          node tests/owner-intake-store.test.mjs
+          node --experimental-strip-types tests/owner-intake-route.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/owner-intake-provider.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/easypost-test-label.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-store.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-service.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-email.test.mjs
+          node --experimental-strip-types tests/catalog-shipping-provider.test.mjs
+          node --experimental-strip-types tests/shipment-tracker-match.test.mjs
+          node --experimental-strip-types tests/shipping-sandbox-configuration.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-slicing-store.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-slicing-proposals.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-slicing-projects.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-order-packing.test.mjs
+          node tests/slicer-runner.test.mjs
+          node tests/slicer-transport.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-center.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-role-budgets.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-worker.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-meshy.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-meshy-remesh.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/commerce-sandbox-fixture.test.mjs
+          node --experimental-strip-types tests/storefront-cart.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-metrics.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-concurrency.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-projects.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-sales.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-images.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-sales-research.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-asset-quota.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/ai-readiness.test.mjs
+          node --experimental-strip-types tests/owner-actions.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/commerce.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace.test.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/marketplace-publication.test.mjs
+          node tests/center-backups.test.mjs
+          node tests/service-plan.test.mjs
+          node tests/service-supervisor.test.mjs
       - name: Verify EasyPost mode policy
         run: node --experimental-strip-types tests/easypost-mode.test.mjs
       - name: Verify local pickup scheduling
@@ -88,6 +132,32 @@ jobs:
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Verify AI center owner API against disposable production build
+        env:
+          OWNER_PASSWORD: ci-ai-owner-password-12345
+          OWNER_SESSION_SECRET: ci-ai-session-secret-at-least-32-characters
+          NEXT_PUBLIC_SITE_URL: http://localhost:3087
+          AI_TEST_BASE_URL: http://localhost:3087
+          AI_TEST_OWNER_PASSWORD: ci-ai-owner-password-12345
+          AI_TEST_PRODUCTION: 'true'
+          CUSTOMER_FOLLOWUPS_ENABLED: 'false'
+        run: |
+          export DATABASE_PATH="$RUNNER_TEMP/ai-center-test/business.sqlite"
+          export AI_CENTER_DATABASE_PATH="$RUNNER_TEMP/ai-center-test/ai.sqlite"
+          export COMMERCE_DATABASE_PATH="$RUNNER_TEMP/ai-center-test/commerce.sqlite"
+          export CATALOG_SHIPPING_TEST_DB="$COMMERCE_DATABASE_PATH"
+          export CATALOG_SHIPPING_TEST_URL="$AI_TEST_BASE_URL"
+          export CATALOG_SHIPPING_TEST_PASSWORD="$AI_TEST_OWNER_PASSWORD"
+          npm run start -- -p 3087 > "$RUNNER_TEMP/ai-center-test.log" 2>&1 &
+          AI_SERVER_PID=$!
+          trap 'kill "$AI_SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -s http://localhost:3087/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node tests/ai-api.integration.mjs
+          node tests/launch-api.integration.mjs
+          node --experimental-strip-types --experimental-loader ./tests/server-only-loader.mjs tests/catalog-shipping-api.integration.mjs
       - name: Start production app
         env:
           NEXT_PUBLIC_SITE_URL: https://meshharbor3d.com

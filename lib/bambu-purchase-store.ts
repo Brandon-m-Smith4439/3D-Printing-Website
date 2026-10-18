@@ -1,6 +1,7 @@
 import 'server-only';
 import { readCollection, writeCollection } from './database.ts';
 import type { FilamentPurchaseLot } from './pricing-types.ts';
+import {invalidateSlicingMaterialCosts} from './ai-center/cost-invalidation.ts';
 
 const COLLECTION='filament-purchase-lots';
 let mutationChain=Promise.resolve();
@@ -21,7 +22,9 @@ export function writePostedPurchaseLots(importId:string,lots:FilamentPurchaseLot
       if(ids.has(lot.id)) throw new Error('Purchase lot ID already exists.');
       ids.add(lot.id);
     }
+    invalidateSlicingMaterialCosts(lots.map(l=>l.catalogItemId));
     await writeCollection(COLLECTION,[...current,...lots]);
+    invalidateSlicingMaterialCosts(lots.map(l=>l.catalogItemId));
     return lots;
   });
 }

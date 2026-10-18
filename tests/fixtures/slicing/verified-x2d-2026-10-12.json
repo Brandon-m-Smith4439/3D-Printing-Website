@@ -1,0 +1,50 @@
+[
+  {
+    "profileId": "x2d-04-020-pla-basic",
+    "sourceSha256": "6ca7fda1f8d6e8cee2445d882d31c2016c96727a2b980fa894e9fefacfd9dc51",
+    "profileHash": "f716a30e1b653c4f0356284f9b65b6c3fcfe6c803a4e6d70842506c90c78dad6",
+    "slicerVersion": "BambuStudio 02.08.02.60",
+    "grams": 6.872101306915283,
+    "partGrams": null,
+    "filaments": [
+      {
+        "slot": 1,
+        "consumedGrams": 6.872101306915283,
+        "purgeGrams": null,
+        "towerGrams": null
+      }
+    ],
+    "colorChanges": 0,
+    "seconds": 1202.5474853515625,
+    "sizeMm": [
+      60.00284194946289,
+      35.57184982299805,
+      11.0997953414917
+    ],
+    "warnings": []
+  },
+  {
+    "profileId": "x2d-04-020-petg",
+    "sourceSha256": "6ca7fda1f8d6e8cee2445d882d31c2016c96727a2b980fa894e9fefacfd9dc51",
+    "profileHash": "2a3841eed38aa35c1220f2eac39e28252393efd05e1b8160369a8e934b2648e8",
+    "slicerVersion": "BambuStudio 02.08.02.60",
+    "grams": 6.767423629760742,
+    "partGrams": null,
+    "filaments": [
+      {
+        "slot": 1,
+        "consumedGrams": 6.767423629760742,
+        "purgeGrams": null,
+        "towerGrams": null
+      }
+    ],
+    "colorChanges": 0,
+    "seconds": 1322.2181396484375,
+    "sizeMm": [
+      60.00284194946289,
+      35.57184982299805,
+      11.0997953414917
+    ],
+    "warnings": []
+  }
+]

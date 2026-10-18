@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: `${site.name} | Custom 3D Printing`, template: `%s | ${site.name}` },
     description: site.description,
-    robots: { index: true, follow: true },
+    robots: { index: process.env.COMMERCE_SANDBOX_FIXTURE !== "true", follow: process.env.COMMERCE_SANDBOX_FIXTURE !== "true" },
     icons: { icon: "/favicon.png", apple: "/brand/mesh-harbor-3d-icon-v070.png" },
   };
 }
@@ -20,6 +20,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="en">
       <body>
+        {process.env.COMMERCE_SANDBOX_FIXTURE === "true" && (
+          <div role="status" style={{ padding: "12px 16px", background: "#fef3c7", color: "#78350f", textAlign: "center", fontWeight: 700 }}>
+            TEST ONLY SANDBOX — Fake products and prices. Use Stripe test payment details only. No real orders or shipping.
+          </div>
+        )}
         <Header />
         <main>{children}</main>
         <Footer />

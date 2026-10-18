@@ -20,6 +20,9 @@ export default async function FulfillmentPage() {
         <p className="lead">The approved quote identifies the fulfillment method for an order. Exact availability, fees, carrier services, and timing are confirmed before quote approval.</p>
         <div className="policy-version"><span>Effective {CUSTOMER_POLICY_EFFECTIVE_DATE}</span><span>Policy {CUSTOMER_POLICY_VERSION}</span></div>
 
+        <h2>Website catalog purchases</h2>
+        <p>Website catalog purchases are separate from custom quotes. Physical catalog items use the shipping destination and configured shipping charge shown at checkout, with full payment before fulfillment. Digital STL purchases ship no physical item; paid files are available through your orders page. Read the exact product description and file license before purchase.</p>
+
         <h2>Local pickup</h2>
         <p>Local pickup is appointment-based when scheduling is enabled. Before a pickup appointment is booked, the public site shows only the general pickup area: <strong>{site.pickup.publicArea || "Monroe, NC"}</strong>. The exact address and arrival instructions are shown privately in the customer profile after a pickup time is reserved.</p>
         <p>Orders should be marked Ready and the final balance should be paid before handoff. Customers can reschedule or cancel an appointment while the order remains eligible for pickup scheduling. Pickup availability is not a promise that production will finish earlier than the quoted or displayed ready estimate.</p>

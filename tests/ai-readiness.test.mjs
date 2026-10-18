@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+const {launchReadiness}=await import('../lib/ai-center/readiness.ts');
+const empty=launchReadiness({});
+assert.equal(empty.checks.find(c=>c.id==='ai-key').status,'action');
+assert.equal(empty.checks.find(c=>c.id==='worker').status,'off');
+const secret='never-return-this-api-secret';
+const configured=launchReadiness({AI_CENTER_OPENAI_API_KEY:secret,OWNER_PASSWORD:'long-owner-password',OWNER_SESSION_SECRET:'a'.repeat(40),NEXT_PUBLIC_SITE_URL:'https://meshharbor3d.com',STRIPE_SECRET_KEY:'sk_test_secret',COMMERCE_STRIPE_WEBHOOK_SECRET:'whsec_secret',RESEND_API_KEY:secret,AI_CENTER_WORKER_ENABLED:'true',RAILWAY_VOLUME_MOUNT_PATH:'/data'});
+assert.equal(configured.checks.find(c=>c.id==='ai-key').status,'ready');
+assert.equal(configured.checks.find(c=>c.id==='storage').status,'ready');
+assert.equal(configured.checks.find(c=>c.id==='payments').status,'ready');
+assert.ok(!JSON.stringify(configured).includes(secret));
+assert.equal(launchReadiness({NEXT_PUBLIC_SITE_URL:'http://meshharbor3d.com'}).checks.find(c=>c.id==='origin').status,'action');
+assert.equal(launchReadiness({STRIPE_SECRET_KEY:'sk_live_secret',COMMERCE_STRIPE_WEBHOOK_SECRET:'whsec_secret'}).checks.find(c=>c.id==='payments').status,'action');
+console.log('Launch readiness redacts keys and distinguishes configured, disabled and owner actions.');
