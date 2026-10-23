@@ -10,6 +10,10 @@ import { finalInvoiceForRequest } from "@/lib/final-invoice-store";
 import { finalInvoicePaid } from "@/lib/final-invoice-types";
 import { readQueue } from "@/lib/queue-store";
 import { evaluateFulfillmentRelease } from "@/lib/fulfillment-release";
+import { alertOwnerSoon } from "@/lib/owner-alerts";
+
+// Per-request purchase lock: two concurrent "buy label" calls must never buy two labels.
+const purchaseLocks = new Map<string, Promise<unknown>>();
 
 function maxIncreaseCents(customerRateCents: number) {
   const fixed = Number(process.env.EASYPOST_AUTO_BUY_MAX_INCREASE_CENTS || 200);
@@ -41,6 +45,19 @@ function trackerEvents(tracker: EasyPostTracker): ShipmentTrackingEvent[] {
 }
 
 export async function buyLabelForRequest(requestId: string, options: { force?: boolean } = {}) {
+  const inFlight = purchaseLocks.get(requestId);
+  if (inFlight) {
+    await inFlight.catch(() => undefined);
+    const existing = await shipmentForRequest(requestId);
+    if (existing?.trackingCode && existing.refundStatus !== "refunded") return { shipment: existing, purchased: false, requiresConfirmation: false };
+  }
+  const run = buyLabelForRequestUnlocked(requestId, options);
+  purchaseLocks.set(requestId, run);
+  try { return await run; }
+  finally { if (purchaseLocks.get(requestId) === run) purchaseLocks.delete(requestId); }
+}
+
+async function buyLabelForRequestUnlocked(requestId: string, options: { force?: boolean } = {}) {
   const request = await getStoredRequest(requestId);
   if (!request) throw new Error("Request not found.");
   const quote = await quoteForRequest(requestId);
@@ -94,6 +111,7 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
       reviewReason: "The customer-selected carrier/service is no longer available at the current package details.",
       proposedShipmentId: fresh.shipmentId,
     });
+    alertOwnerSoon({ text: `MH3D ${request.requestCode}: shipping label needs review - selected carrier service no longer available.` });
     return { shipment: record, purchased: false, requiresConfirmation: true };
   }
 
@@ -113,6 +131,7 @@ export async function buyLabelForRequest(requestId: string, options: { force?: b
       proposedRateId: matching.id,
       proposedRateCents: matching.rateCents,
     });
+    alertOwnerSoon({ text: `MH3D ${request.requestCode}: postage rose $${(difference / 100).toFixed(2)} over quoted rate. Review label in dashboard.` });
     return { shipment: record, purchased: false, requiresConfirmation: true };
   }
 

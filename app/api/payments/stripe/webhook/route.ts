@@ -7,6 +7,8 @@ import { writeAudit } from "@/lib/audit-log";
 import { setStripeCustomerId } from "@/lib/customer-store";
 import { updateFinalInvoiceFromStripe } from "@/lib/final-invoice-store";
 import type { FinalInvoiceStatus } from "@/lib/final-invoice-types";
+import { autoQueueEnabled, queueRequestAfterDeposit } from "@/lib/auto-queue";
+import { alertOwnerSoon } from "@/lib/owner-alerts";
 
 type StripeCheckoutSession = {
   id?: unknown;
@@ -120,6 +122,12 @@ export async function POST(request: NextRequest) {
           if (quote.status === "deposit-paid") {
             const updated = await updateStoredRequest(source.id, { status: "deposit-paid", ...(source.source==="owner"?{ownerTrackingStatus:"deposit-paid" as const}:{}) });
             if (updated) await notifyCustomer(updated, "Your deposit requirement is satisfied. Your request is ready for the owner to schedule into production.");
+            if (updated && autoQueueEnabled()) {
+              try { await queueRequestAfterDeposit(updated.id, "system"); }
+              catch (error) { console.error("Auto-queue after deposit failed", error); alertOwnerSoon({ text: `MH3D ${updated.requestCode}: deposit paid but auto-queue failed. Queue it from the dashboard.` }); }
+            } else if (updated) {
+              alertOwnerSoon({ text: `MH3D ${updated.requestCode}: deposit paid. Add to queue in dashboard.` });
+            }
           } else {
             await notifyCustomer(source, "Your Stripe payment was received and applied as deposit credit. Please review the latest quote revision in your profile.", { email: false });
           }
@@ -211,6 +219,7 @@ export async function POST(request: NextRequest) {
         const source = await getStoredRequest(finalInvoice.requestId);
         if (source && eventType === "invoice.paid") {
           await notifyCustomer(source, "Your final balance has been paid. Thank you — your order can now proceed to pickup, delivery, or shipping.");
+          alertOwnerSoon({ text: `MH3D ${source.requestCode}: final balance paid. Ready to ship/hand off.` });
           await writeAudit({
             actor: "system",
             actorId: "stripe",

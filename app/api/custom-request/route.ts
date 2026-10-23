@@ -6,6 +6,7 @@ import { customerFromRequest } from "@/lib/customer-auth";
 import { claimCustomerUploads, validateCustomerUploadClaims } from "@/lib/customer-upload-store";
 import { sameOrigin } from "@/lib/owner-api";
 import { notifyCustomer } from "@/lib/customer-notifications";
+import { alertOwner } from "@/lib/owner-alerts";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ const buckets = new Map<string, { count: number; resetAt: number }>();
 
 function clientIp(request: NextRequest) {
   return (
+    request.headers.get("cf-connecting-ip")?.trim() ||
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
     "unknown"
@@ -254,6 +256,10 @@ export async function POST(request: NextRequest) {
     // resubmit and accidentally create a duplicate just because notification failed.
     console.error("Custom request notification failed; request remains stored", error);
   }
+
+  await alertOwner({
+    text: `MH3D new request ${stored.requestCode} from ${parsed.data.name || parsed.data.email}${risk.review ? " (risk flags - review)" : ""}. Open dashboard to quote.`,
+  });
 
   try {
     await notifyCustomer(
